@@ -1,0 +1,42 @@
+python quickstart.py
+
+how a strategy class is structured
+how a BacktestEngine is configured
+how venue simulation is added
+how instruments and data are loaded
+how the engine is run
+how reports are generated after the backtest
+You should expect output in the shape of:
+
+account report
+positions report
+order fills report
+
+//---------------------------------------//
+
+(nautilus-env) andy9@nautilus:~/quickstart$ tree ./
+./
+├── GetData.py
+└── catalog
+    └── data
+        ├── currency_pair
+        │   └── EURUSD.SIM
+        │       └── 1970-01-01T00-00-00-000000000Z_1970-01-01T00-00-00-000000000Z.parquet
+        └── quote_tick
+            └── EURUSD.SIM
+                └── 2020-01-01T17-00-10-447000000Z_2020-01-31T16-59-56-198000000Z.parquet
+
+7 directories, 3 files
+
+//---------------------------------------//
+
+(nautilus-env) andy9@nautilus:~/quickstart$ python quickstart.py
+Backtest finished
+Instrument: EUR/USD.SIM
+Bars processed: 10000
+
+=== ACCOUNT REPORT ===
+                                total   locked        free currency account_id account_type base_currency                                                                                                                      margins  reported info
+2024-01-01 00:00:00+00:00  1000000.00     0.00  1000000.00      USD    SIM-001       MARGIN           USD                                                                                                                           []      True   {}
+2024-01-01 00:19:00+00:00   999997.80  3299.55   996698.25      USD    SIM-001       MARGIN           USD  [{'type': 'MarginBalance', 'initial': '0.00', 'maintenance': '3299.55', 'currency': 'USD', 'instrument_id': 'EUR/USD.SIM'}]     False   {}
+2024-01-01 00:21:00+00:00   999980.60     0.00   999980.60      USD    SIM-001       MARGIN           USD

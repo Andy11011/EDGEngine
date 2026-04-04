@@ -2,7 +2,8 @@
 
 ## Top Priority
 
-- [ ] Try out NautilusTrader
+- [X] ~~*Try out NautilusTrader*~~ [2026-04-04]
+- [ ] Try Live Stratagy
 
 ## New Features
 
