@@ -1,0 +1,166 @@
+Lean Repository Capabilities Assessment
+
+Date: 2026-04-04
+Source reviewed: C:\Users\andy9\Lean
+
+Summary
+
+Lean is an algorithmic trading engine and research/backtesting framework. It is strong on strategy execution, indicator support, brokerage and exchange integrations, research notebooks, backtests, optimization, and live trading. It is not, based on this repo, a full broker-style desktop terminal with a built-in rich charting workspace UI.
+
+Key Findings
+
+1. Core project type
+
+- Lean is an event-driven algorithmic trading platform.
+- It supports local development, local execution, CLI workflows, and research environments.
+- Main usage modes exposed by the repo are:
+	- research
+	- backtest
+	- optimize
+	- live trading
+
+2. Embedded terminal
+
+- No embedded trading terminal was found as a user-facing product feature in the repo.
+- The repo includes VS Code launch/debug integration using the integrated terminal, but that is a development/debugging mechanism, not a trading workstation UI.
+- There is a TerminalLink brokerage/order model concept in the codebase, but this does not amount to a bundled graphical terminal.
+
+Conclusion: Lean does not appear to ship a built-in desktop terminal in the sense of a charting/order-entry platform.
+
+3. Exchanges and brokerages
+
+- Lean supports multiple brokerages and exchange models.
+- Confirmed brokerage model coverage includes:
+	- Interactive Brokers
+	- Tradier
+	- Oanda
+	- FXCM
+	- Binance
+	- Binance US
+	- Binance Futures
+	- Binance Coin Futures
+	- Coinbase
+	- Bitfinex
+	- Kraken
+	- Bybit
+	- Alpaca
+	- TradeStation
+	- Charles Schwab
+	- Tastytrade
+	- Zerodha
+	- Samco
+	- Trading Technologies
+	- Exante
+	- others in the enum/configuration
+
+- The repo also contains broad exchange definitions for equities, options, futures, and international venues.
+
+Conclusion: Yes, Lean has strong multi-exchange / multi-brokerage support.
+
+4. Charts
+
+- Lean has an internal charting model and plotting API.
+- Algorithms can create charts, add series, plot scalar values, and plot candlesticks.
+- Charts are part of result generation for backtests and live runs.
+
+Important limitation:
+
+- The repo shows chart data structures and chart/result APIs, but not a standalone rich charting frontend comparable to TradingView or a broker terminal.
+
+Conclusion: Yes, Lean supports charts as engine outputs and result objects, but not as a full built-in charting application UI.
+
+5. Indicators
+
+- Lean has a very large built-in indicator library.
+- Confirmed support includes common indicators such as:
+	- SMA
+	- EMA
+	- RSI
+	- MACD
+	- ATR
+	- Bollinger Bands
+	- VWAP
+	- Ichimoku
+	- SuperTrend
+	- many others
+- Indicators can also be plotted directly through the algorithm plotting API.
+
+Conclusion: Yes, indicator support is a major built-in strength of Lean.
+
+6. Ability to add strategies
+
+- This is one of Lean's core capabilities.
+- Strategies can be written in C# and Python.
+- Lean supports both classic algorithm authoring and modular framework composition.
+- Framework components found in the repo include:
+	- universe selection
+	- alpha models
+	- portfolio construction
+	- execution models
+	- risk management models
+
+Conclusion: Yes, Lean is explicitly designed to let users add and compose strategies.
+
+7. Backtests
+
+- Backtesting is a first-class capability.
+- The CLI supports local backtests.
+- The API layer also exposes explicit backtest creation/read/report methods.
+
+Conclusion: Yes, Lean supports backtesting directly.
+
+8. Backtests shown in charts
+
+- Backtest objects can include chart data.
+- The API supports reading backtest charts and reports.
+- Lean can generate equity, benchmark, drawdown, and custom plotted chart series.
+
+Important limitation:
+
+- The repo shows that chart data exists and is retrievable, but it does not prove the existence of a built-in polished chart viewing terminal inside Lean itself.
+
+Conclusion: Yes, backtests can produce charts. The charting is present in the results layer, but not clearly as a bundled end-user terminal UI.
+
+9. Cloud dependency
+
+- Lean does not have a hard cloud dependency for core engine use.
+- The repo supports local build/run, local backtesting, and local research notebook workflows.
+- However, Lean also has explicit optional QuantConnect cloud integration.
+- Confirmed cloud-related capabilities include:
+	- Lean CLI workflow integration with QuantConnect cloud
+	- API access for backtests/live/report operations
+	- local-cloud hybrid development messaging in the README
+	- notebook API object that can interact with the cloud when configured
+
+Conclusion: No mandatory cloud dependency for the engine itself, but strong optional cloud integration exists.
+
+Practical Interpretation
+
+If the question is whether Lean is a strong trading engine/framework: yes.
+
+If the question is whether Lean is already a complete interactive terminal product with embedded charts, terminal panels, and broker-style UX: no clear evidence of that in this repo.
+
+Lean is best understood as:
+
+- an execution/research/backtesting engine
+- a strategy framework
+- a brokerage/exchange integration layer
+- a chart/result producer
+- an optionally cloud-connected quant workflow platform
+
+Not best understood as:
+
+- a ready-made desktop trading terminal
+- a full chart-first UI product
+- a self-contained visual broker workstation
+
+Bottom Line
+
+- Embedded terminal: No, not as a built-in terminal product UI.
+- Different exchanges/brokerages: Yes.
+- Charts: Yes, as plotting/results/chart objects.
+- Indicators: Yes, extensive built-in support.
+- Add strategies: Yes.
+- Backtests: Yes.
+- Backtests shown in charts: Yes, via result/chart APIs.
+- Cloud dependency: No hard dependency, but optional cloud integration is significant.
