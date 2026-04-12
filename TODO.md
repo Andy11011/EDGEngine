@@ -3,7 +3,9 @@
 ## Top Priority
 
 - [X] ~~*Try out NautilusTrader*~~ [2026-04-04]
-- [ ] Try Live Stratagy
+- [X] ~~*Try Live Stratagy*~~ [2026-04-12]
+- [X] ~~*Investigate how to do frontend*~~ [2026-04-12]
+- [ ] Pack into the container image
 
 ## New Features
 

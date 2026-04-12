@@ -40,3 +40,59 @@ Bars processed: 10000
 2024-01-01 00:00:00+00:00  1000000.00     0.00  1000000.00      USD    SIM-001       MARGIN           USD                                                                                                                           []      True   {}
 2024-01-01 00:19:00+00:00   999997.80  3299.55   996698.25      USD    SIM-001       MARGIN           USD  [{'type': 'MarginBalance', 'initial': '0.00', 'maintenance': '3299.55', 'currency': 'USD', 'instrument_id': 'EUR/USD.SIM'}]     False   {}
 2024-01-01 00:21:00+00:00   999980.60     0.00   999980.60      USD    SIM-001       MARGIN           USD
+
+//---------------------------------------//
+
+this should be a standalone live-node script that consumes live data, runs strategy logic, and emits webhook alerts instead of submitting orders.
+
+
+source ../nautilus-env/bin/activate
+
+
+(nautilus-env) andy9@nautilus:~/quickstart$ python live_webhook_strategy.py
+Traceback (most recent call last):
+  File "/home/andy9/quickstart/live_webhook_strategy.py", line 36, in <module>
+    from nautilus_trader.adapters.binance.common.enums import BinanceEnvironment
+ImportError: cannot import name 'BinanceEnvironment' from 'nautilus_trader.adapters.binance.common.enums' (/home/andy9/nautilus-env/lib/python3.11/site-packages/nautilus_trader/adapters/binance/common/enums.py)
+
+
+export EDGEDESK_BINANCE_ENV="LIVE"
+python live_webhook_strategy.py
+
+//---------------------------------------//
+
+(nautilus-env) andy9@nautilus:~/quickstart$ python live_webhook_strategy.py
+Traceback (most recent call last):
+  File "/home/andy9/quickstart/live_webhook_strategy.py", line 371, in <module>
+    example_usage()
+  File "/home/andy9/quickstart/live_webhook_strategy.py", line 347, in example_usage
+    raise RuntimeError("Set EDGEDESK_WEBHOOK_URL before running this module.")
+RuntimeError: Set EDGEDESK_WEBHOOK_URL before running this module.
+(nautilus-env) andy9@nautilus:~/quickstart$ export EDGEDESK_WEBHOOK_URL=http://ec2-13-214-1
+51-246.ap-southeast-1.compute.amazonaws.com:80/webhook
+
+//---------------------------------------//
+
+2026-04-12T05:01:35.378547239Z [ERROR] EDGEDESK-001.BinanceSpotInstrumentProvider: Cannot load instruments: API key authentication failed (this is needed to request the applicable account fee tier): {'code': 0, 'msg': "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error."}
+2026-04-12T05:01:35.378759187Z [WARN] EDGEDESK-001.BinanceSpotInstrumentProvider: No instruments were loaded, verify config if this is unexpected
+2026-04-12T05:01:35.378770255Z [INFO] EDGEDESK-001.BinanceSpotInstrumentProvider: Initialized instruments
+2026-04-12T05:01:35.379014586Z [INFO] EDGEDESK-001.DataClient-BINANCE: Connected
+2026-04-12T05:01:35.379099687Z [WARN] EDGEDESK-001.TradingNode: Reconciliation deactivated
+2026-04-12T05:01:35.379135128Z [INFO] EDGEDESK-001.OrderEmulator: No emulated orders to reactivate
+2026-04-12T05:01:35.379579125Z [INFO] EDGEDESK-001.OrderEmulator: RUNNING
+2026-04-12T05:01:35.381127621Z [INFO] EDGEDESK-001.Portfolio: Initialized 0 open orders
+2026-04-12T05:01:35.381166580Z [INFO] EDGEDESK-001.Portfolio: Initialized 0 open positions
+2026-04-12T05:01:35.381202152Z [INFO] EDGEDESK-001.TradingNode: Awaiting portfolio initialization (10.0s timeout)...
+2026-04-12T05:01:35.381372685Z [INFO] EDGEDESK-001.TradingNode: Portfolio initialized
+2026-04-12T05:01:35.381452416Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: self.config.oms_type=None
+2026-04-12T05:01:35.381457814Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: self.config.external_order_claims=None
+2026-04-12T05:01:35.381461059Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: self.config.manage_gtd_expiry=False
+2026-04-12T05:01:35.381490396Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Set ClientOrderIdGenerator client_order_id count to 0
+2026-04-12T05:01:35.381498473Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Set ClientOrderIdGenerator order_list_id count to 0
+2026-04-12T05:01:35.381562335Z [ERROR] EDGEDESK-001.WebhookEMACrossStrategy: Could not find instrument for BTCUSDT.BINANCE
+2026-04-12T05:01:35.381585737Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Webhook strategy stopped
+2026-04-12T05:01:35.383152691Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Canceling executor tasks
+2026-04-12T05:01:35.383327220Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: STOPPED
+2026-04-12T05:01:35.383626327Z [ERROR] EDGEDESK-001.WebhookEMACrossStrategy: InvalidStateTrigger('STOPPED -> START_COMPLETED') state STOPPED
+2026-04-12T05:01:35.383695396Z [INFO] EDGEDESK-001.EDGEDESK-001: RUNNING
+2026-04-12T05:01:35.383725031Z [INFO] EDGEDESK-001.TradingNode: RUNNING
