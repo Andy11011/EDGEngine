@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.venv/
+venv/
+.git/
+.devcontainer/
+.vscode/
+Arch/
+devnotes
+TODO.md
