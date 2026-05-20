@@ -28,12 +28,14 @@ powers TradingView embeds. It is pure JavaScript, under 50 KB gzipped, and rende
 professional OHLCV candlestick charts with marker overlays.
 
 **Stack:**
+
 - `FastAPI` or `Flask` as the webhook receiver and static file server
 - WebSocket or Server-Sent Events (SSE) to push signals from server to browser
 - `lightweight-charts` JS library in a single HTML file for the chart canvas
 - Binance public REST/WebSocket for live OHLCV bar data (no auth required)
 
 **Signal flow:**
+
 ```
 NautilusTrader           FastAPI shim           Browser
 live_webhook_strategy ──► POST /signal ──► SSE/WS ──► lightweight-charts marker
@@ -41,6 +43,7 @@ Binance public WS ────────────────────�
 ```
 
 **Pros:**
+
 - Lightweight Charts renders exactly like TradingView — professional quality
 - Zero licensing cost, Apache 2.0
 - No Java, no build toolchain — a single HTML file + 100-line Python server
@@ -48,10 +51,12 @@ Binance public WS ────────────────────�
 - Signal markers (`createSeriesMarker`) overlay directly on bars
 
 **Cons:**
+
 - No built-in replay/backtest view (can be added manually)
 - Binance bar fetch is a separate concern from the strategy
 
 **Minimal server — ~60 lines:**
+
 ```python
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
@@ -85,7 +90,7 @@ async def stream(request):
     return EventSourceResponse(gen())
 ```
 
-**Repo:** https://github.com/tradingview/lightweight-charts
+**Repo:** <https://github.com/tradingview/lightweight-charts>
 
 ---
 
@@ -100,20 +105,23 @@ which adds significant complexity with no benefit over a Python or Node.js shim.
 itself runs entirely in the browser.
 
 **Stack:**
+
 - Same FastAPI/Flask webhook shim as Option 1
 - ECharts 5.x in the browser for candlestick rendering
 
 **Pros:**
+
 - More chart types than Lightweight Charts (heatmaps, scatter plots, bar histograms)
 - Better for building multi-panel analytics dashboards
 - Large ecosystem and documentation
 
 **Cons:**
+
 - Heavier (~1 MB bundle) vs Lightweight Charts (~50 KB)
 - More configuration boilerplate for financial charts specifically
 - TradingView Lightweight Charts looks more "native" for candlestick trading UIs
 
-**Repo:** https://github.com/apache/echarts
+**Repo:** <https://github.com/apache/echarts>
 
 ---
 
@@ -124,16 +132,19 @@ The webhook shim writes signals into InfluxDB (or Prometheus). Grafana reads fro
 renders a time-series dashboard with annotations for signal events.
 
 **Stack:**
+
 - FastAPI webhook shim writing to InfluxDB Line Protocol
 - InfluxDB OSS v2 for storage
 - Grafana OSS with the `grafana-fin-charts-panel` or `candlestick` panel plugin
 
 **Pros:**
+
 - Zero custom frontend code
 - Production-grade alerting, history, and annotation support
 - Docker Compose makes the whole stack deployable in one file
 
 **Cons:**
+
 - No real-time candlestick chart that looks like a trading terminal
 - Grafana's financial chart plugins are limited compared to Lightweight Charts
 - Overhead of running InfluxDB + Grafana for what is essentially a signal viewer
@@ -150,20 +161,23 @@ Streamlit turns a Python script into a web app with zero HTML/JS. `plotly.graph_
 provides candlestick charts.
 
 **Stack:**
+
 - Streamlit app polls a SQLite or Redis-backed signal store
 - `plotly` for candlestick + scatter signal overlay
 
 **Pros:**
+
 - Pure Python — no JS, HTML, or backend server to write
 - `st.rerun()` with a short `time.sleep` gives near-real-time refresh
 - Signal table + chart in ~80 lines of Python
 
 **Cons:**
+
 - Page-reload model is not truly real-time (polling only)
 - Not suitable for a production terminal — more of a dev/monitoring tool
 - Plotly candlestick rendering is heavier than Lightweight Charts
 
-**Repo:** https://github.com/streamlit/streamlit
+**Repo:** <https://github.com/streamlit/streamlit>
 
 ---
 
@@ -172,27 +186,31 @@ provides candlestick charts.
 For a signal monitor that runs in the same SSH session as the strategy:
 
 ### 5a. Textual (Python TUI framework)
+
 - Full-featured TUI with widgets, tables, layout, and reactive updates
 - Can display a scrolling signal log, EMA values, and last-bar info in panels
 - Does not render candlestick charts natively, but can render sparklines
-- **Repo:** https://github.com/Textualize/textual
+- **Repo:** <https://github.com/Textualize/textual>
 
 ### 5b. Rich (Python terminal output)
+
 - Simpler than Textual; useful for colorized signal tables piped from the webhook
 - Not interactive
-- **Repo:** https://github.com/Textualize/rich
+- **Repo:** <https://github.com/Textualize/rich>
 
 ### 5c. plotext (Python terminal charts)
+
 - Renders ASCII/Unicode line charts and bar charts inside a terminal
 - Can plot EMA values and mark signal crossover points on a line chart
 - No candlestick support
-- **Repo:** https://github.com/piccolomo/plotext
+- **Repo:** <https://github.com/piccolomo/plotext>
 
 ### 5d. Grafterm (Go, terminal Grafana)
+
 - Terminal dashboard that queries time-series backends (Prometheus, Graphite)
 - Renders line charts in Unicode inside a terminal
 - Requires Prometheus or Graphite as the data source
-- **Repo:** https://github.com/slok/grafterm
+- **Repo:** <https://github.com/slok/grafterm>
 
 ---
 
@@ -205,7 +223,8 @@ experience. Think of them as "Nautilus but for the UI layer."
 
 ---
 
-### 6a. OpenBB Platform / OpenBB Terminal
+### 6a. OpenBB Platform / OpenBB Terminal (6k commits)
+
 **The most direct equivalent to Nautilus, but for the frontend.**
 
 OpenBB is a full open-source financial research terminal. It started as a CLI (OpenBB
@@ -218,16 +237,18 @@ core is MIT/AGPLv3 licensed.
 - REST API backend that can be pointed at custom data sources
 - Closest analogue to "what EdgeDesk wants to be" in the open-source world
 
-**Repo:** https://github.com/OpenBB-finance/OpenBB  
+**Repo:** <https://github.com/OpenBB-finance/OpenBB>  
 **Language:** Python backend, React/TypeScript frontend  
 **License:** AGPLv3 (core), MIT (OpenBB Platform)
 
 ---
 
-### 6b. Superalgos
+### 6b. Superalgos (23k commits)
+
 **Visual strategy designer + live chart terminal, all-in-one.**
 
 Superalgos is a Node.js application that runs a full visual trading platform:
+
 - Interactive chart timeline with indicator overlays and strategy execution nodes
 - Built-in backtesting and live execution visualization
 - Connects to Binance and other exchanges natively
@@ -237,13 +258,14 @@ Architecture is very different from Nautilus — everything is JSON-configurable
 nodes rather than Python code. Good reference for what a production trading chart
 terminal looks like end-to-end.
 
-**Repo:** https://github.com/Superalgos/Superalgos  
+**Repo:** <https://github.com/Superalgos/Superalgos>  
 **Language:** JavaScript (Node.js)  
 **License:** Apache 2.0
 
 ---
 
 ### 6c. FreqUI (Freqtrade's official web UI)
+
 **Complete live-trading dashboard with charts, signal history, and P&L.**
 
 FreqUI is the official web frontend for the Freqtrade crypto trading bot. It is a
@@ -260,16 +282,18 @@ the entire "chart + signal markers" backend/frontend pattern is already built.
 Forking and replacing Freqtrade's API calls with EdgeDesk's webhook/signal API is a
 bounded, well-defined task.
 
-**Repo:** https://github.com/freqtrade/frequi  
+**Repo:** <https://github.com/freqtrade/frequi>  
 **Language:** Vue 3 + TypeScript  
 **License:** GPL v3
 
 ---
 
 ### 6d. Jesse Dashboard
+
 **Clean web UI for the Jesse Python trading framework.**
 
 Jesse is a Python trading framework (similar scope to Nautilus). Its companion web UI:
+
 - Strategy list, live results, and import/run controls
 - Equity curve and trade-level charts (Plotly-based)
 - Backtesting results viewer
@@ -277,17 +301,19 @@ Jesse is a Python trading framework (similar scope to Nautilus). Its companion w
 Lighter than OpenBB or Superalgos. Good reference implementation for the pattern of
 "Python trading engine + decoupled React/Vue dashboard."
 
-**Repo:** https://github.com/jesse-ai/jesse-ui  
+**Repo:** <https://github.com/jesse-ai/jesse-ui>  
 **Language:** Vue 2 + JavaScript  
 **License:** MIT
 
 ---
 
 ### 6e. KLineChart
+
 **The most full-featured open-source candlestick chart component.**
 
 If TradingView Lightweight Charts is "the standard" candlestick library, KLineChart is
 the feature-complete alternative:
+
 - Full indicator suite (MACD, RSI, Bollinger, EMA, etc.) built-in per pane
 - Custom overlay drawing tools (trend lines, Fibonacci, etc.)
 - Cross-hair, zoom, pan, TypeScript, 0 external dependencies
@@ -295,22 +321,24 @@ the feature-complete alternative:
 
 Strongest drop-in if Lightweight Charts' API proves limiting.
 
-**Repo:** https://github.com/liihuu/KLineChart  
+**Repo:** <https://github.com/liihuu/KLineChart>  
 **Language:** TypeScript  
 **License:** Apache 2.0
 
 ---
 
 ### 6f. react-financial-charts
+
 **React component library with full D3-powered financial chart primitives.**
 
 A fork of the original `react-stockcharts`:
+
 - Candlestick, OHLC, area, renko, point-and-figure series
 - Indicator overlays (EMA, Bollinger, VWAP, etc.)
 - Annotation layers — ideal for signal event markers
 - Each chart element is a React component, making layout fully composable
 
-**Repo:** https://github.com/reactivemarkets/react-financial-charts  
+**Repo:** <https://github.com/reactivemarkets/react-financial-charts>  
 **Language:** React + TypeScript  
 **License:** MIT
 
@@ -329,7 +357,7 @@ A fork of the original `react-stockcharts`:
 
 **For EdgeDesk:** FreqUI is the most immediately reusable — it already implements exactly
 the pattern needed (Python trading engine → REST → Vue frontend with Lightweight Charts
-+ signal markers). Forking it and replacing Freqtrade API calls with EdgeDesk's
+- signal markers). Forking it and replacing Freqtrade API calls with EdgeDesk's
 webhook/signal API is a well-defined, bounded task.
 
 ---
@@ -368,6 +396,7 @@ is no technical advantage over FastAPI + Lightweight Charts for this use case.
 ## Note on Java
 
 Java is a viable backend language but adds no benefit here over Python, since:
+
 - The strategy itself is Python
 - The shim is trivially small (webhook receiver + SSE broadcaster)
 - ECharts and Lightweight Charts both run in the browser regardless of backend language

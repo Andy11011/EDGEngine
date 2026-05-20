@@ -96,3 +96,81 @@ RuntimeError: Set EDGEDESK_WEBHOOK_URL before running this module.
 2026-04-12T05:01:35.383626327Z [ERROR] EDGEDESK-001.WebhookEMACrossStrategy: InvalidStateTrigger('STOPPED -> START_COMPLETED') state STOPPED
 2026-04-12T05:01:35.383695396Z [INFO] EDGEDESK-001.EDGEDESK-001: RUNNING
 2026-04-12T05:01:35.383725031Z [INFO] EDGEDESK-001.TradingNode: RUNNING
+
+//---------------------------------------//
+
+andy9@nautilus:~$ docker pull ghcr.io/andy11011/edgedesk:3baa20e57512150fd95b9d89d85a3a3788ce2dd6
+Error response from daemon: Head "https://ghcr.io/v2/andy11011/edgedesk/manifests/3baa20e57512150fd95b9d89d85a3a3788ce2dd6": unauthorized
+
+docker login ghcr.io
+
+andy9@nautilus:~$ docker login ghcr.io
+Username: 
+Password:
+WARNING! Your password will be stored unencrypted in /home/andy9/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+andy9@nautilus:~$ docker pull ghcr.io/andy11011/edgedesk:3baa20e57512150fd95b9d89d85a3a3788ce2dd6
+Error response from daemon: denied
+andy9@nautilus:~$
+
+//---------------------------------------//
+
+docker run -it ghcr.io/andy11011/edgedesk:3baa20e57512150fd95b9d89d85a3a3788ce2dd6
+
+
+andy9@nautilus:~$ docker run -it ghcr.io/andy11011/edgedesk:3baa20e57512150fd95b9d89d85a3a3788ce2dd6
+Traceback (most recent call last):
+  File "/app/live_webhook_strategy.py", line 393, in <module>
+    example_usage()
+  File "/app/live_webhook_strategy.py", line 363, in example_usage
+    raise RuntimeError("Set EDGEDESK_WEBHOOK_URL before running this module.")
+RuntimeError: Set EDGEDESK_WEBHOOK_URL before running this module.
+
+
+
+export EDGEDESK_WEBHOOK_URL=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+docker run -it -e EDGEDESK_WEBHOOK_URL="$EDGEDESK_WEBHOOK_URL" \
+  ghcr.io/andy11011/edgedesk:3baa20e57512150fd95b9d89d85a3a3788ce2dd6
+
+//---------------------------------------//
+
+What pro.openbb.co is:
+
+It is OpenBB Workspace, a hosted web application (cloud sign-in UI).
+Think of it as the frontend/workspace layer for dashboards, apps, and AI workflows.
+
+
+Cloud UI: pro.openbb.co is hosted by OpenBB.
+Data/backend can be your own:
+You can run OpenBB backend locally or on your own server/VPC/on-prem.
+Then connect that backend to Workspace.
+
+Workspace (pro.openbb.co) = interface.
+OpenBB backend (ODP/API) = where data integrations and processing run.
+You choose where backend runs: local machine, private cloud, or on-prem.
+
+The full pro.openbb.co Workspace experience is not exposed as a simple public OSS deploy in that same repo; self-hosting that usually means talking to OpenBB for enterprise deployment.
+
+//---------------------------------------//
+
+Based on what OpenBB publicly exposes:
+
+The core platform/backend tooling is open source.
+The full Workspace web app at pro.openbb.co is positioned as an enterprise product.
+There is no obvious public repo that says “here is the complete pro.openbb.co frontend source + self-host instructions.”
+
+//---------------------------------------//
+
+What you can generally do:
+
+Create your own indicators and custom analytics in Python using the open OpenBB stack.
+Build your own dashboards/UI outside OpenBB (Streamlit, React, Plotly Dash, etc.) and connect to OpenBB backend/API.
+Integrate your own data sources and workflows.
+About OpenBB Workspace features (dashboards, buttons, app-like UI in pro.openbb.co):
+
+You can usually customize within what your Workspace plan allows.
+Enterprise-level customization and deployment options exist, but those are not typically unlimited/free.
