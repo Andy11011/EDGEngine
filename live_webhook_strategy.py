@@ -358,9 +358,8 @@ def create_binance_webhook_strategy(
 
 
 def example_usage() -> None:
-    webhook_url = os.getenv("EDGEDESK_WEBHOOK_URL")
-    if not webhook_url:
-        raise RuntimeError("Set EDGEDESK_WEBHOOK_URL before running this module.")
+    # Hardcoded webhook URL – replace with your actual endpoint
+    webhook_url = "http://localhost:9999"   # or "http://edgedesk:8443/webhook"
 
     symbol = os.getenv("EDGEDESK_BINANCE_SYMBOL", "BTCUSDT")
     environment_name = os.getenv("EDGEDESK_BINANCE_ENV", "LIVE").upper()
