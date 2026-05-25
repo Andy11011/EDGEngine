@@ -11,7 +11,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: edgedesk
+  IMAGE_NAME: edgengine
 
 jobs:
   docker_img_x86_64:
