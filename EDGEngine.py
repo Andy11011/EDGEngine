@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import sys
+import json
+import redis
 from decimal import Decimal
 from typing import List, Optional
 
@@ -243,6 +245,11 @@ class DonchianRegimeStrategy(Strategy):
 
     def on_start(self) -> None:
         self.subscribe_bars(self.config.bar_type)
+        self.redis_client = redis.Redis(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
+            decode_responses=True,
+        )
         self.log.info(
             f"Donchian Regime Strategy started for {self.config.instrument_id} | "
             f"Donchian={self.config.donchian_period}, MA({self.config.ma_type})={self.config.ma_period}, "
@@ -277,6 +284,21 @@ class DonchianRegimeStrategy(Strategy):
                 f"Upper={self.donchian.upper:.2f}, Lower={self.donchian.lower:.2f}, "
                 f"MA={self.donchian.donchian_ma:.2f}, Close={bar.close:.2f}",
                 color=LogColor.CYAN,
+            )
+            # Send values to Redis stream for external monitoring
+            payload = {
+                "symbol": str(self.config.instrument_id),
+                "regime": "BULLISH" if regime else "BEARISH",
+                "upper": self.donchian.upper,
+                "lower": self.donchian.lower,
+                "ma": self.donchian.donchian_ma,
+                "close": float(bar.close),
+                "timestamp": bar.ts_event,
+            }
+            self.redis_client.xadd(
+                f"regime:{self.config.instrument_id.symbol}",
+                {"data": json.dumps(payload)},
+                maxlen=1000,
             )
         else:
             # Optionally log periodic updates (every 10 bars) to keep heartbeat

@@ -2,3 +2,4 @@ nautilus_trader
 numpy
 pandas
 boto3
+redis
