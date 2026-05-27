@@ -13,8 +13,5 @@ RUN apt-get update \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY live_webhook_strategy.py quickstart.py ./
-
-# Main app is the live webhook strategy. quickstart.py is also present
-# and can be run with: docker run --rm <image> python quickstart.py
-CMD ["python", "live_webhook_strategy.py"]
+COPY EDGEngine.py ./
+CMD ["python", "EDGEngine.py"]
