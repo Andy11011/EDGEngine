@@ -200,3 +200,39 @@ time="2026-05-25T16:22:57Z" level=info msg="Only checking containers which name 
 time="2026-05-25T16:22:57Z" level=info msg="Running a one time update."
 time="2026-05-25T16:22:58Z" level=info msg="Session done" Failed=0 Scanned=1 Updated=0 notify=no
 time="2026-05-25T16:22:58Z" level=info msg="Waiting for the notification goroutine to finish" notify=no
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+2026-05-27T07:04:20.760782473Z [INFO] EDGEDESK-001.DataClient-BINANCE: Connecting...
+2026-05-27T07:04:20.761524979Z [WARN] EDGEDESK-001.ExecEngine: No clients to connect
+2026-05-27T07:04:20.761584702Z [INFO] EDGEDESK-001.TradingNode: Awaiting engine connections and initializations (30.0s timeout)...
+2026-05-27T07:04:20.783927361Z [INFO] EDGEDESK-001.ExecEngine: Starting continuous reconciliation with intervals: inflight=2000ms, consistency=Nones, position=Nones
+2026-05-27T07:04:20.783994846Z [INFO] EDGEDESK-001.ExecEngine: Startup reconciliation disabled, proceeding with continuous checks
+2026-05-27T07:04:20.785787446Z [INFO] EDGEDESK-001.BinanceSpotInstrumentProvider: Initializing instruments...
+2026-05-27T07:04:20.785868022Z [INFO] EDGEDESK-001.BinanceSpotInstrumentProvider: Loading instruments: BTCUSDT.BINANCE...
+2026-05-27T07:04:21.114291667Z [WARN] EDGEDESK-001.BinanceSpotInstrumentProvider: No instruments were loaded, verify config if this is unexpected
+2026-05-27T07:04:21.114317298Z [INFO] EDGEDESK-001.BinanceSpotInstrumentProvider: Initialized instruments
+2026-05-27T07:04:21.115064531Z [INFO] EDGEDESK-001.DataClient-BINANCE: Connected
+2026-05-27T07:04:21.114206760Z [ERROR] EDGEDESK-001.BinanceSpotInstrumentProvider: Cannot load instruments: API key authentication failed (this is needed to request the applicable account fee tier): {'code': -2008, 'msg': 'Invalid Api-Key ID.'}
+2026-05-27T07:04:21.115192374Z [WARN] EDGEDESK-001.TradingNode: Reconciliation deactivated
+2026-05-27T07:04:21.115538244Z [INFO] EDGEDESK-001.OrderEmulator: No emulated orders to reactivate
+2026-05-27T07:04:21.115755892Z [INFO] EDGEDESK-001.OrderEmulator: RUNNING
+2026-05-27T07:04:21.117802136Z [INFO] EDGEDESK-001.Portfolio: Initialized 0 open orders
+2026-05-27T07:04:21.117849328Z [INFO] EDGEDESK-001.Portfolio: Initialized 0 open positions
+2026-05-27T07:04:21.117887107Z [INFO] EDGEDESK-001.TradingNode: Awaiting portfolio initialization (10.0s timeout)...
+2026-05-27T07:04:21.118764946Z [INFO] EDGEDESK-001.TradingNode: Portfolio initialized
+2026-05-27T07:04:21.119505332Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: self.config.oms_type=None
+2026-05-27T07:04:21.119540439Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: self.config.external_order_claims=None
+2026-05-27T07:04:21.119558902Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: self.config.manage_gtd_expiry=False
+2026-05-27T07:04:21.122571057Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Set ClientOrderIdGenerator client_order_id count to 0
+2026-05-27T07:04:21.122614461Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Set ClientOrderIdGenerator order_list_id count to 0
+2026-05-27T07:04:21.123320291Z [ERROR] EDGEDESK-001.WebhookEMACrossStrategy: Could not find instrument for BTCUSDT.BINANCE
+2026-05-27T07:04:21.124162987Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Webhook strategy stopped
+2026-05-27T07:04:21.134797729Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: Canceling executor tasks
+2026-05-27T07:04:21.135013007Z [INFO] EDGEDESK-001.WebhookEMACrossStrategy: STOPPED
+2026-05-27T07:04:21.135749403Z [ERROR] EDGEDESK-001.WebhookEMACrossStrategy: InvalidStateTrigger('STOPPED -> START_COMPLETED') state STOPPED
+2026-05-27T07:04:21.136270675Z [INFO] EDGEDESK-001.EDGEDESK-001: RUNNING
+2026-05-27T07:04:21.136343750Z [INFO] EDGEDESK-001.TradingNode: RUNNING

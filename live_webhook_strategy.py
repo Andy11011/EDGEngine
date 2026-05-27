@@ -1,65 +1,77 @@
 """Signal-only live strategy starter for NautilusTrader.
 
-This module is designed for a live node which consumes real-time market data but
-does not submit orders through Nautilus. Instead, trading signals are posted to
-an outbound webhook endpoint so a downstream service can decide what to do with
-them.
-
-The venue adapter is intentionally left open. To run this file, supply concrete
-`data_clients` in `build_signal_only_node(...)` and register the matching client
-factories before calling `run_signal_only_node(...)`.
+This module consumes real-time market data and posts trading signals to a webhook.
+Binance API credentials are loaded from AWS Secrets Manager (two secrets:
+binance-api-key and binance-api-secret, or binance-sandbox-* when sandbox mode is enabled).
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from decimal import Decimal
-from queue import Empty
-from queue import Full
-from queue import Queue
-from threading import Event
-from threading import Thread
-from typing import Any
-from typing import Callable
-from typing import Mapping
-from urllib.error import HTTPError
-from urllib.error import URLError
-from urllib.request import Request
-from urllib.request import urlopen
+from queue import Empty, Full, Queue
+from threading import Event, Thread
+from typing import Any, Callable, Mapping
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
-from nautilus_trader.adapters.binance import BINANCE
-from nautilus_trader.adapters.binance import BinanceAccountType
-from nautilus_trader.adapters.binance import BinanceDataClientConfig
-from nautilus_trader.adapters.binance import BinanceLiveDataClientFactory
+from nautilus_trader.adapters.binance import BINANCE, BinanceAccountType, BinanceDataClientConfig, BinanceLiveDataClientFactory
 from nautilus_trader.common.enums import LogColor
-from nautilus_trader.config import InstrumentProviderConfig
-from nautilus_trader.config import LiveDataEngineConfig
-from nautilus_trader.config import LiveExecEngineConfig
-from nautilus_trader.config import LoggingConfig
-from nautilus_trader.config import StrategyConfig
-from nautilus_trader.config import TradingNodeConfig
+from nautilus_trader.config import InstrumentProviderConfig, LiveDataEngineConfig, LiveExecEngineConfig, LoggingConfig, StrategyConfig, TradingNodeConfig
 from nautilus_trader.indicators import ExponentialMovingAverage
 from nautilus_trader.live.node import TradingNode
-from nautilus_trader.model.data import Bar
-from nautilus_trader.model.data import BarType
+from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
 
-# Older Nautilus installs require a non-empty api_key even for public data.
-# Bar/exchange-info endpoints are unauthenticated; this placeholder is never
-# sent to Binance but satisfies the credential-check path in those installs.
-_PUBLIC_DATA_KEY_PLACEHOLDER = "PUBLIC_DATA_ONLY"
-
+# -----------------------------------------------------------------------------
+# AWS Secrets Manager credential loader
+# -----------------------------------------------------------------------------
 try:
-    from nautilus_trader.adapters.binance.common.enums import BinanceEnvironment
+    import boto3
+    from botocore.exceptions import BotoCoreError, ClientError
 except ImportError:
-    try:
-        from nautilus_trader.adapters.binance import BinanceEnvironment
-    except ImportError:
-        BinanceEnvironment = None
+    print("❌ boto3 not installed. Run: pip install boto3", file=sys.stderr)
+    sys.exit(1)
 
+
+def load_credentials_from_aws(
+    region: str = "ap-southeast-1",
+    sandbox: bool = False,
+) -> tuple[str, str]:
+    """Load Binance API key and secret from AWS Secrets Manager."""
+    key_secret_name = "binance-sandbox-api-key" if sandbox else "binance-api-key"
+    secret_secret_name = "binance-sandbox-api-secret" if sandbox else "binance-api-secret"
+
+    if sandbox:
+        print("🏖️ Using sandbox credentials from AWS...", file=sys.stderr)
+
+    session = boto3.session.Session()
+    client = session.client("secretsmanager", region_name=region)
+
+    def get_secret(name: str) -> str:
+        try:
+            response = client.get_secret_value(SecretId=name)
+            if "SecretString" not in response:
+                raise ValueError(f"Secret {name} has no string value")
+            return response["SecretString"]
+        except (BotoCoreError, ClientError) as e:
+            raise RuntimeError(f"Failed to fetch AWS secret {name}: {e}")
+
+    api_key = get_secret(key_secret_name)
+    api_secret = get_secret(secret_secret_name)
+
+    if not api_key or not api_secret:
+        raise RuntimeError("AWS secrets returned empty values")
+    return api_key, api_secret
+
+
+# -----------------------------------------------------------------------------
+# Webhook dispatcher and strategy (unchanged except for credential integration)
+# -----------------------------------------------------------------------------
 
 @dataclass
 class WebhookDispatcher:
@@ -75,11 +87,7 @@ class WebhookDispatcher:
     def __post_init__(self) -> None:
         self._queue = Queue(maxsize=self.max_queue_size)
         self._stop_event = Event()
-        self._thread = Thread(
-            target=self._run,
-            name="nautilus-webhook-dispatcher",
-            daemon=True,
-        )
+        self._thread = Thread(target=self._run, name="nautilus-webhook-dispatcher", daemon=True)
 
     def start(self) -> None:
         if self._started:
@@ -156,10 +164,7 @@ class WebhookEMACrossStrategy(Strategy):
     def on_start(self) -> None:
         self.instrument = self.cache.instrument(self.config.instrument_id)
         if self.instrument is None:
-            self.log.error(
-                f"Could not find instrument for {self.config.instrument_id}",
-                color=LogColor.RED,
-            )
+            self.log.error(f"Could not find instrument for {self.config.instrument_id}", color=LogColor.RED)
             self.stop()
             return
 
@@ -167,10 +172,7 @@ class WebhookEMACrossStrategy(Strategy):
         self.register_indicator_for_bars(self.config.bar_type, self.fast_ema)
         self.register_indicator_for_bars(self.config.bar_type, self.slow_ema)
         self.subscribe_bars(self.config.bar_type)
-        self.log.info(
-            f"Subscribed to {self.config.bar_type} for webhook-only execution",
-            color=LogColor.YELLOW,
-        )
+        self.log.info(f"Subscribed to {self.config.bar_type} for webhook-only execution", color=LogColor.YELLOW)
 
     def on_bar(self, bar: Bar) -> None:
         if not self.indicators_initialized():
@@ -199,10 +201,8 @@ class WebhookEMACrossStrategy(Strategy):
         }
 
         if self._dispatcher.enqueue(payload):
-            self.log.info(
-                f"Emitted {side} webhook for {self.config.instrument_id}",
-                color=LogColor.GREEN if side == "BUY" else LogColor.BLUE,
-            )
+            self.log.info(f"Emitted {side} webhook for {self.config.instrument_id}",
+                          color=LogColor.GREEN if side == "BUY" else LogColor.BLUE)
             self._last_bias_is_long = bias_is_long
         else:
             self.log.warning("Dropped webhook signal because the dispatch queue is full")
@@ -212,8 +212,19 @@ class WebhookEMACrossStrategy(Strategy):
         self.log.info("Webhook strategy stopped", color=LogColor.YELLOW)
 
 
+# -----------------------------------------------------------------------------
+# Node construction helpers
+# -----------------------------------------------------------------------------
+
 def _resolve_binance_config_kwargs(environment_name: str) -> dict[str, object]:
     normalized = environment_name.upper()
+    try:
+        from nautilus_trader.adapters.binance.common.enums import BinanceEnvironment
+    except ImportError:
+        try:
+            from nautilus_trader.adapters.binance import BinanceEnvironment
+        except ImportError:
+            BinanceEnvironment = None
 
     if BinanceEnvironment is not None:
         if normalized == "LIVE" and hasattr(BinanceEnvironment, "LIVE"):
@@ -229,11 +240,7 @@ def _resolve_binance_config_kwargs(environment_name: str) -> dict[str, object]:
         return {"testnet": False}
     if normalized == "TESTNET":
         return {"testnet": True}
-
-    raise ValueError(
-        "Unsupported Binance environment for this Nautilus version: "
-        f"{environment_name}. Use LIVE/MAINNET or TESTNET.",
-    )
+    raise ValueError(f"Unsupported Binance environment: {environment_name}. Use LIVE/MAINNET or TESTNET.")
 
 
 def build_signal_only_node(
@@ -270,7 +277,6 @@ def run_signal_only_node(
     node.trader.add_strategy(strategy)
     register_data_client_factories(node)
     node.build()
-
     try:
         node.run()
     except KeyboardInterrupt:
@@ -288,8 +294,8 @@ def build_binance_signal_only_node(
     instrument_id: InstrumentId,
     environment: str = "LIVE",
     account_type: BinanceAccountType = BinanceAccountType.SPOT,
-    api_key: str | None = None,
-    api_secret: str | None = None,
+    api_key: str,
+    api_secret: str,
     log_level: str = "INFO",
 ) -> TradingNode:
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
@@ -298,8 +304,8 @@ def build_binance_signal_only_node(
         log_level=log_level,
         data_clients={
             BINANCE: BinanceDataClientConfig(
-                api_key=api_key or _PUBLIC_DATA_KEY_PLACEHOLDER,
-                api_secret=api_secret or _PUBLIC_DATA_KEY_PLACEHOLDER,
+                api_key=api_key,
+                api_secret=api_secret,
                 account_type=account_type,
                 instrument_provider=InstrumentProviderConfig(
                     load_ids=frozenset([instrument_id]),
@@ -318,11 +324,11 @@ def create_binance_webhook_strategy(
     *,
     symbol: str,
     webhook_url: str,
+    api_key: str,
+    api_secret: str,
     trader_id: str = "EDGENGINE-001",
     environment: str = "LIVE",
     account_type: BinanceAccountType = BinanceAccountType.SPOT,
-    api_key: str | None = None,
-    api_secret: str | None = None,
     bar_interval: str = "1-MINUTE",
     fast_ema_period: int = 10,
     slow_ema_period: int = 20,
@@ -357,36 +363,67 @@ def create_binance_webhook_strategy(
     return node, strategy
 
 
-def example_usage() -> None:
-    # Hardcoded webhook URL – replace with your actual endpoint
-    webhook_url = "http://localhost:9999"   # or "http://edgengine:8443/webhook"
+# -----------------------------------------------------------------------------
+# Main entry point – loads credentials from AWS and runs the strategy
+# -----------------------------------------------------------------------------
+
+def main():
+    # All configuration via environment variables
+    webhook_url = os.getenv("WEBHOOK_URL")
+    if not webhook_url:
+        print("❌ WEBHOOK_URL environment variable is required", file=sys.stderr)
+        sys.exit(1)
 
     symbol = os.getenv("BINANCE_SYMBOL", "BTCUSDT")
-    environment_name = os.getenv("BINANCE_ENV", "LIVE").upper()
+    trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
+    environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     account_type_name = os.getenv("BINANCE_ACCOUNT_TYPE", "SPOT").upper()
+    bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "1-MINUTE")
+    fast_ema = int(os.getenv("FAST_EMA", "10"))
+    slow_ema = int(os.getenv("SLOW_EMA", "20"))
+    signal_size = os.getenv("SIGNAL_SIZE", "1")
+    webhook_bearer_token = os.getenv("WEBHOOK_BEARER_TOKEN")
+    emit_initial_signal = os.getenv("EMIT_INITIAL_SIGNAL", "0") == "1"
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
+    aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
 
-    # Real API keys improve rate limits but are not required for public data.
-    binance_api_key = os.getenv("BINANCE_API_KEY") or None
-    binance_api_secret = os.getenv("BINANCE_API_SECRET") or None
+    # Load credentials from AWS Secrets Manager
+    try:
+        api_key, api_secret = load_credentials_from_aws(region=aws_region, sandbox=sandbox)
+        print("✅ Credentials loaded from AWS Secrets Manager", file=sys.stderr)
+    except Exception as e:
+        print(f"❌ Failed to load credentials from AWS: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Map account type string to BinanceAccountType enum
+    account_type_map = {
+        "SPOT": BinanceAccountType.SPOT,
+        "FUTURE": BinanceAccountType.FUTURE,
+        "MARGIN": BinanceAccountType.MARGIN,
+        "FUNDING": BinanceAccountType.FUNDING,
+    }
+    account_type = account_type_map.get(account_type_name, BinanceAccountType.SPOT)
 
     node, strategy = create_binance_webhook_strategy(
         symbol=symbol,
         webhook_url=webhook_url,
-        trader_id=os.getenv("TRADER_ID", "EDGENGINE-001"),
-        environment=environment_name,
-        account_type=BinanceAccountType[account_type_name],
-        api_key=binance_api_key,
-        api_secret=binance_api_secret,
-        bar_interval=os.getenv("BINANCE_BAR_INTERVAL", "1-MINUTE"),
-        fast_ema_period=int(os.getenv("FAST_EMA", "10")),
-        slow_ema_period=int(os.getenv("SLOW_EMA", "20")),
-        signal_size=os.getenv("SIGNAL_SIZE", "1"),
-        webhook_bearer_token=os.getenv("WEBHOOK_BEARER_TOKEN"),
-        emit_initial_signal=os.getenv("EMIT_INITIAL_SIGNAL", "0") == "1",
-        log_level=os.getenv("LOG_LEVEL", "INFO"),
+        api_key=api_key,
+        api_secret=api_secret,
+        trader_id=trader_id,
+        environment=environment,
+        account_type=account_type,
+        bar_interval=bar_interval,
+        fast_ema_period=fast_ema,
+        slow_ema_period=slow_ema,
+        signal_size=signal_size,
+        webhook_bearer_token=webhook_bearer_token,
+        emit_initial_signal=emit_initial_signal,
+        log_level=log_level,
     )
+
     run_signal_only_node(node, strategy, register_binance_data_client_factory)
 
 
 if __name__ == "__main__":
-    example_usage()
+    main()

@@ -8,6 +8,7 @@
 - [X] ~~*Deploy on AWS*~~ [2026-05-25]
 - [ ] Bug: Fix rolling updates
 - [ ] Authenticate on Binance using AWS
+- [ ] Remove webhooks
 - [ ] Implement Donchian
 - [ ] Implement Filter
 - [ ] Implement Yellow list
