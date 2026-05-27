@@ -323,3 +323,59 @@ sudo docker run -d \
 ✅ Weekly bars subscribed: BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL
 ✅ Donchian Regime Strategy started with parameters: Donchian=20, MA(EMA)=50, use_close=True
 ✅ WebSocket connected to Binance stream
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+⚙️ Option 1: Direct HTTP or gRPC API from the Strategy
+This approach involves launching a separate server (e.g., using aiohttp or FastAPI) directly within the Nautilus strategy's on_start() method.
+How it Works: In your DonchianRegimeStrategy, you would start a lightweight web server thread and create an endpoint (e.g., /api/regime) that returns the current regime value when called.
+Implementation: On on_start(), you would initialize the web server in a daemon thread, ensuring it doesn't block Nautilus's core event loop.
+Pros: It's a lightweight and simple way to get a RESTful endpoint up and running quickly.
+Cons: This is a less common pattern and could potentially introduce blocking operations or concurrency issues to the main trading thread if not carefully managed. You would also need to handle all aspects of the server's lifecycle manually.
+
+🔀 Option 2: Redis Streams Using Nautilus's Message Bus
+This is a robust, fully integrated pattern that leverages Nautilus's internal architecture for external messaging, often considered the most "production-ready" method.
+How it Works: The core Nautilus engine (the MessageBus) can be configured to stream specific messages to an external Redis database. You can then have a separate, lightweight API or WebSocket service running outside of 
+Nautilus that subscribes to the Redis stream and pushes updates to your frontend.
+
+Implementation:
+
+Configure the MessageBus: In your build_data_only_node function, you would add a MessageBusConfig that defines the Redis connection and specifies which topics to stream externally.
+Publish from Strategy: You would publish regime change events to an internal Nautilus topic (e.g., regime.changes) from within your strategy, using the self.publish_signal() method.
+Consume Externally: An external service would then read from the configured Redis stream and serve the data to your dashboard.
+
+Pros: This is the cleanest architectural pattern. The Nautilus engine handles the heavy lifting of persistence and cross-process communication, ensuring your dashboard data is reliable and doesn't impact the trading engine's performance.
+ It also provides an event log for system monitoring and state recovery.
+Cons: It introduces a new dependency on Redis and requires you to build a small external "bridge" service between Redis and your dashboard.
+
+
+🧠 Option 3: Nautilus-Specific Message Bus (Actor-Based)
+If you want to avoid any external dependencies like Redis, you can use Nautilus's internal publish/subscribe system.
+
+How it Works: The Nautilus framework itself has a powerful message bus. You can create a dedicated "Actor" to handle external communication, subscribing to regime change messages published by your strategy and then forwarding them via a custom WebSocket or gRPC server.
+
+Implementation:
+
+Create a Custom Actor: Write a new Python class that inherits from nautilus_trader.core.Actor.
+Register the Actor: Add it to your trading node.
+Subscribe/Publish: Use the actor's publish_signal and subscribe methods to exchange messages with your strategy.
+Add WebSocket Server: Start a WebSocket server directly inside the actor's on_start() method (similar to Option 1) and use it to push regime updates to your dashboard.
+Pros: This pattern keeps everything inside Nautilus's event-driven model, which is cleaner than starting a server inside the strategy. It leverages the framework's built-in actor system for message passing.
+
+Cons: This is a more advanced Nautilus use case. You would still need to build and manage the WebSocket server component.
+
+
+✨ Recommendation: The Redis Streams Path
+For a balance of robustness, performance, and ease of implementation, the Redis Streams approach (Option 2) is likely the best fit for your EDGEngine.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+EDGEngine container (your existing Nautilus bot) – publishes regime changes to Redis.
+Redis container – acts as the message broker / stream store.
+Bridge service container – subscribes to Redis, receives regime updates, and pushes them to EdgeDesk frontend via WebSocket (or HTTP/SSE).
+EdgeDesk frontend – connects to the bridge service over WebSocket to receive live updates.

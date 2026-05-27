@@ -9,7 +9,11 @@
 - [X] ~~*Authenticate on Binance using AWS*~~ [2026-05-27]
 - [X] ~~*Remove webhooks*~~ [2026-05-27]
 - [X] ~~*Implement Donchian*~~ [2026-05-27]
-- [ ] Integrate the API to get the regime
+- [X] ~~*Think how to integrate the API to get the regime*~~ [2026-05-27]
+- [ ] Add Reddis
+- [ ] Integrate Nautilus with Redis
+- [ ] Write the EdgeBridge service
+- [ ] Intergrate EdgeBridge with the EdgeDesk
 - [ ] Think how to implement filter over all tickers
 - [ ] Implement Donchian using Rust Core
 - [ ] Implement Filter
