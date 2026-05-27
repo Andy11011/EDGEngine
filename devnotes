@@ -236,3 +236,44 @@ time="2026-05-25T16:22:58Z" level=info msg="Waiting for the notification gorouti
 2026-05-27T07:04:21.135749403Z [ERROR] EDGEDESK-001.WebhookEMACrossStrategy: InvalidStateTrigger('STOPPED -> START_COMPLETED') state STOPPED
 2026-05-27T07:04:21.136270675Z [INFO] EDGEDESK-001.EDGEDESK-001: RUNNING
 2026-05-27T07:04:21.136343750Z [INFO] EDGEDESK-001.TradingNode: RUNNING
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+No, the Donchian Channel logic you see in EDGEngine.py is my own custom Python implementation.
+ However, you're absolutely right to ask: NautilusTrader does have its own ultra-fast, 
+ production-grade Donchian Channel indicator implemented directly in its Rust core.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+[ec2-user@ip-172-31-47-82 ~]$ docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /root/.docker/config.json:/config.json \
+  containrrr/watchtower \
+  --run-once edgengine
+time="2026-05-27T07:59:41Z" level=info msg="Watchtower 1.7.1"
+time="2026-05-27T07:59:41Z" level=info msg="Using no notifications"
+time="2026-05-27T07:59:41Z" level=info msg="Only checking containers which name matches \"edgengine\""
+time="2026-05-27T07:59:41Z" level=info msg="Running a one time update."
+time="2026-05-27T08:00:18Z" level=info msg="Found new ghcr.io/andy11011/edgengine:latest image (62fe5d4b63ac)"
+time="2026-05-27T08:00:18Z" level=info msg="Stopping /edgengine (94b967e5f5b8) with SIGTERM"
+time="2026-05-27T08:00:19Z" level=info msg="Creating /edgengine"
+time="2026-05-27T08:00:20Z" level=info msg="Session done" Failed=0 Scanned=1 Updated=1 notify=no
+time="2026-05-27T08:00:20Z" level=info msg="Waiting for the notification goroutine to finish" notify=no
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+[ec2-user@ip-172-31-47-82 ~]$ sudo docker logs edgengine
+❌ boto3 not installed. Run: pip install boto3
+❌ boto3 not installed. Run: pip install boto3
+❌ boto3 not installed. Run: pip install boto3
+❌ boto3 not installed. Run: pip install boto3
+❌ boto3 not installed. Run: pip install boto3
+❌ boto3 not installed. Run: pip install boto3
+❌ boto3 not installed. Run: pip install boto3

@@ -10,6 +10,7 @@
 - [ ] Authenticate on Binance using AWS
 - [ ] Remove webhooks
 - [ ] Implement Donchian
+- [ ] Implement Donchian using Rust Core
 - [ ] Implement Filter
 - [ ] Implement Yellow list
 
