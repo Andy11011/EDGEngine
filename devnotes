@@ -174,3 +174,29 @@ About OpenBB Workspace features (dashboards, buttons, app-like UI in pro.openbb.
 
 You can usually customize within what your Workspace plan allows.
 Enterprise-level customization and deployment options exist, but those are not typically unlimited/free.
+
+
+//---------------------------------------//
+[ec2-user@ip-172-31-41-206 ~]$ docker exec watchtower /watchtower --run-once edgengine
+time="2026-05-25T16:21:26Z" level=info msg="Watchtower 1.7.1"
+time="2026-05-25T16:21:26Z" level=info msg="Using notifications: smtp"
+time="2026-05-25T16:21:26Z" level=info msg="Only checking containers which name matches \"edgengine\""
+time="2026-05-25T16:21:26Z" level=info msg="Running a one time update."
+time="2026-05-25T16:21:26Z" level=warning msg="Could not do a head request for \"ghcr.io/andy11011/edgengine:latest\", falling back to regular pull." container=/edgengine image="ghcr.io/andy11011/edgengine:latest"
+time="2026-05-25T16:21:26Z" level=warning msg="Reason: registry responded to head request with \"403 Forbidden\", auth: \"not present\"" container=/edgengine image="ghcr.io/andy11011/edgengine:latest"
+time="2026-05-25T16:21:27Z" level=info msg="Unable to update container \"/edgengine\": Error response from daemon: Head \"https://ghcr.io/v2/andy11011/edgengine/manifests/latest\": denied: denied. Proceeding to next."
+time="2026-05-25T16:21:27Z" level=info msg="Session done" Failed=0 Scanned=1 Updated=0 notify=no
+time="2026-05-25T16:21:27Z" level=info msg="Waiting for the notification goroutine to finish" notify=no
+
+
+[ec2-user@ip-172-31-41-206 ~]$ docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /root/.docker/config.json:/config.json \
+  containrrr/watchtower \
+  --run-once edgengine
+time="2026-05-25T16:22:57Z" level=info msg="Watchtower 1.7.1"
+time="2026-05-25T16:22:57Z" level=info msg="Using no notifications"
+time="2026-05-25T16:22:57Z" level=info msg="Only checking containers which name matches \"edgengine\""
+time="2026-05-25T16:22:57Z" level=info msg="Running a one time update."
+time="2026-05-25T16:22:58Z" level=info msg="Session done" Failed=0 Scanned=1 Updated=0 notify=no
+time="2026-05-25T16:22:58Z" level=info msg="Waiting for the notification goroutine to finish" notify=no

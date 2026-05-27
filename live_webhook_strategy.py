@@ -318,7 +318,7 @@ def create_binance_webhook_strategy(
     *,
     symbol: str,
     webhook_url: str,
-    trader_id: str = "EDGEDESK-001",
+    trader_id: str = "EDGENGINE-001",
     environment: str = "LIVE",
     account_type: BinanceAccountType = BinanceAccountType.SPOT,
     api_key: str | None = None,
@@ -359,11 +359,11 @@ def create_binance_webhook_strategy(
 
 def example_usage() -> None:
     # Hardcoded webhook URL – replace with your actual endpoint
-    webhook_url = "http://localhost:9999"   # or "http://edgedesk:8443/webhook"
+    webhook_url = "http://localhost:9999"   # or "http://edgengine:8443/webhook"
 
-    symbol = os.getenv("EDGEDESK_BINANCE_SYMBOL", "BTCUSDT")
-    environment_name = os.getenv("EDGEDESK_BINANCE_ENV", "LIVE").upper()
-    account_type_name = os.getenv("EDGEDESK_BINANCE_ACCOUNT_TYPE", "SPOT").upper()
+    symbol = os.getenv("BINANCE_SYMBOL", "BTCUSDT")
+    environment_name = os.getenv("BINANCE_ENV", "LIVE").upper()
+    account_type_name = os.getenv("BINANCE_ACCOUNT_TYPE", "SPOT").upper()
 
     # Real API keys improve rate limits but are not required for public data.
     binance_api_key = os.getenv("BINANCE_API_KEY") or None
@@ -372,18 +372,18 @@ def example_usage() -> None:
     node, strategy = create_binance_webhook_strategy(
         symbol=symbol,
         webhook_url=webhook_url,
-        trader_id=os.getenv("EDGEDESK_TRADER_ID", "EDGEDESK-001"),
+        trader_id=os.getenv("TRADER_ID", "EDGENGINE-001"),
         environment=environment_name,
         account_type=BinanceAccountType[account_type_name],
         api_key=binance_api_key,
         api_secret=binance_api_secret,
-        bar_interval=os.getenv("EDGEDESK_BINANCE_BAR_INTERVAL", "1-MINUTE"),
-        fast_ema_period=int(os.getenv("EDGEDESK_FAST_EMA", "10")),
-        slow_ema_period=int(os.getenv("EDGEDESK_SLOW_EMA", "20")),
-        signal_size=os.getenv("EDGEDESK_SIGNAL_SIZE", "1"),
-        webhook_bearer_token=os.getenv("EDGEDESK_WEBHOOK_BEARER_TOKEN"),
-        emit_initial_signal=os.getenv("EDGEDESK_EMIT_INITIAL_SIGNAL", "0") == "1",
-        log_level=os.getenv("EDGEDESK_LOG_LEVEL", "INFO"),
+        bar_interval=os.getenv("BINANCE_BAR_INTERVAL", "1-MINUTE"),
+        fast_ema_period=int(os.getenv("FAST_EMA", "10")),
+        slow_ema_period=int(os.getenv("SLOW_EMA", "20")),
+        signal_size=os.getenv("SIGNAL_SIZE", "1"),
+        webhook_bearer_token=os.getenv("WEBHOOK_BEARER_TOKEN"),
+        emit_initial_signal=os.getenv("EMIT_INITIAL_SIGNAL", "0") == "1",
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
     run_signal_only_node(node, strategy, register_binance_data_client_factory)
 
