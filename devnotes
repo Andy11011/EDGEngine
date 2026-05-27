@@ -291,3 +291,35 @@ Traceback (most recent call last):
     "FUTURE": BinanceAccountType.FUTURE,
               ^^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: type object 'BinanceAccountType' has no attribute 'FUTURE'
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+sudo docker stop edgengine
+sudo docker rm edgengine
+sudo docker run -d \
+  --name edgengine \
+  --restart unless-stopped \
+  -e BINANCE_ENV=LIVE \
+  -e BINANCE_SANDBOX=0 \
+  -e BINANCE_SYMBOL=BTCUSDT \
+  -e BINANCE_BAR_INTERVAL=1-WEEK \
+  -e DONCHIAN_PERIOD=20 \
+  -e MA_PERIOD=50 \
+  -e MA_TYPE=EMA \
+  -e USE_CLOSE=1 \
+  -e LOG_LEVEL=INFO \
+  -e AWS_REGION=ap-southeast-1 \
+  ghcr.io/andy11011/edgengine:latest
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+✅ AWS credentials loaded
+✅ Binance spot data client connected
+✅ Instrument BTCUSDT.BINANCE loaded
+✅ Weekly bars subscribed: BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL
+✅ Donchian Regime Strategy started with parameters: Donchian=20, MA(EMA)=50, use_close=True
+✅ WebSocket connected to Binance stream

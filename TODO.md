@@ -6,13 +6,15 @@
 - [X] ~~*Try Live Stratagy*~~ [2026-04-12]
 - [X] ~~*Investigate how to do frontend*~~ [2026-04-12]
 - [X] ~~*Deploy on AWS*~~ [2026-05-25]
-- [ ] Bug: Fix rolling updates
-- [ ] Authenticate on Binance using AWS
-- [ ] Remove webhooks
-- [ ] Implement Donchian
+- [X] ~~*Authenticate on Binance using AWS*~~ [2026-05-27]
+- [X] ~~*Remove webhooks*~~ [2026-05-27]
+- [X] ~~*Implement Donchian*~~ [2026-05-27]
+- [ ] Integrate the API to get the regime
+- [ ] Think how to implement filter over all tickers
 - [ ] Implement Donchian using Rust Core
 - [ ] Implement Filter
 - [ ] Implement Yellow list
+- [ ] Bug: Fix rolling updates
 
 ## New Features
 
