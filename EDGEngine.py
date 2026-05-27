@@ -383,7 +383,7 @@ def main():
     trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     account_type_name = os.getenv("BINANCE_ACCOUNT_TYPE", "SPOT").upper()
-    bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "1-MINUTE")
+    bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "1-WEEK")
     donchian_period = int(os.getenv("DONCHIAN_PERIOD", "20"))
     ma_period = int(os.getenv("MA_PERIOD", "50"))
     ma_type = os.getenv("MA_TYPE", "EMA").upper()
