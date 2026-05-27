@@ -379,3 +379,17 @@ EDGEngine container (your existing Nautilus bot) – publishes regime changes to
 Redis container – acts as the message broker / stream store.
 Bridge service container – subscribes to Redis, receives regime updates, and pushes them to EdgeDesk frontend via WebSocket (or HTTP/SSE).
 EdgeDesk frontend – connects to the bridge service over WebSocket to receive live updates.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+[ec2-user@ip-172-31-46-64 ~]$
+[ec2-user@ip-172-31-46-64 ~]$ sudo docker exec redis redis-cli PING
+PONG
+[ec2-user@ip-172-31-46-64 ~]$
+[ec2-user@ip-172-31-46-64 ~]$
+[ec2-user@ip-172-31-46-64 ~]$ sudo docker exec redis redis-cli KEYS '*'
+
+[ec2-user@ip-172-31-46-64 ~]$ sudo docker exec redis redis-cli XINFO STREAMS
+ERR unknown subcommand 'STREAMS'. Try XINFO HELP.

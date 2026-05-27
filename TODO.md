@@ -10,11 +10,11 @@
 - [X] ~~*Remove webhooks*~~ [2026-05-27]
 - [X] ~~*Implement Donchian*~~ [2026-05-27]
 - [X] ~~*Think how to integrate the API to get the regime*~~ [2026-05-27]
-- [ ] Add Reddis
+- [X] ~~*Add Reddis*~~ [2026-05-27]
 - [ ] Integrate Nautilus with Redis
 - [ ] Think how to implement filter over all tickers
 - [ ] Implement Donchian using Rust Core
-- [ ] Write the EdgeBridge service
+- [ ] Write the EdgeBridge service (maybe be integrate it to the Java backend)
 - [ ] Intergrate EdgeBridge with the EdgeDesk
 - [ ] Implement Filter
 - [ ] Implement Yellow list
