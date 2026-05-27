@@ -400,14 +400,8 @@ def main():
         print(f"❌ Failed to load credentials from AWS: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Map account type string to BinanceAccountType enum
-    account_type_map = {
-        "SPOT": BinanceAccountType.SPOT,
-        "FUTURE": BinanceAccountType.FUTURE,
-        "MARGIN": BinanceAccountType.MARGIN,
-        "FUNDING": BinanceAccountType.FUNDING,
-    }
-    account_type = account_type_map.get(account_type_name, BinanceAccountType.SPOT)
+    # Force spot account type (no futures)
+    account_type = BinanceAccountType.SPOT
 
     instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")
     bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST-EXTERNAL")

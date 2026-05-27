@@ -277,3 +277,17 @@ time="2026-05-27T08:00:20Z" level=info msg="Waiting for the notification gorouti
 ❌ boto3 not installed. Run: pip install boto3
 ❌ boto3 not installed. Run: pip install boto3
 ❌ boto3 not installed. Run: pip install boto3
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+[ec2-user@ip-172-31-47-82 ~]$ sudo docker logs edgengine
+✅ Credentials loaded from AWS Secrets Manager
+Traceback (most recent call last):
+  File "/app/EDGEngine.py", line 448, in <module>
+    main()
+  File "/app/EDGEngine.py", line 406, in main
+    "FUTURE": BinanceAccountType.FUTURE,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'BinanceAccountType' has no attribute 'FUTURE'
