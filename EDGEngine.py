@@ -243,6 +243,7 @@ class DonchianRegimeStrategy(Strategy):
             use_close=config.use_close,
         )
         self._last_regime: Optional[bool] = None
+        self._warming_up: bool = True  # True until historical data is fully processed
 
     def on_start(self) -> None:
         # ── Redis connection ──────────────────────────────────────────────────
@@ -318,15 +319,11 @@ class DonchianRegimeStrategy(Strategy):
         except Exception as e:
             self.log.error(f"Redis write failed: {e}")
 
-    def on_data(self, data) -> None:
-        """Receive historical bars requested during on_start warmup.
-
-        NautilusTrader calls this once per bar. We accumulate them and after
-        each call check whether the indicator is ready to write the initial regime.
-        The Donchian state is cumulative so we only write to Redis once —
-        on the first call where signal becomes non-None.
-        """
+    def on_historical_data(self, data) -> None:
+        """Called by NautilusTrader for each bar returned by request_bars()."""
+        # data is a single Bar instance delivered one at a time
         if not isinstance(data, Bar):
+            self.log.warning(f"on_historical_data: unexpected type {type(data).__name__}, skipping")
             return
 
         self.donchian.update(
@@ -334,63 +331,57 @@ class DonchianRegimeStrategy(Strategy):
             low=float(data.low),
             close=float(data.close),
         )
-        self._warmup_count = getattr(self, "_warmup_count", 0) + 1
 
-        # Only act the first time the signal becomes ready
+        # First time signal becomes valid — write startup regime and mark warmup done
         if self.donchian.signal is not None and self._last_regime is None:
             self._last_regime = self.donchian.signal
+            self._warming_up = False
             self.log.info(
-                f"Warmup complete after {self._warmup_count} bars | "
-                f"upper={self.donchian.upper:.2f} lower={self.donchian.lower:.2f} "
-                f"ma={self.donchian.donchian_ma:.2f}",
-                color=LogColor.BLUE,
-            )
-            self.log.info(
-                f"Initial regime at startup: {'BULLISH' if self.donchian.signal else 'BEARISH'}",
+                f"Warmup complete | Initial regime: {'BULLISH' if self.donchian.signal else 'BEARISH'} | "
+                f"Upper={self.donchian.upper:.2f} Lower={self.donchian.lower:.2f} "
+                f"MA={self.donchian.donchian_ma:.2f} Close={data.close:.2f}",
                 color=LogColor.YELLOW,
             )
             self._write_regime_to_redis(data, self.donchian.signal)
 
     def on_bar(self, bar: Bar) -> None:
-        # Update indicator with the new bar
+        # Skip bars that arrive while historical data is still being processed
+        if self._warming_up:
+            return
+
         self.donchian.update(high=float(bar.high), low=float(bar.low), close=float(bar.close))
 
         if self.donchian.signal is None:
-            return  # Not enough data yet
+            return
 
         regime = self.donchian.signal
+
+        # First live bar after warmup — only write if regime differs or warmup never fired
         if self._last_regime is None:
             self._last_regime = regime
+            self._warming_up = False
             self.log.info(
-                f"Initial Donchian regime: {'BULLISH' if regime else 'BEARISH'}",
+                f"Initial regime (from live bar): {'BULLISH' if regime else 'BEARISH'} | "
+                f"Upper={self.donchian.upper:.2f} Lower={self.donchian.lower:.2f} "
+                f"MA={self.donchian.donchian_ma:.2f} Close={bar.close:.2f}",
                 color=LogColor.YELLOW,
             )
-            # Write initial regime to Redis
             self._write_regime_to_redis(bar, regime)
             return
 
+        # Regime change on a live bar
         if regime != self._last_regime:
             self._last_regime = regime
             self.log.warning(
                 f"🚨 REGIME CHANGE: {'BULLISH' if regime else 'BEARISH'} 🚨",
-                color=LogColor.RED if not regime else LogColor.GREEN,
+                color=LogColor.GREEN if regime else LogColor.RED,
             )
-            # Also log current indicator values
             self.log.info(
-                f"Upper={self.donchian.upper:.2f}, Lower={self.donchian.lower:.2f}, "
-                f"MA={self.donchian.donchian_ma:.2f}, Close={bar.close:.2f}",
+                f"Upper={self.donchian.upper:.2f} Lower={self.donchian.lower:.2f} "
+                f"MA={self.donchian.donchian_ma:.2f} Close={bar.close:.2f}",
                 color=LogColor.CYAN,
             )
-            # Send values to Redis stream for external monitoring
             self._write_regime_to_redis(bar, regime)
-        else:
-            # Optionally log periodic updates (every 10 bars) to keep heartbeat
-            if bar.index % 10 == 0:
-                self.log.debug(
-                    f"Regime: {'BULLISH' if regime else 'BEARISH'} | "
-                    f"Upper={self.donchian.upper:.2f}, Lower={self.donchian.lower:.2f}, "
-                    f"MA={self.donchian.donchian_ma:.2f}, Close={bar.close:.2f}"
-                )
 
     def on_stop(self) -> None:
         self.log.info("Donchian Regime Strategy stopped", color=LogColor.YELLOW)
