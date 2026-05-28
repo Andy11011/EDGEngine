@@ -18,6 +18,7 @@ docker rm edgengine
 docker run -d \
   --name edgengine \
   --restart unless-stopped \
+  --network edge-network \
   -e BINANCE_ENV=LIVE \
   -e BINANCE_SANDBOX=0 \
   -e BINANCE_SYMBOL=BTCUSDT \
@@ -31,5 +32,3 @@ docker run -d \
 # 4. Check logs
 docker logs edgengine -f
 ```
-
-> **Note:** This assumes a Redis container named `redis` is already running on the same Docker network (e.g., `edge-network`). If not, add `--network edge-network` to the `docker run` command.

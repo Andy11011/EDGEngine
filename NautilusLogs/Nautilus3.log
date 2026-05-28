@@ -1,0 +1,177 @@
+[ec2-user@ip-172-31-46-64 ~]$ docker logs edgengine -f
+✅ Credentials loaded from AWS Secrets Manager
+2026-05-28T02:32:14.626765788Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.626780805Z [INFO] EDGENGINE-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-05-28T02:32:14.626781692Z [INFO] EDGENGINE-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-05-28T02:32:14.626782264Z [INFO] EDGENGINE-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-05-28T02:32:14.626782680Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.626783255Z [INFO] EDGENGINE-001.TradingNode:
+2026-05-28T02:32:14.626783749Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-05-28T02:32:14.626785298Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-05-28T02:32:14.626785892Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-05-28T02:32:14.626786404Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-05-28T02:32:14.626786961Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-05-28T02:32:14.626787482Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-05-28T02:32:14.626787978Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-05-28T02:32:14.626788487Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-05-28T02:32:14.626789193Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-05-28T02:32:14.626789584Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-05-28T02:32:14.626790675Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-05-28T02:32:14.626791388Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-05-28T02:32:14.626791931Z [INFO] EDGENGINE-001.TradingNode:
+2026-05-28T02:32:14.626792253Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.626792827Z [INFO] EDGENGINE-001.TradingNode:  SYSTEM SPECIFICATION
+2026-05-28T02:32:14.626793344Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.626794688Z [INFO] EDGENGINE-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz
+2026-05-28T02:32:14.626796480Z [INFO] EDGENGINE-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-05-28T02:32:14.627717550Z [INFO] EDGENGINE-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-05-28T02:32:14.628747123Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.628749629Z [INFO] EDGENGINE-001.TradingNode:  MEMORY USAGE
+2026-05-28T02:32:14.628750167Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.628753943Z [INFO] EDGENGINE-001.TradingNode: RAM-Total: 0.88 GiB
+2026-05-28T02:32:14.628755914Z [INFO] EDGENGINE-001.TradingNode: RAM-Used: 0.81 GiB (92.20%)
+2026-05-28T02:32:14.628757660Z [INFO] EDGENGINE-001.TradingNode: RAM-Avail: 0.07 GiB (7.80%)
+2026-05-28T02:32:14.628759103Z [INFO] EDGENGINE-001.TradingNode: Swap: disabled
+2026-05-28T02:32:14.629613800Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.629622698Z [INFO] EDGENGINE-001.TradingNode:  IDENTIFIERS
+2026-05-28T02:32:14.629623382Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.629625385Z [INFO] EDGENGINE-001.TradingNode: trader_id: EDGENGINE-001
+2026-05-28T02:32:14.630530594Z [INFO] EDGENGINE-001.TradingNode: machine_id: b3f43b974a66
+2026-05-28T02:32:14.630541777Z [INFO] EDGENGINE-001.TradingNode: instance_id: 07cdecaf-0188-4d65-8f91-d3133fe7190f
+2026-05-28T02:32:14.630543007Z [INFO] EDGENGINE-001.TradingNode: PID: 1
+2026-05-28T02:32:14.630543680Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.630544203Z [INFO] EDGENGINE-001.TradingNode:  VERSIONING
+2026-05-28T02:32:14.630544813Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.630570862Z [INFO] EDGENGINE-001.TradingNode: nautilus_trader: 1.227.0
+2026-05-28T02:32:14.631524418Z [INFO] EDGENGINE-001.TradingNode: python: 3.12.13
+2026-05-28T02:32:14.631540076Z [INFO] EDGENGINE-001.TradingNode: numpy: 2.4.6
+2026-05-28T02:32:14.631545212Z [INFO] EDGENGINE-001.TradingNode: pandas: 2.3.3
+2026-05-28T02:32:14.631550460Z [INFO] EDGENGINE-001.TradingNode: msgspec: 0.21.1
+2026-05-28T02:32:14.631555019Z [INFO] EDGENGINE-001.TradingNode: pyarrow: 24.0.0
+2026-05-28T02:32:14.631559714Z [INFO] EDGENGINE-001.TradingNode: pytz: 2026.2
+2026-05-28T02:32:14.631564203Z [INFO] EDGENGINE-001.TradingNode: uvloop: 0.22.1
+2026-05-28T02:32:14.631565280Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:32:14.637986877Z [INFO] EDGENGINE-001.TradingNode: Building system kernel
+2026-05-28T02:32:14.641458843Z [INFO] EDGENGINE-001.MessageBus: config.database=None
+2026-05-28T02:32:14.641476703Z [INFO] EDGENGINE-001.MessageBus: config.encoding='msgpack'
+2026-05-28T02:32:14.641480634Z [INFO] EDGENGINE-001.MessageBus: config.timestamps_as_iso8601=False
+2026-05-28T02:32:14.641484040Z [INFO] EDGENGINE-001.MessageBus: config.buffer_interval_ms=None
+2026-05-28T02:32:14.641486496Z [INFO] EDGENGINE-001.MessageBus: config.autotrim_mins=None
+2026-05-28T02:32:14.641489250Z [INFO] EDGENGINE-001.MessageBus: config.use_trader_prefix=True
+2026-05-28T02:32:14.641493289Z [INFO] EDGENGINE-001.MessageBus: config.use_trader_id=True
+2026-05-28T02:32:14.641495216Z [INFO] EDGENGINE-001.MessageBus: config.use_instance_id=False
+2026-05-28T02:32:14.641497339Z [INFO] EDGENGINE-001.MessageBus: config.streams_prefix='stream'
+2026-05-28T02:32:14.641499584Z [INFO] EDGENGINE-001.MessageBus: config.types_filter=None
+2026-05-28T02:32:14.644400387Z [INFO] EDGENGINE-001.Cache: READY
+2026-05-28T02:32:14.659441613Z [INFO] EDGENGINE-001.DataEngine: READY
+2026-05-28T02:32:14.663242158Z [INFO] EDGENGINE-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-05-28T02:32:14.663462337Z [INFO] EDGENGINE-001.RiskEngine: READY
+2026-05-28T02:32:14.672621561Z [INFO] EDGENGINE-001.RiskEngine: TradingState is ACTIVE
+2026-05-28T02:32:14.677397831Z [INFO] EDGENGINE-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-05-28T02:32:14.678377098Z [INFO] EDGENGINE-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-05-28T02:32:14.678559803Z [INFO] EDGENGINE-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-05-28T02:32:14.678600036Z [INFO] EDGENGINE-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-05-28T02:32:14.678717801Z [INFO] EDGENGINE-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-05-28T02:32:14.678855824Z [INFO] EDGENGINE-001.ExecEngine: READY
+2026-05-28T02:32:14.678984889Z [INFO] EDGENGINE-001.ExecEngine: config.snapshot_orders=False
+2026-05-28T02:32:14.678993836Z [INFO] EDGENGINE-001.ExecEngine: config.snapshot_positions=False
+2026-05-28T02:32:14.678996739Z [INFO] EDGENGINE-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-05-28T02:32:14.678999249Z [INFO] EDGENGINE-001.ExecEngine: config.allow_overfills=False
+2026-05-28T02:32:14.679119373Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation=False
+2026-05-28T02:32:14.679123596Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-05-28T02:32:14.679126532Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-05-28T02:32:14.679129679Z [INFO] EDGENGINE-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-05-28T02:32:14.679132392Z [INFO] EDGENGINE-001.ExecEngine: config.filter_position_reports=False
+2026-05-28T02:32:14.679134820Z [INFO] EDGENGINE-001.ExecEngine: config.filtered_client_order_ids=None
+2026-05-28T02:32:14.679137743Z [INFO] EDGENGINE-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-05-28T02:32:14.679140455Z [INFO] EDGENGINE-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-05-28T02:32:14.679143279Z [INFO] EDGENGINE-001.ExecEngine: config.inflight_check_retries=5
+2026-05-28T02:32:14.679145708Z [INFO] EDGENGINE-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-05-28T02:32:14.679148713Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_interval_secs=None
+2026-05-28T02:32:14.679151840Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_open_only=True
+2026-05-28T02:32:14.679154600Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_lookback_mins=60
+2026-05-28T02:32:14.679157275Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-05-28T02:32:14.679159666Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_missing_retries=5
+2026-05-28T02:32:14.679162464Z [INFO] EDGENGINE-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-05-28T02:32:14.679166914Z [INFO] EDGENGINE-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-05-28T02:32:14.679170047Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_interval_secs=None
+2026-05-28T02:32:14.679172783Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_lookback_mins=60
+2026-05-28T02:32:14.679175804Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-05-28T02:32:14.679178292Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_retries=3
+2026-05-28T02:32:14.680366363Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-05-28T02:32:14.680383042Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-05-28T02:32:14.680386319Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-05-28T02:32:14.680390358Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-05-28T02:32:14.680393242Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-05-28T02:32:14.680396116Z [INFO] EDGENGINE-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-05-28T02:32:14.680398507Z [INFO] EDGENGINE-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-05-28T02:32:14.680401337Z [INFO] EDGENGINE-001.ExecEngine: config.purge_from_database=False
+2026-05-28T02:32:14.680404104Z [INFO] EDGENGINE-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-05-28T02:32:14.684341343Z [INFO] EDGENGINE-001.Cache: Cached 0 general objects from database
+2026-05-28T02:32:14.684364595Z [INFO] EDGENGINE-001.Cache: Cached 0 currencies from database
+2026-05-28T02:32:14.684373730Z [INFO] EDGENGINE-001.Cache: Cached 0 instruments from database
+2026-05-28T02:32:14.684380988Z [INFO] EDGENGINE-001.Cache: Cached 0 accounts from database
+2026-05-28T02:32:14.684388014Z [INFO] EDGENGINE-001.Cache: Cached 0 orders from database
+2026-05-28T02:32:14.684419715Z [INFO] EDGENGINE-001.Cache: Cached 0 order lists from database
+2026-05-28T02:32:14.684426736Z [INFO] EDGENGINE-001.Cache: Cached 0 positions from database
+2026-05-28T02:32:14.684483255Z [INFO] EDGENGINE-001.Cache: Checking data integrity
+2026-05-28T02:32:14.684500289Z [INFO] EDGENGINE-001.Cache: Integrity check passed in 11μs
+2026-05-28T02:32:14.685446961Z [INFO] EDGENGINE-001.ExecEngine: Loaded cache in 3ms
+2026-05-28T02:32:14.688134968Z [INFO] EDGENGINE-001.OrderEmulator: READY
+2026-05-28T02:32:14.689863338Z [INFO] EDGENGINE-001.EDGENGINE-001: READY
+2026-05-28T02:32:14.689975159Z [INFO] EDGENGINE-001.TradingNode: Initialized in 99ms
+2026-05-28T02:32:14.690010213Z [INFO] EDGENGINE-001.TradingNode: has_cache_backing=False
+2026-05-28T02:32:14.690014653Z [INFO] EDGENGINE-001.TradingNode: has_msgbus_backing=False
+2026-05-28T02:32:14.691706256Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: READY
+2026-05-28T02:32:14.692481000Z [INFO] EDGENGINE-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy DonchianRegimeStrategy-000
+2026-05-28T02:32:14.692500620Z [INFO] EDGENGINE-001.EDGENGINE-001: Registered Strategy DonchianRegimeStrategy-000
+2026-05-28T02:32:14.692637434Z [INFO] EDGENGINE-001.TradingNode: Building data client for BINANCE
+2026-05-28T02:32:14.841478484Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: READY
+2026-05-28T02:32:14.847872418Z [INFO] EDGENGINE-001.DataClient-BINANCE: READY
+2026-05-28T02:32:14.848067223Z [INFO] EDGENGINE-001.DataClient-BINANCE: Account type: SPOT
+2026-05-28T02:32:14.848131356Z [INFO] EDGENGINE-001.DataClient-BINANCE: config.update_instruments_interval_mins=60
+2026-05-28T02:32:14.848178282Z [INFO] EDGENGINE-001.DataClient-BINANCE: config.use_agg_trade_ticks=False
+2026-05-28T02:32:14.848290534Z [INFO] EDGENGINE-001.DataClient-BINANCE: Base url HTTP https://api.binance.com
+2026-05-28T02:32:14.848300114Z [INFO] EDGENGINE-001.DataClient-BINANCE: Base url WebSocket wss://stream.binance.com:9443
+2026-05-28T02:32:14.848939182Z [INFO] EDGENGINE-001.DataEngine: Registered BINANCE
+2026-05-28T02:32:14.848976227Z [WARN] EDGENGINE-001.TradingNode: No `exec_clients` configuration found
+2026-05-28T02:32:14.852319336Z [INFO] EDGENGINE-001.TradingNode: STARTING
+2026-05-28T02:32:14.853636655Z [INFO] EDGENGINE-001.DataClient-BINANCE: RUNNING
+2026-05-28T02:32:14.854336537Z [INFO] EDGENGINE-001.DataEngine: RUNNING
+2026-05-28T02:32:14.854428103Z [INFO] EDGENGINE-001.RiskEngine: RUNNING
+2026-05-28T02:32:14.854548889Z [INFO] EDGENGINE-001.ExecEngine: Started reconciliation task
+2026-05-28T02:32:14.854577622Z [INFO] EDGENGINE-001.ExecEngine: RUNNING
+2026-05-28T02:32:14.854694726Z [INFO] EDGENGINE-001.DataEngine: Connecting all clients...
+2026-05-28T02:32:14.854712059Z [INFO] EDGENGINE-001.DataClient-BINANCE: Connecting...
+2026-05-28T02:32:14.854910115Z [WARN] EDGENGINE-001.ExecEngine: No clients to connect
+2026-05-28T02:32:14.854933322Z [INFO] EDGENGINE-001.TradingNode: Awaiting engine connections and initializations (30.0s timeout)...
+2026-05-28T02:32:14.867947806Z [INFO] EDGENGINE-001.ExecEngine: Starting continuous reconciliation with intervals: inflight=2000ms, consistency=Nones, position=Nones
+2026-05-28T02:32:14.867967362Z [INFO] EDGENGINE-001.ExecEngine: Startup reconciliation disabled, proceeding with continuous checks
+2026-05-28T02:32:14.868029700Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Initializing instruments...
+2026-05-28T02:32:14.868051251Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Loading instruments: BTCUSDT.BINANCE...
+2026-05-28T02:32:15.195169063Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Loaded 1 instruments
+2026-05-28T02:32:15.195194337Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Initialized instruments
+2026-05-28T02:32:15.195565935Z [INFO] EDGENGINE-001.DataClient-BINANCE: Connected
+2026-05-28T02:32:15.195726566Z [WARN] EDGENGINE-001.TradingNode: Reconciliation deactivated
+2026-05-28T02:32:15.195755265Z [INFO] EDGENGINE-001.OrderEmulator: No emulated orders to reactivate
+2026-05-28T02:32:15.195881783Z [INFO] EDGENGINE-001.OrderEmulator: RUNNING
+2026-05-28T02:32:15.196880887Z [INFO] EDGENGINE-001.Portfolio: Initialized 0 open orders
+2026-05-28T02:32:15.196904049Z [INFO] EDGENGINE-001.Portfolio: Initialized 0 open positions
+2026-05-28T02:32:15.196943359Z [INFO] EDGENGINE-001.TradingNode: Awaiting portfolio initialization (10.0s timeout)...
+2026-05-28T02:32:15.200442430Z [INFO] EDGENGINE-001.TradingNode: Portfolio initialized
+2026-05-28T02:32:15.200496743Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: self.config.oms_type=None
+2026-05-28T02:32:15.200500610Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: self.config.external_order_claims=None
+2026-05-28T02:32:15.200504426Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: self.config.manage_gtd_expiry=False
+2026-05-28T02:32:15.201408668Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Set ClientOrderIdGenerator client_order_id count to 0
+2026-05-28T02:32:15.201420929Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Set ClientOrderIdGenerator order_list_id count to 0
+2026-05-28T02:32:15.201455332Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Connecting to Redis at redis:6379 ...
+2026-05-28T02:32:26.736749828Z [ERROR] EDGENGINE-001.DonchianRegimeStrategy: ❌ Redis connection FAILED (redis:6379): Error -2 connecting to redis:6379. Name or service not known.
+2026-05-28T02:32:26.738903049Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Requesting 55 historical bars to warm up Donchian indicator ...
+2026-05-28T02:32:26.741469283Z [ERROR] EDGENGINE-001.DonchianRegimeStrategy: Failed to preload historical bars: request_bars() takes at least 2 positional arguments (1 given)
+2026-05-28T02:32:26.764883100Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: [CMD]--> SubscribeBars(bar_type=BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL, client_id=None, venue=BINANCE)
+2026-05-28T02:32:26.772866501Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Donchian Regime Strategy started for BTCUSDT.BINANCE | Donchian=20, MA(EMA)=50, use_close=True
+2026-05-28T02:32:26.780668524Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: RUNNING
+2026-05-28T02:32:26.780743536Z [INFO] EDGENGINE-001.EDGENGINE-001: RUNNING
+2026-05-28T02:32:26.780798800Z [INFO] EDGENGINE-001.TradingNode: RUNNING
+2026-05-28T02:32:27.022284472Z [INFO] EDGENGINE-001.BinanceWebSocketClient: ws-client 0: Connected to wss://stream.binance.com:9443
+2026-05-28T02:32:27.022333096Z [INFO] EDGENGINE-001.DataClient-BINANCE: Subscribed BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL bars

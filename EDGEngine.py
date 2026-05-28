@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import redis
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
@@ -274,54 +275,19 @@ class DonchianRegimeStrategy(Strategy):
             )
 
         # ── Historical bar warmup ─────────────────────────────────────────────
+        # request_bars() is async/callback-based in NautilusTrader — it does NOT
+        # return bars. Results arrive in on_historical_data(). We calculate a
+        # start datetime far enough back to cover warmup_bars weekly candles.
         warmup_bars = max(self.config.donchian_period, self.config.ma_period) + 5
+        # Add 20% buffer to account for weekends / missing candles
+        lookback_weeks = int(warmup_bars * 1.2) + 1
+        start_dt = datetime.now(timezone.utc) - timedelta(weeks=lookback_weeks)
         self.log.info(
-            f"Requesting {warmup_bars} historical bars to warm up Donchian indicator ...",
+            f"Requesting ~{warmup_bars} historical bars (start={start_dt.date()}) "
+            f"to warm up Donchian indicator ...",
             color=LogColor.BLUE,
         )
-        try:
-            history = self.request_bars(
-                self.config.bar_type,
-                limit=warmup_bars,
-            )
-            if history:
-                for bar in history:
-                    self.donchian.update(
-                        high=float(bar.high),
-                        low=float(bar.low),
-                        close=float(bar.close),
-                    )
-                signal_ready = self.donchian.signal is not None
-                self.log.info(
-                    f"Preloaded {len(history)} historical bars | "
-                    f"signal_ready={signal_ready} | "
-                    f"upper={self.donchian.upper} lower={self.donchian.lower} "
-                    f"ma={self.donchian.donchian_ma}",
-                    color=LogColor.BLUE,
-                )
-                # Write the current regime immediately — don't wait for first live bar
-                if signal_ready:
-                    last_bar = history[-1]
-                    self._last_regime = self.donchian.signal
-                    self.log.info(
-                        f"Initial regime at startup: {'BULLISH' if self.donchian.signal else 'BEARISH'}",
-                        color=LogColor.YELLOW,
-                    )
-                    self._write_regime_to_redis(last_bar, self.donchian.signal)
-                else:
-                    self.log.warning(
-                        f"Not enough history to compute signal after warmup "
-                        f"(need donchian={self.config.donchian_period} + ma={self.config.ma_period} bars). "
-                        f"Regime will be written on first live bar.",
-                        color=LogColor.YELLOW,
-                    )
-            else:
-                self.log.warning(
-                    "No historical bars returned – indicator will warm up with live bars only",
-                    color=LogColor.YELLOW,
-                )
-        except Exception as e:
-            self.log.error(f"Failed to preload historical bars: {e}")
+        self.request_bars(self.config.bar_type, start=start_dt)
 
         # ── Subscribe to live bars ────────────────────────────────────────────
         self.subscribe_bars(self.config.bar_type)
@@ -351,6 +317,53 @@ class DonchianRegimeStrategy(Strategy):
             )
         except Exception as e:
             self.log.error(f"Redis write failed: {e}")
+
+    def on_historical_data(self, data) -> None:
+        """Receive historical bars requested during on_start warmup."""
+        if not isinstance(data, Bar):
+            return
+
+        self.donchian.update(
+            high=float(data.high),
+            low=float(data.low),
+            close=float(data.close),
+        )
+        self._warmup_last_bar = data
+        self._warmup_count = getattr(self, "_warmup_count", 0) + 1
+
+    def on_start_complete(self) -> None:
+        """Called by NautilusTrader after on_start + historical data delivery."""
+        count = getattr(self, "_warmup_count", 0)
+        last_bar = getattr(self, "_warmup_last_bar", None)
+        signal_ready = self.donchian.signal is not None
+
+        self.log.info(
+            f"Warmup complete: {count} historical bars processed | "
+            f"signal_ready={signal_ready} | "
+            f"upper={self.donchian.upper} lower={self.donchian.lower} "
+            f"ma={self.donchian.donchian_ma}",
+            color=LogColor.BLUE,
+        )
+
+        if signal_ready and last_bar is not None:
+            self._last_regime = self.donchian.signal
+            self.log.info(
+                f"Initial regime at startup: {'BULLISH' if self.donchian.signal else 'BEARISH'}",
+                color=LogColor.YELLOW,
+            )
+            self._write_regime_to_redis(last_bar, self.donchian.signal)
+        elif count == 0:
+            self.log.warning(
+                "No historical bars returned – indicator will warm up with live bars only",
+                color=LogColor.YELLOW,
+            )
+        else:
+            self.log.warning(
+                f"Not enough history to compute signal after {count} warmup bars "
+                f"(need donchian={self.config.donchian_period} + ma={self.config.ma_period} bars). "
+                f"Regime will be written on first live bar.",
+                color=LogColor.YELLOW,
+            )
 
     def on_bar(self, bar: Bar) -> None:
         # Update indicator with the new bar
