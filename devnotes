@@ -393,3 +393,6 @@ PONG
 
 [ec2-user@ip-172-31-46-64 ~]$ sudo docker exec redis redis-cli XINFO STREAMS
 ERR unknown subcommand 'STREAMS'. Try XINFO HELP.
+
+
+docker exec redis redis-cli XRANGE regime:BTCUSDT - + COUNT 1
