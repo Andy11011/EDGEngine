@@ -11,6 +11,7 @@
 - [X] ~~*Implement Donchian*~~ [2026-05-27]
 - [X] ~~*Think how to integrate the API to get the regime*~~ [2026-05-27]
 - [X] ~~*Add Reddis*~~ [2026-05-27]
+- [ ] Bug: Solve on_historical_data issue
 - [ ] Integrate Nautilus with Redis
 - [ ] Think how to implement filter over all tickers
 - [ ] Implement Donchian using Rust Core
