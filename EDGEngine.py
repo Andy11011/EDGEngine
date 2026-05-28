@@ -486,7 +486,7 @@ def main():
     trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     account_type_name = os.getenv("BINANCE_ACCOUNT_TYPE", "SPOT").upper()
-    bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "1-WEEK")
+    bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "1-MINUTE")
     donchian_period = int(os.getenv("DONCHIAN_PERIOD", "20"))
     ma_period = int(os.getenv("MA_PERIOD", "50"))
     ma_type = os.getenv("MA_TYPE", "EMA").upper()
@@ -507,7 +507,7 @@ def main():
     account_type = BinanceAccountType.SPOT
 
     instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")
-    bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST")
+    bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST-EXTERNAL")
 
     # Binance client configuration
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
