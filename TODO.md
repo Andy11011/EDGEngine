@@ -19,6 +19,7 @@
 - [ ] Implement Filter
 - [ ] Implement Yellow list
 - [ ] Bug: Fix rolling updates
+- [ ] Create a list of newcomers based on Donchian Length
 
 ## New Features
 

@@ -1,0 +1,311 @@
+[ec2-user@ip-172-31-46-64 ~]$ docker logs edgengine -f
+✅ Credentials loaded from AWS Secrets Manager
+2026-05-28T02:54:02.262172864Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.262188515Z [INFO] EDGENGINE-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-05-28T02:54:02.262189489Z [INFO] EDGENGINE-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-05-28T02:54:02.262189894Z [INFO] EDGENGINE-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-05-28T02:54:02.262190273Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.262190802Z [INFO] EDGENGINE-001.TradingNode:
+2026-05-28T02:54:02.262191242Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-05-28T02:54:02.262191817Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-05-28T02:54:02.262192412Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-05-28T02:54:02.262193028Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-05-28T02:54:02.262193558Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-05-28T02:54:02.262194106Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-05-28T02:54:02.262194750Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-05-28T02:54:02.262195223Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-05-28T02:54:02.262196316Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-05-28T02:54:02.262196754Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-05-28T02:54:02.262197042Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-05-28T02:54:02.262197433Z [INFO] EDGENGINE-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-05-28T02:54:02.262197785Z [INFO] EDGENGINE-001.TradingNode:
+2026-05-28T02:54:02.262198062Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.262198682Z [INFO] EDGENGINE-001.TradingNode:  SYSTEM SPECIFICATION
+2026-05-28T02:54:02.262199060Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.262201110Z [INFO] EDGENGINE-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz
+2026-05-28T02:54:02.262202878Z [INFO] EDGENGINE-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-05-28T02:54:02.263496012Z [INFO] EDGENGINE-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-05-28T02:54:02.264483300Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.264497751Z [INFO] EDGENGINE-001.TradingNode:  MEMORY USAGE
+2026-05-28T02:54:02.264498554Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.264554862Z [INFO] EDGENGINE-001.TradingNode: RAM-Total: 0.88 GiB
+2026-05-28T02:54:02.264556647Z [INFO] EDGENGINE-001.TradingNode: RAM-Used: 0.82 GiB (92.85%)
+2026-05-28T02:54:02.264557957Z [INFO] EDGENGINE-001.TradingNode: RAM-Avail: 0.06 GiB (7.15%)
+2026-05-28T02:54:02.264559709Z [INFO] EDGENGINE-001.TradingNode: Swap: disabled
+2026-05-28T02:54:02.266246618Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.266261065Z [INFO] EDGENGINE-001.TradingNode:  IDENTIFIERS
+2026-05-28T02:54:02.266261805Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.266263727Z [INFO] EDGENGINE-001.TradingNode: trader_id: EDGENGINE-001
+2026-05-28T02:54:02.267495374Z [INFO] EDGENGINE-001.TradingNode: machine_id: 9744d72e738a
+2026-05-28T02:54:02.267507923Z [INFO] EDGENGINE-001.TradingNode: instance_id: c7454f35-bc6f-4602-8f08-ebcd13fdee1a
+2026-05-28T02:54:02.267509079Z [INFO] EDGENGINE-001.TradingNode: PID: 1
+2026-05-28T02:54:02.267509734Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.267510803Z [INFO] EDGENGINE-001.TradingNode:  VERSIONING
+2026-05-28T02:54:02.267511363Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.267541782Z [INFO] EDGENGINE-001.TradingNode: nautilus_trader: 1.227.0
+2026-05-28T02:54:02.268579793Z [INFO] EDGENGINE-001.TradingNode: python: 3.12.13
+2026-05-28T02:54:02.268607061Z [INFO] EDGENGINE-001.TradingNode: numpy: 2.4.6
+2026-05-28T02:54:02.268612640Z [INFO] EDGENGINE-001.TradingNode: pandas: 2.3.3
+2026-05-28T02:54:02.268616671Z [INFO] EDGENGINE-001.TradingNode: msgspec: 0.21.1
+2026-05-28T02:54:02.268621146Z [INFO] EDGENGINE-001.TradingNode: pyarrow: 24.0.0
+2026-05-28T02:54:02.268626236Z [INFO] EDGENGINE-001.TradingNode: pytz: 2026.2
+2026-05-28T02:54:02.268631170Z [INFO] EDGENGINE-001.TradingNode: uvloop: 0.22.1
+2026-05-28T02:54:02.268632023Z [INFO] EDGENGINE-001.TradingNode: =================================================================
+2026-05-28T02:54:02.278113696Z [INFO] EDGENGINE-001.TradingNode: Building system kernel
+2026-05-28T02:54:02.286673382Z [INFO] EDGENGINE-001.MessageBus: config.database=None
+2026-05-28T02:54:02.286699234Z [INFO] EDGENGINE-001.MessageBus: config.encoding='msgpack'
+2026-05-28T02:54:02.286703010Z [INFO] EDGENGINE-001.MessageBus: config.timestamps_as_iso8601=False
+2026-05-28T02:54:02.286705697Z [INFO] EDGENGINE-001.MessageBus: config.buffer_interval_ms=None
+2026-05-28T02:54:02.286708205Z [INFO] EDGENGINE-001.MessageBus: config.autotrim_mins=None
+2026-05-28T02:54:02.286711591Z [INFO] EDGENGINE-001.MessageBus: config.use_trader_prefix=True
+2026-05-28T02:54:02.286715934Z [INFO] EDGENGINE-001.MessageBus: config.use_trader_id=True
+2026-05-28T02:54:02.286717827Z [INFO] EDGENGINE-001.MessageBus: config.use_instance_id=False
+2026-05-28T02:54:02.286720613Z [INFO] EDGENGINE-001.MessageBus: config.streams_prefix='stream'
+2026-05-28T02:54:02.286723105Z [INFO] EDGENGINE-001.MessageBus: config.types_filter=None
+2026-05-28T02:54:02.289417691Z [INFO] EDGENGINE-001.Cache: READY
+2026-05-28T02:54:02.322219429Z [INFO] EDGENGINE-001.DataEngine: READY
+2026-05-28T02:54:02.328241691Z [INFO] EDGENGINE-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-05-28T02:54:02.328436552Z [INFO] EDGENGINE-001.RiskEngine: READY
+2026-05-28T02:54:02.338490583Z [INFO] EDGENGINE-001.RiskEngine: TradingState is ACTIVE
+2026-05-28T02:54:02.344681000Z [INFO] EDGENGINE-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-05-28T02:54:02.347084979Z [INFO] EDGENGINE-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-05-28T02:54:02.347290862Z [INFO] EDGENGINE-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-05-28T02:54:02.347346669Z [INFO] EDGENGINE-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-05-28T02:54:02.347534263Z [INFO] EDGENGINE-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-05-28T02:54:02.347704970Z [INFO] EDGENGINE-001.ExecEngine: READY
+2026-05-28T02:54:02.347842287Z [INFO] EDGENGINE-001.ExecEngine: config.snapshot_orders=False
+2026-05-28T02:54:02.347851727Z [INFO] EDGENGINE-001.ExecEngine: config.snapshot_positions=False
+2026-05-28T02:54:02.347854394Z [INFO] EDGENGINE-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-05-28T02:54:02.347857266Z [INFO] EDGENGINE-001.ExecEngine: config.allow_overfills=False
+2026-05-28T02:54:02.347975818Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation=False
+2026-05-28T02:54:02.347980371Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-05-28T02:54:02.347983283Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-05-28T02:54:02.347986019Z [INFO] EDGENGINE-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-05-28T02:54:02.347989305Z [INFO] EDGENGINE-001.ExecEngine: config.filter_position_reports=False
+2026-05-28T02:54:02.347991763Z [INFO] EDGENGINE-001.ExecEngine: config.filtered_client_order_ids=None
+2026-05-28T02:54:02.347995103Z [INFO] EDGENGINE-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-05-28T02:54:02.347997620Z [INFO] EDGENGINE-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-05-28T02:54:02.348000531Z [INFO] EDGENGINE-001.ExecEngine: config.inflight_check_retries=5
+2026-05-28T02:54:02.348002923Z [INFO] EDGENGINE-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-05-28T02:54:02.348005307Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_interval_secs=None
+2026-05-28T02:54:02.348008265Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_open_only=True
+2026-05-28T02:54:02.348011175Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_lookback_mins=60
+2026-05-28T02:54:02.348013784Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-05-28T02:54:02.348016181Z [INFO] EDGENGINE-001.ExecEngine: config.open_check_missing_retries=5
+2026-05-28T02:54:02.348018785Z [INFO] EDGENGINE-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-05-28T02:54:02.348023018Z [INFO] EDGENGINE-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-05-28T02:54:02.348025258Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_interval_secs=None
+2026-05-28T02:54:02.348028072Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_lookback_mins=60
+2026-05-28T02:54:02.348030649Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-05-28T02:54:02.348033537Z [INFO] EDGENGINE-001.ExecEngine: config.position_check_retries=3
+2026-05-28T02:54:02.348039927Z [INFO] EDGENGINE-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-05-28T02:54:02.348043697Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-05-28T02:54:02.348046261Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-05-28T02:54:02.348048418Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-05-28T02:54:02.348050689Z [INFO] EDGENGINE-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-05-28T02:54:02.348053199Z [INFO] EDGENGINE-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-05-28T02:54:02.348055529Z [INFO] EDGENGINE-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-05-28T02:54:02.348058062Z [INFO] EDGENGINE-001.ExecEngine: config.purge_from_database=False
+2026-05-28T02:54:02.348060451Z [INFO] EDGENGINE-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-05-28T02:54:02.351717669Z [INFO] EDGENGINE-001.Cache: Cached 0 general objects from database
+2026-05-28T02:54:02.351738837Z [INFO] EDGENGINE-001.Cache: Cached 0 currencies from database
+2026-05-28T02:54:02.351747323Z [INFO] EDGENGINE-001.Cache: Cached 0 instruments from database
+2026-05-28T02:54:02.351754586Z [INFO] EDGENGINE-001.Cache: Cached 0 accounts from database
+2026-05-28T02:54:02.351760790Z [INFO] EDGENGINE-001.Cache: Cached 0 orders from database
+2026-05-28T02:54:02.352609849Z [INFO] EDGENGINE-001.Cache: Cached 0 order lists from database
+2026-05-28T02:54:02.352630665Z [INFO] EDGENGINE-001.Cache: Cached 0 positions from database
+2026-05-28T02:54:02.352686374Z [INFO] EDGENGINE-001.Cache: Checking data integrity
+2026-05-28T02:54:02.352704964Z [INFO] EDGENGINE-001.Cache: Integrity check passed in 12μs
+2026-05-28T02:54:02.353402203Z [INFO] EDGENGINE-001.ExecEngine: Loaded cache in 4ms
+2026-05-28T02:54:02.356286258Z [INFO] EDGENGINE-001.OrderEmulator: READY
+2026-05-28T02:54:02.357880702Z [INFO] EDGENGINE-001.EDGENGINE-001: READY
+2026-05-28T02:54:02.357994384Z [INFO] EDGENGINE-001.TradingNode: Initialized in 145ms
+2026-05-28T02:54:02.358028637Z [INFO] EDGENGINE-001.TradingNode: has_cache_backing=False
+2026-05-28T02:54:02.358032669Z [INFO] EDGENGINE-001.TradingNode: has_msgbus_backing=False
+2026-05-28T02:54:02.359779434Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: READY
+2026-05-28T02:54:02.360619838Z [INFO] EDGENGINE-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy DonchianRegimeStrategy-000
+2026-05-28T02:54:02.360640962Z [INFO] EDGENGINE-001.EDGENGINE-001: Registered Strategy DonchianRegimeStrategy-000
+2026-05-28T02:54:02.360670162Z [INFO] EDGENGINE-001.TradingNode: Building data client for BINANCE
+2026-05-28T02:54:02.502765103Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: READY
+2026-05-28T02:54:02.507118243Z [INFO] EDGENGINE-001.DataClient-BINANCE: READY
+2026-05-28T02:54:02.507346798Z [INFO] EDGENGINE-001.DataClient-BINANCE: Account type: SPOT
+2026-05-28T02:54:02.507361564Z [INFO] EDGENGINE-001.DataClient-BINANCE: config.update_instruments_interval_mins=60
+2026-05-28T02:54:02.507365389Z [INFO] EDGENGINE-001.DataClient-BINANCE: config.use_agg_trade_ticks=False
+2026-05-28T02:54:02.507412921Z [INFO] EDGENGINE-001.DataClient-BINANCE: Base url HTTP https://api.binance.com
+2026-05-28T02:54:02.507415998Z [INFO] EDGENGINE-001.DataClient-BINANCE: Base url WebSocket wss://stream.binance.com:9443
+2026-05-28T02:54:02.508990122Z [INFO] EDGENGINE-001.DataEngine: Registered BINANCE
+2026-05-28T02:54:02.509033085Z [WARN] EDGENGINE-001.TradingNode: No `exec_clients` configuration found
+2026-05-28T02:54:02.510670004Z [INFO] EDGENGINE-001.TradingNode: STARTING
+2026-05-28T02:54:02.511706937Z [INFO] EDGENGINE-001.DataClient-BINANCE: RUNNING
+2026-05-28T02:54:02.511814614Z [INFO] EDGENGINE-001.DataEngine: RUNNING
+2026-05-28T02:54:02.511911633Z [INFO] EDGENGINE-001.RiskEngine: RUNNING
+2026-05-28T02:54:02.512008324Z [INFO] EDGENGINE-001.ExecEngine: Started reconciliation task
+2026-05-28T02:54:02.512028148Z [INFO] EDGENGINE-001.ExecEngine: RUNNING
+2026-05-28T02:54:02.512043973Z [INFO] EDGENGINE-001.DataEngine: Connecting all clients...
+2026-05-28T02:54:02.512069489Z [INFO] EDGENGINE-001.DataClient-BINANCE: Connecting...
+2026-05-28T02:54:02.512296941Z [WARN] EDGENGINE-001.ExecEngine: No clients to connect
+2026-05-28T02:54:02.512316443Z [INFO] EDGENGINE-001.TradingNode: Awaiting engine connections and initializations (30.0s timeout)...
+2026-05-28T02:54:02.524435242Z [INFO] EDGENGINE-001.ExecEngine: Starting continuous reconciliation with intervals: inflight=2000ms, consistency=Nones, position=Nones
+2026-05-28T02:54:02.524458753Z [INFO] EDGENGINE-001.ExecEngine: Startup reconciliation disabled, proceeding with continuous checks
+2026-05-28T02:54:02.525177896Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Initializing instruments...
+2026-05-28T02:54:02.525208543Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Loading instruments: BTCUSDT.BINANCE...
+2026-05-28T02:54:02.868462745Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Loaded 1 instruments
+2026-05-28T02:54:02.868490255Z [INFO] EDGENGINE-001.BinanceSpotInstrumentProvider: Initialized instruments
+2026-05-28T02:54:02.869539793Z [INFO] EDGENGINE-001.DataClient-BINANCE: Connected
+2026-05-28T02:54:02.869630729Z [WARN] EDGENGINE-001.TradingNode: Reconciliation deactivated
+2026-05-28T02:54:02.869665774Z [INFO] EDGENGINE-001.OrderEmulator: No emulated orders to reactivate
+2026-05-28T02:54:02.869760030Z [INFO] EDGENGINE-001.OrderEmulator: RUNNING
+2026-05-28T02:54:02.870935769Z [INFO] EDGENGINE-001.Portfolio: Initialized 0 open orders
+2026-05-28T02:54:02.870965494Z [INFO] EDGENGINE-001.Portfolio: Initialized 0 open positions
+2026-05-28T02:54:02.870984805Z [INFO] EDGENGINE-001.TradingNode: Awaiting portfolio initialization (10.0s timeout)...
+2026-05-28T02:54:02.874797641Z [INFO] EDGENGINE-001.TradingNode: Portfolio initialized
+2026-05-28T02:54:02.874850195Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: self.config.oms_type=None
+2026-05-28T02:54:02.874854227Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: self.config.external_order_claims=None
+2026-05-28T02:54:02.874876758Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: self.config.manage_gtd_expiry=False
+2026-05-28T02:54:02.875765640Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Set ClientOrderIdGenerator client_order_id count to 0
+2026-05-28T02:54:02.875783044Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Set ClientOrderIdGenerator order_list_id count to 0
+2026-05-28T02:54:02.875818266Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Connecting to Redis at redis:6379 ...
+2026-05-28T02:54:02.893300435Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: ✅ Redis connection OK (redis:6379)
+2026-05-28T02:54:02.893359290Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Requesting ~55 historical bars (start=2025-02-13) to warm up Donchian indicator ...
+2026-05-28T02:54:02.901130053Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: [REQ]--> RequestBars(bar_type=BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL, start=2025-02-13 02:54:02.893328+00:00, end=2026-05-28 02:54:02.894573425+00:00, limit=0, client_id=None, venue=BINANCE, data_type=Bar, params={'update_catalog': False, 'join_request': False})
+2026-05-28T02:54:02.901944229Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: [CMD]--> SubscribeBars(bar_type=BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL, client_id=None, venue=BINANCE)
+2026-05-28T02:54:02.902012349Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Donchian Regime Strategy started for BTCUSDT.BINANCE | Donchian=20, MA(EMA)=50, use_close=True
+2026-05-28T02:54:02.902185909Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: RUNNING
+2026-05-28T02:54:02.902232918Z [INFO] EDGENGINE-001.EDGENGINE-001: RUNNING
+2026-05-28T02:54:02.902269794Z [INFO] EDGENGINE-001.TradingNode: RUNNING
+2026-05-28T02:54:02.922958240Z [INFO] EDGENGINE-001.DataClient-BINANCE: Request BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL bars from 2025-02-13T02:54:02.893328000Z to 2026-05-28T02:54:02.894573425Z
+2026-05-28T02:54:03.077672675Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.077696200Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.077793599Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.077800487Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.077874422Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.077879209Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.077912027Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.077949376Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078000158Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078004902Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078094265Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078099321Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078182892Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078187736Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078263100Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078267487Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078343841Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078348654Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078440572Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078445700Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078538683Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078543340Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078605627Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078625803Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078708643Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078714565Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078774465Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078779323Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078842927Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078857906Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078929330Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.078934385Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.078997771Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.079003159Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079103793Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.079108900Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079169646Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=None lower=None ma=None
+2026-05-28T02:54:03.079175238Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079277711Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=111980.0 lower=74508.0 ma=None
+2026-05-28T02:54:03.079283973Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079354699Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=119488.0 lower=74508.0 ma=None
+2026-05-28T02:54:03.079359687Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079472889Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=123217.99999999999 lower=74508.0 ma=None
+2026-05-28T02:54:03.079509406Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079580997Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=123217.99999999999 lower=74508.0 ma=None
+2026-05-28T02:54:03.079585893Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079671330Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=123217.99999999999 lower=74508.0 ma=None
+2026-05-28T02:54:03.079676238Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079771735Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=123217.99999999999 lower=74508.0 ma=None
+2026-05-28T02:54:03.079777152Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079886638Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=124473.99999999999 lower=74508.0 ma=None
+2026-05-28T02:54:03.079891626Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.079981600Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=124473.99999999999 lower=74508.0 ma=None
+2026-05-28T02:54:03.080014830Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080072673Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=124473.99999999999 lower=83111.64 ma=None
+2026-05-28T02:54:03.080107023Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080212889Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=124473.99999999999 lower=85144.76000000001 ma=None
+2026-05-28T02:54:03.080218565Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080296047Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=124473.99999999999 lower=92800.01 ma=None
+2026-05-28T02:54:03.080311260Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080393266Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=124473.99999999999 lower=93377.0 ma=None
+2026-05-28T02:54:03.080398599Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080484877Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=124473.99999999999 lower=98200.0 ma=None
+2026-05-28T02:54:03.080489784Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080706841Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=125708.42000000001 lower=98200.0 ma=None
+2026-05-28T02:54:03.080722591Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080811150Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=98200.0 ma=None
+2026-05-28T02:54:03.080816006Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080917392Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=98200.0 ma=None
+2026-05-28T02:54:03.080923023Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.080995467Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=98200.0 ma=None
+2026-05-28T02:54:03.081024913Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081101110Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=98200.0 ma=None
+2026-05-28T02:54:03.081106161Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081184079Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=98944.36 ma=None
+2026-05-28T02:54:03.081216540Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081288592Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=93005.54999999999 ma=None
+2026-05-28T02:54:03.081293457Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081376445Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.081381599Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081465017Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.081470352Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081553804Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.081558919Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081654215Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.081658990Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081749984Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.081755769Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081851631Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.081856571Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.081950850Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.081956390Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082029092Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.082034299Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082129457Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.082135021Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082243817Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=80600.0 ma=None
+2026-05-28T02:54:03.082249145Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082337660Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=75700.0 ma=None
+2026-05-28T02:54:03.082342752Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082426022Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=60000.0 ma=None
+2026-05-28T02:54:03.082431243Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082500601Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=60000.0 ma=None
+2026-05-28T02:54:03.082505459Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082622180Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=126199.62999999999 lower=60000.0 ma=None
+2026-05-28T02:54:03.082668380Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082755949Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=116400.0 lower=60000.0 ma=None
+2026-05-28T02:54:03.082761758Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082830128Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=116400.0 lower=60000.0 ma=None
+2026-05-28T02:54:03.082834899Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.082918544Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=116400.0 lower=60000.0 ma=None
+2026-05-28T02:54:03.082924230Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083016690Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=110750.0 lower=60000.0 ma=None
+2026-05-28T02:54:03.083021449Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083103684Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=107500.0 lower=60000.0 ma=None
+2026-05-28T02:54:03.083109011Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083199424Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083204331Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083299101Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083303951Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083394931Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083400368Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083472559Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083477256Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083543825Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083548423Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083643278Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083648374Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083731384Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083736407Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.083818897Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Warmup complete: 1 historical bars processed | signal_ready=False | upper=97924.49 lower=60000.0 ma=None
+2026-05-28T02:54:03.083825092Z [WARN] EDGENGINE-001.DonchianRegimeStrategy: Not enough history to compute signal after 1 warmup bars (need donchian=20 + ma=50 bars). Regime will be written on first live bar.
+2026-05-28T02:54:03.084038356Z [INFO] EDGENGINE-001.DonchianRegimeStrategy: Received <Bar[66]> data for BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL
+2026-05-28T02:54:03.218859340Z [INFO] EDGENGINE-001.BinanceWebSocketClient: ws-client 0: Connected to wss://stream.binance.com:9443
+2026-05-28T02:54:03.218954467Z [INFO] EDGENGINE-001.DataClient-BINANCE: Subscribed BTCUSDT.BINANCE-1-WEEK-LAST-EXTERNAL bars

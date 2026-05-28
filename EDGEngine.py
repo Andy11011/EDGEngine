@@ -321,62 +321,35 @@ class DonchianRegimeStrategy(Strategy):
     def on_historical_data(self, data) -> None:
         """Receive historical bars requested during on_start warmup.
 
-        NautilusTrader delivers the full batch as a single object that is
-        iterable (e.g. Bar[66]), not individual Bar instances, so we iterate
-        over it directly. After processing we write the initial regime.
+        NautilusTrader calls this once per bar. We accumulate them and after
+        each call check whether the indicator is ready to write the initial regime.
+        The Donchian state is cumulative so we only write to Redis once —
+        on the first call where signal becomes non-None.
         """
-        # Unwrap: single Bar or iterable batch (Bar[N])
-        bars: list[Bar] = []
-        if isinstance(data, Bar):
-            bars = [data]
-        else:
-            try:
-                bars = list(data)
-            except TypeError:
-                self.log.error(
-                    f"on_historical_data: unexpected data type {type(data)}, skipping"
-                )
-                return
-
-        if not bars:
-            self.log.warning(
-                "No historical bars returned – indicator will warm up with live bars only",
-                color=LogColor.YELLOW,
-            )
+        if not isinstance(data, Bar):
             return
 
-        for bar in bars:
-            self.donchian.update(
-                high=float(bar.high),
-                low=float(bar.low),
-                close=float(bar.close),
-            )
-        last_bar = bars[-1]
-        count = len(bars)
-        signal_ready = self.donchian.signal is not None
-
-        self.log.info(
-            f"Warmup complete: {count} historical bars processed | "
-            f"signal_ready={signal_ready} | "
-            f"upper={self.donchian.upper} lower={self.donchian.lower} "
-            f"ma={self.donchian.donchian_ma}",
-            color=LogColor.BLUE,
+        self.donchian.update(
+            high=float(data.high),
+            low=float(data.low),
+            close=float(data.close),
         )
+        self._warmup_count = getattr(self, "_warmup_count", 0) + 1
 
-        if signal_ready:
+        # Only act the first time the signal becomes ready
+        if self.donchian.signal is not None and self._last_regime is None:
             self._last_regime = self.donchian.signal
+            self.log.info(
+                f"Warmup complete after {self._warmup_count} bars | "
+                f"upper={self.donchian.upper:.2f} lower={self.donchian.lower:.2f} "
+                f"ma={self.donchian.donchian_ma:.2f}",
+                color=LogColor.BLUE,
+            )
             self.log.info(
                 f"Initial regime at startup: {'BULLISH' if self.donchian.signal else 'BEARISH'}",
                 color=LogColor.YELLOW,
             )
-            self._write_regime_to_redis(last_bar, self.donchian.signal)
-        else:
-            self.log.warning(
-                f"Not enough history to compute signal after {count} warmup bars "
-                f"(need donchian={self.config.donchian_period} + ma={self.config.ma_period} bars). "
-                f"Regime will be written on first live bar.",
-                color=LogColor.YELLOW,
-            )
+            self._write_regime_to_redis(data, self.donchian.signal)
 
     def on_bar(self, bar: Bar) -> None:
         # Update indicator with the new bar
