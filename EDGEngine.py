@@ -318,7 +318,7 @@ class DonchianRegimeStrategy(Strategy):
         except Exception as e:
             self.log.error(f"Redis write failed: {e}")
 
-    def on_historical_data(self, data) -> None:
+    def on_data(self, data) -> None:
         """Receive historical bars requested during on_start warmup.
 
         NautilusTrader calls this once per bar. We accumulate them and after
