@@ -321,7 +321,10 @@ class DonchianRegimeStrategy(Strategy):
 
     def on_historical_data(self, data) -> None:
         """Called by NautilusTrader for each bar returned by request_bars()."""
-        # data is a single Bar instance delivered one at a time
+        self.log.info(
+            f"on_historical_data called | type={type(data).__name__} | data={str(data)[:120]}",
+            color=LogColor.BLUE,
+        )
         if not isinstance(data, Bar):
             self.log.warning(f"on_historical_data: unexpected type {type(data).__name__}, skipping")
             return
@@ -345,6 +348,10 @@ class DonchianRegimeStrategy(Strategy):
             self._write_regime_to_redis(data, self.donchian.signal)
 
     def on_bar(self, bar: Bar) -> None:
+        self.log.info(
+            f"on_bar called | warming_up={self._warming_up} | bar={str(bar)[:120]}",
+            color=LogColor.BLUE,
+        )
         # Skip bars that arrive while historical data is still being processed
         if self._warming_up:
             return
