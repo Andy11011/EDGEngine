@@ -257,6 +257,25 @@ class DonchianRegimeStrategy(Strategy):
             color=LogColor.GREEN,
         )
 
+    def _write_regime_to_redis(self, bar: Bar, regime: bool) -> None:
+        payload = {
+            "symbol": str(self.config.instrument_id),
+            "regime": "BULLISH" if regime else "BEARISH",
+            "upper": self.donchian.upper,
+            "lower": self.donchian.lower,
+            "ma": self.donchian.donchian_ma,
+            "close": float(bar.close),
+            "timestamp": bar.ts_event,
+        }
+        try:
+            self.redis_client.xadd(
+                f"regime:{self.config.instrument_id.symbol}",
+                {"data": json.dumps(payload)},
+                maxlen=1000,
+            )
+        except Exception as e:
+            self.log.error(f"Redis write failed: {e}")
+
     def on_bar(self, bar: Bar) -> None:
         # Update indicator with the new bar
         self.donchian.update(high=float(bar.high), low=float(bar.low), close=float(bar.close))
@@ -271,6 +290,8 @@ class DonchianRegimeStrategy(Strategy):
                 f"Initial Donchian regime: {'BULLISH' if regime else 'BEARISH'}",
                 color=LogColor.YELLOW,
             )
+            # Write initial regime to Redis
+            self._write_regime_to_redis(bar, regime)
             return
 
         if regime != self._last_regime:
@@ -286,20 +307,7 @@ class DonchianRegimeStrategy(Strategy):
                 color=LogColor.CYAN,
             )
             # Send values to Redis stream for external monitoring
-            payload = {
-                "symbol": str(self.config.instrument_id),
-                "regime": "BULLISH" if regime else "BEARISH",
-                "upper": self.donchian.upper,
-                "lower": self.donchian.lower,
-                "ma": self.donchian.donchian_ma,
-                "close": float(bar.close),
-                "timestamp": bar.ts_event,
-            }
-            self.redis_client.xadd(
-                f"regime:{self.config.instrument_id.symbol}",
-                {"data": json.dumps(payload)},
-                maxlen=1000,
-            )
+            self._write_regime_to_redis(bar, regime)
         else:
             # Optionally log periodic updates (every 10 bars) to keep heartbeat
             if bar.index % 10 == 0:
