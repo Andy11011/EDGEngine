@@ -78,7 +78,7 @@ def load_credentials_from_aws(
 
 
 # -----------------------------------------------------------------------------
-# Donchian Channel Indicator (pure Python, no external TA libs)
+# Donchian Channel Indicator 
 # -----------------------------------------------------------------------------
 class DonchianChannel:
     """Donchian Channel indicator with signal calculation (matching donchian.js)."""
@@ -507,7 +507,7 @@ def main():
     account_type = BinanceAccountType.SPOT
 
     instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")
-    bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST-EXTERNAL")
+    bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST")
 
     # Binance client configuration
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
