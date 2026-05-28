@@ -244,12 +244,38 @@ class DonchianRegimeStrategy(Strategy):
         self._last_regime: Optional[bool] = None
 
     def on_start(self) -> None:
-        self.subscribe_bars(self.config.bar_type)
+        # Initialize Redis client
         self.redis_client = redis.Redis(
             host=os.getenv("REDIS_HOST", "localhost"),
             port=int(os.getenv("REDIS_PORT", 6379)),
             decode_responses=True,
         )
+
+        # Preload historical bars to warm up the indicator
+        warmup_bars = max(self.config.donchian_period, self.config.ma_period) + 5
+        try:
+            # Request historical bars (synchronous, blocking)
+            history = self.request_bars(
+                self.config.bar_type,
+                limit=warmup_bars,          # last N bars
+                # Optionally set start/end time for more control
+            )
+            if history:
+                for bar in history:
+                    self.donchian.update(
+                        high=float(bar.high),
+                        low=float(bar.low),
+                        close=float(bar.close)
+                    )
+                self.log.info(f"Preloaded {len(history)} historical bars, signal ready? {self.donchian.signal is not None}")
+            else:
+                self.log.warning("No historical bars returned – indicator will warm up with live bars only")
+        except Exception as e:
+            self.log.error(f"Failed to preload historical bars: {e}")
+
+        # Subscribe to live bars (new bars from now on)
+        self.subscribe_bars(self.config.bar_type)
+
         self.log.info(
             f"Donchian Regime Strategy started for {self.config.instrument_id} | "
             f"Donchian={self.config.donchian_period}, MA({self.config.ma_type})={self.config.ma_period}, "
