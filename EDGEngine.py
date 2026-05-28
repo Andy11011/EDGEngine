@@ -244,36 +244,86 @@ class DonchianRegimeStrategy(Strategy):
         self._last_regime: Optional[bool] = None
 
     def on_start(self) -> None:
-        # Initialize Redis client
+        # ── Redis connection ──────────────────────────────────────────────────
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("REDIS_PORT", 6379))
+        self.log.info(
+            f"Connecting to Redis at {redis_host}:{redis_port} ...",
+            color=LogColor.BLUE,
+        )
         self.redis_client = redis.Redis(
-            host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", 6379)),
+            host=redis_host,
+            port=redis_port,
             decode_responses=True,
         )
-
-        # Preload historical bars to warm up the indicator
-        warmup_bars = max(self.config.donchian_period, self.config.ma_period) + 5
         try:
-            # Request historical bars (synchronous, blocking)
+            pong = self.redis_client.ping()
+            if pong:
+                self.log.info(
+                    f"✅ Redis connection OK ({redis_host}:{redis_port})",
+                    color=LogColor.GREEN,
+                )
+            else:
+                self.log.warning(
+                    f"⚠️  Redis ping returned unexpected value: {pong}",
+                    color=LogColor.YELLOW,
+                )
+        except Exception as e:
+            self.log.error(
+                f"❌ Redis connection FAILED ({redis_host}:{redis_port}): {e}"
+            )
+
+        # ── Historical bar warmup ─────────────────────────────────────────────
+        warmup_bars = max(self.config.donchian_period, self.config.ma_period) + 5
+        self.log.info(
+            f"Requesting {warmup_bars} historical bars to warm up Donchian indicator ...",
+            color=LogColor.BLUE,
+        )
+        try:
             history = self.request_bars(
                 self.config.bar_type,
-                limit=warmup_bars,          # last N bars
-                # Optionally set start/end time for more control
+                limit=warmup_bars,
             )
             if history:
                 for bar in history:
                     self.donchian.update(
                         high=float(bar.high),
                         low=float(bar.low),
-                        close=float(bar.close)
+                        close=float(bar.close),
                     )
-                self.log.info(f"Preloaded {len(history)} historical bars, signal ready? {self.donchian.signal is not None}")
+                signal_ready = self.donchian.signal is not None
+                self.log.info(
+                    f"Preloaded {len(history)} historical bars | "
+                    f"signal_ready={signal_ready} | "
+                    f"upper={self.donchian.upper} lower={self.donchian.lower} "
+                    f"ma={self.donchian.donchian_ma}",
+                    color=LogColor.BLUE,
+                )
+                # Write the current regime immediately — don't wait for first live bar
+                if signal_ready:
+                    last_bar = history[-1]
+                    self._last_regime = self.donchian.signal
+                    self.log.info(
+                        f"Initial regime at startup: {'BULLISH' if self.donchian.signal else 'BEARISH'}",
+                        color=LogColor.YELLOW,
+                    )
+                    self._write_regime_to_redis(last_bar, self.donchian.signal)
+                else:
+                    self.log.warning(
+                        f"Not enough history to compute signal after warmup "
+                        f"(need donchian={self.config.donchian_period} + ma={self.config.ma_period} bars). "
+                        f"Regime will be written on first live bar.",
+                        color=LogColor.YELLOW,
+                    )
             else:
-                self.log.warning("No historical bars returned – indicator will warm up with live bars only")
+                self.log.warning(
+                    "No historical bars returned – indicator will warm up with live bars only",
+                    color=LogColor.YELLOW,
+                )
         except Exception as e:
             self.log.error(f"Failed to preload historical bars: {e}")
 
-        # Subscribe to live bars (new bars from now on)
+        # ── Subscribe to live bars ────────────────────────────────────────────
         self.subscribe_bars(self.config.bar_type)
 
         self.log.info(
