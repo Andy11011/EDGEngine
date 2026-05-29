@@ -396,3 +396,12 @@ ERR unknown subcommand 'STREAMS'. Try XINFO HELP.
 
 
 docker exec redis redis-cli XRANGE regime:BTCUSDT - + COUNT 1
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+Level 2 — Write actual Rust + PyO3
+Write the indicator in Rust inside the nautilus_core crate, compile it,
+ bind it via PyO3. 10-100x faster but requires Rust toolchain, 
+ recompiling NautilusTrader from source, and maintaining a fork.

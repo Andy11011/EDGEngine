@@ -2,6 +2,7 @@
 
 - [Rust Core Indicators](#rust-core-indicators)
 - [Redis Streams](#redis-streams)
+- [Nautilus Strategy Lifecycle and Data Flow](#nautilus-strategy-lifecycle-and-data-flow)
 
 ---
 
@@ -305,3 +306,130 @@ class RedisRegimeStrategy(Strategy):
 Now your dashboard or any other service can consume `regime:BTCUSDT` stream in real time.
 
 ---
+
+## Nautilus Strategy Lifecycle and Data Flow
+
+### The Big Picture
+
+NautilusTrader is built around a **message-driven event loop**. Everything — bar updates, order fills, instrument data — flows through a central message bus. Your Python strategy sits at the end of that pipeline, receiving typed events via callback methods. Understanding exactly which callback fires when, and why, is essential for building reliable strategies.
+
+### Actor vs Strategy
+
+NautilusTrader has two base classes you can inherit from:
+
+| Class | Use when |
+|---|---|
+| `Actor` | You only need data — no order management |
+| `Strategy` | You need data **and** order management |
+
+`Strategy` extends `Actor`, so it has all the same data callbacks plus execution callbacks (`on_order_filled`, `on_position_opened`, etc.). You can use `Strategy` even if you never place orders — it just means some callbacks are available but unused.
+
+### Lifecycle: The State Machine
+
+Every Actor/Strategy goes through these states in order:
+
+```
+INITIALIZED → STARTING → RUNNING → STOPPING → STOPPED → DISPOSED
+```
+
+The callbacks that map to these transitions:
+
+```python
+def on_start(self) -> None:
+    # Called during STARTING — before the strategy receives any live data.
+    # Safe to call request_bars(), subscribe_bars(), connect to Redis, etc.
+    # The strategy is NOT yet RUNNING here.
+
+def on_stop(self) -> None:
+    # Called during STOPPING — clean up resources, cancel subscriptions.
+
+def on_dispose(self) -> None:
+    # Final cleanup — called once before the object is destroyed.
+```
+
+**Critical**: `on_start()` runs while the strategy is still in `STARTING` state, not `RUNNING`. This matters for `request_bars()` — see below.
+
+### Data Subscriptions vs Data Requests
+
+These are two completely different mechanisms and it is easy to confuse them.
+
+#### `subscribe_bars(bar_type)` → `on_bar(bar)`
+
+Subscribes to a **live stream** of bars going forward. Every time a new bar closes, `on_bar()` is called. This is the main event loop for a live strategy.
+
+```python
+def on_start(self) -> None:
+    self.subscribe_bars(self.bar_type)
+
+def on_bar(self, bar: Bar) -> None:
+    print(f"New live bar: {bar.close}")
+```
+
+#### `request_bars(bar_type, start=...)` → `on_historical_data(data)`
+
+Makes a **one-time async request** for historical bars. Results are delivered asynchronously via `on_historical_data()`. This is used to warm up indicators before live trading begins.
+
+```python
+def on_start(self) -> None:
+    self.request_bars(self.bar_type, start=some_datetime)
+
+def on_historical_data(self, data: Data) -> None:
+    if isinstance(data, Bar):
+        self.indicator.update(float(data.close))
+```
+
+### The `_warming_up` Guard Pattern
+
+Use a flag to protect `on_bar` from processing bars before the indicator is ready:
+
+```python
+def __init__(self, config):
+    super().__init__(config)
+    self._warming_up: bool = True
+
+def on_start(self) -> None:
+    # ... fetch warmup bars synchronously ...
+    self._warming_up = False
+    self.subscribe_bars(self.bar_type)
+
+def on_bar(self, bar: Bar) -> None:
+    if self._warming_up:
+        return
+    # ... live logic ...
+```
+
+### Full Callback Reference
+
+| Callback | Triggered by | Notes |
+|---|---|---|
+| `on_start()` | Node startup | Strategy is in `STARTING`, not `RUNNING` |
+| `on_stop()` | Node shutdown | Clean up here |
+| `on_bar(bar)` | `subscribe_bars()` | Live bars only |
+| `on_historical_data(data)` | `request_bars()` | May not fire for EXTERNAL bars on live node |
+| `on_data(data)` | Custom data types | Non-standard data published on the message bus |
+| `on_instrument(instrument)` | Instrument updates | Fired when instrument definition changes |
+| `on_quote_tick(tick)` | `subscribe_quote_ticks()` | Bid/ask tick |
+| `on_trade_tick(tick)` | `subscribe_trade_ticks()` | Trade tick |
+| `on_order_filled(event)` | Execution engine | Strategy only |
+| `on_position_opened(event)` | Execution engine | Strategy only |
+
+### `register_indicator_for_bars` — The Idiomatic Warmup
+
+If you use a **native NautilusTrader indicator** (Rust-backed, from `nautilus_trader.indicators`), you can register it and the framework handles warmup automatically — no manual `update()` calls needed:
+
+```python
+from nautilus_trader.indicators import ExponentialMovingAverage
+
+def on_start(self) -> None:
+    self.ema = ExponentialMovingAverage(period=20)
+    self.register_indicator_for_bars(self.bar_type, self.ema)
+    self.request_bars(self.bar_type, start=some_datetime)
+    self.subscribe_bars(self.bar_type)
+
+def on_bar(self, bar: Bar) -> None:
+    if not self.ema.initialized:
+        return
+    print(self.ema.value)
+```
+
+**This only works with native indicators.** Custom Python indicators (like a hand-rolled `DonchianChannel` class) cannot be registered this way and must be updated manually — either in `on_bar` or via the direct REST warmup pattern shown above.

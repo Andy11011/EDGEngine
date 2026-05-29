@@ -11,10 +11,12 @@
 - [X] ~~*Implement Donchian*~~ [2026-05-27]
 - [X] ~~*Think how to integrate the API to get the regime*~~ [2026-05-27]
 - [X] ~~*Add Reddis*~~ [2026-05-27]
+- [ ] Build the Nautilus
+- [ ] Implement Donchian using Rust Core
+- [ ] Donchian Channel configs from DB
 - [ ] Bug: Solve on_historical_data issue
 - [ ] Integrate Nautilus with Redis
 - [ ] Think how to implement filter over all tickers
-- [ ] Implement Donchian using Rust Core
 - [ ] Write the EdgeBridge service (maybe be integrate it to the Java backend)
 - [ ] Intergrate EdgeBridge with the EdgeDesk
 - [ ] Implement Filter
