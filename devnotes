@@ -607,16 +607,9 @@ help: `serde` is an attribute that can be used by the derive macros `Deserialize
 8 | pub enum MovingAverageType {
   |
 
-
-
-
-
-
 //--------------------//
 //--------------------//
 //--------------------//
-
-
 
     Compiling nautilus-indicators v0.58.0 (/home/runner/work/nautilus_trader/nautilus_trader/crates/indicators)
 error[E0432]: unresolved import `nautilus_core::fixed`
@@ -722,3 +715,25 @@ Some errors have detailed explanations: E0308, E0425, E0432.
 For more information about an error, try `rustc --explain E0308`.
 error: could not compile `nautilus-indicators` (lib) due to 12 previous errors
 warning: build failed, waiting for other jobs to finish...
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+[ec2-user@ip-172-31-39-31 ~]$ docker logs edgengine -f
+Traceback (most recent call last):
+  File "/app/EDGEngine.py", line 18, in <module>
+    from nautilus_trader.adapters.binance import (
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/adapters/binance/__init__.py", line 39, in <module>
+    from nautilus_trader.adapters.binance.config import BinanceDataClientConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/adapters/binance/config.py", line 22, in <module>
+    from nautilus_trader.config import InstrumentProviderConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/config/__init__.py", line 22, in <module>
+    from nautilus_trader.backtest.config import BacktestDataConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/backtest/config.py", line 24, in <module>
+    from nautilus_trader.cache.config import CacheConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/cache/__init__.py", line 23, in <module>
+    from nautilus_trader.cache.cache import Cache
+  File "nautilus_trader/cache/cache.pyx", line 1, in init nautilus_trader.cache.cache
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/__init__.py", line 67, in <module>
+    from nautilus_trader.indicators.volatility.edc import EnhancedDonchianChannel
