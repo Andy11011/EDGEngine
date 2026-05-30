@@ -12,7 +12,9 @@
 - [X] ~~*Think how to integrate the API to get the regime*~~ [2026-05-27]
 - [X] ~~*Add Reddis*~~ [2026-05-27]
 - [ ] Build the Nautilus
+- [ ] Build EDGEngine with custom Nautilus
 - [ ] Implement Donchian using Rust Core
+- [ ] Donchian Channel with all data
 - [ ] Donchian Channel configs from DB
 - [ ] Bug: Solve on_historical_data issue
 - [ ] Integrate Nautilus with Redis

@@ -3,6 +3,7 @@
 - [Rust Core Indicators](#rust-core-indicators)
 - [Redis Streams](#redis-streams)
 - [Nautilus Strategy Lifecycle and Data Flow](#nautilus-strategy-lifecycle-and-data-flow)
+- [Nautilus Sync Strategy](#nautilus-sync-strategy)
 
 ---
 
@@ -433,3 +434,107 @@ def on_bar(self, bar: Bar) -> None:
 ```
 
 **This only works with native indicators.** Custom Python indicators (like a hand-rolled `DonchianChannel` class) cannot be registered this way and must be updated manually — either in `on_bar` or via the direct REST warmup pattern shown above.
+
+## Nautilus Sync Strategy
+
+### The Problem with Forks
+
+When you fork NautilusTrader and add custom code (like a Rust indicator), you face a recurring challenge: the upstream repo keeps moving — bug fixes, new adapters, performance improvements — while your fork drifts further behind with every commit you don't pull in.
+
+The goal is a strategy that keeps your fork close to upstream with minimal friction, while your custom indicator stays intact.
+
+### Recommended Approach: Sync from Upstream Default Branch
+
+Rather than pinning to a specific tag or branch, the simplest approach for a personal fork with one custom indicator is:
+
+- **Work on your fork's default branch** (whatever `github.com/Andy11011/nautilus_trader` shows by default)
+- **Sync periodically** from upstream's `develop` branch when you want upstream fixes or improvements
+- **Your custom indicator lives in your fork permanently** — it never goes to upstream
+
+```
+upstream/develop  ──────────────────────────────────►
+                     │              │
+                   sync           sync
+                     │              │
+your fork/develop ───▼──────────────▼──────────────►
+                        + DonchianRegime (always present)
+```
+
+### Syncing: Two Ways
+
+#### Option A — GitHub UI (easiest)
+
+Go to `github.com/Andy11011/nautilus_trader`, click **"Sync fork"** → **"Update branch"**. Done in one click. GitHub merges upstream changes into your fork automatically.
+
+Use this when there are no conflicts — which will almost always be the case since your changes (one new indicator) touch files upstream never touches.
+
+#### Option B — Terminal
+
+```bash
+# One-time setup: add upstream as a remote
+git remote add upstream https://github.com/nautechsystems/nautilus_trader
+
+# Sync (do this whenever you want upstream changes)
+git fetch upstream
+git merge upstream/develop
+git push origin
+```
+
+### When to Sync
+
+You don't need to sync constantly. Sync when:
+
+- A new NautilusTrader release fixes a bug you're hitting
+- A new Binance adapter feature you need lands upstream
+- Your fork's version is more than 2-3 releases behind
+
+Don't sync just because upstream changed — unnecessary syncs are churn with no benefit.
+
+### Conflict Risk
+
+Your indicator touches exactly these files:
+
+```
+crates/indicators/src/volatility/donchian_regime.rs   ← new file
+crates/indicators/src/volatility/mod.rs               ← one line added
+crates/indicators/src/python/volatility/mod.rs        ← one line added
+crates/indicators/src/python/mod.rs                   ← one line added
+nautilus_trader/indicators/__init__.py                ← one line added
+```
+
+Upstream almost never touches `mod.rs` files in ways that conflict with an added `mod donchian_regime;` line. If a conflict does happen, it's always the same fix: keep both your line and the upstream changes in the `mod.rs` file.
+
+### Versioning Your Wheel
+
+Each time you sync and rebuild, the wheel version will match whatever upstream version is current (e.g. `1.228.0`). Your edgengine Dockerfile should install by **filename pattern**, not a hardcoded version, so it always picks up the latest built wheel:
+
+```dockerfile
+# In your edgengine Dockerfile
+RUN pip install \
+  "https://github.com/Andy11011/nautilus_trader/releases/download/fork-latest/nautilus_trader-$(curl -s https://github.com/Andy11011/nautilus_trader/releases/download/fork-latest/VERSION).whl"
+```
+
+Or simpler — just publish the release asset with a fixed tag name `fork-latest` that always gets overwritten on rebuild, so the URL never changes:
+
+```dockerfile
+RUN pip install \
+  "https://github.com/Andy11011/nautilus_trader/releases/download/fork-latest/nautilus_trader-cp312-linux_x86_64.whl"
+```
+
+### Full Workflow Summary
+
+```
+1. Add your indicator to the fork (once)
+        ↓
+2. Push → GitHub Actions builds wheel → uploads to fork-latest release
+        ↓
+3. edgengine Dockerfile installs from fork-latest URL
+        ↓
+4. (weeks/months later) upstream releases something useful
+        ↓
+5. Click "Sync fork" in GitHub UI
+        ↓
+6. Push → wheel rebuilds automatically → edgengine picks it up on next deploy
+```
+
+The only manual step after initial setup is clicking "Sync fork" occasionally — everything else is automated.
