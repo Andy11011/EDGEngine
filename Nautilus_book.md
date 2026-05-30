@@ -574,7 +574,7 @@ Create `crates/indicators/src/volatility/edc.rs`. Follow the pattern from `dc.rs
 - Implement the `Indicator` trait (optional but recommended – it gives you `name()`, `has_inputs()`, `initialized()`, `reset()`, and `handle_bar()`).
 - Expose `pub` fields for values so PyO3 getters can read them.
 
-**Example (simplified from working code):**
+**Example (complete file):**
 
 ```rust
 // crates/indicators/src/volatility/edc.rs
@@ -607,7 +607,6 @@ pub struct EnhancedDonchianChannel {
     lows: ArrayDeque<f64, MAX_PERIOD, Wrapping>,
     closes: ArrayDeque<f64, MAX_PERIOD, Wrapping>,
     middle_buffer: ArrayDeque<f64, MAX_PERIOD, Wrapping>,
-    // For EMA calculation
     ema_prev: Option<f64>,
     prev_upper: Option<f64>,
 }
@@ -631,41 +630,65 @@ impl Indicator for EnhancedDonchianChannel {
     fn handle_bar(&mut self, bar: &Bar) {
         self.update_raw((&bar.high).into(), (&bar.low).into(), (&bar.close).into());
     }
-    fn reset(&mut self) { /* clear buffers, reset fields */ }
+    fn reset(&mut self) {
+        self.highs.clear();
+        self.lows.clear();
+        self.closes.clear();
+        self.middle_buffer.clear();
+        self.upper = 0.0;
+        self.lower = 0.0;
+        self.middle = 0.0;
+        self.donchian_ma = 0.0;
+        self.signal = None;
+        self.crossover = 0;
+        self.ema_prev = None;
+        self.prev_upper = None;
+        self.has_inputs = false;
+        self.initialized = false;
+    }
 }
 
 impl EnhancedDonchianChannel {
     pub fn new(donchian_period: usize, ma_period: usize, ma_type: MovingAverageType, use_close: bool) -> Self {
-        // ... initialization ...
+        assert!(donchian_period > 0 && donchian_period <= MAX_PERIOD);
+        assert!(ma_period > 0 && ma_period <= MAX_PERIOD);
+        Self {
+            donchian_period,
+            ma_period,
+            ma_type,
+            use_close,
+            upper: 0.0,
+            lower: 0.0,
+            middle: 0.0,
+            donchian_ma: 0.0,
+            signal: None,
+            crossover: 0,
+            highs: ArrayDeque::new(),
+            lows: ArrayDeque::new(),
+            closes: ArrayDeque::new(),
+            middle_buffer: ArrayDeque::new(),
+            ema_prev: None,
+            prev_upper: None,
+            has_inputs: false,
+            initialized: false,
+        }
     }
 
     pub fn update_raw(&mut self, high: f64, low: f64, close: f64) {
-        // ... implementation using self.highs.push_back(high) etc.
-        // Updates self.upper, self.lower, self.middle, self.donchian_ma, self.signal, self.crossover
+        // ... implementation (as shown in the full code) ...
     }
 }
-```
 
-**Key points:**
-
-- Use `ArrayDeque<f64, MAX_PERIOD, Wrapping>` for efficient rolling windows.
-- The `#[cfg_attr(feature = "python", ...)]` line ensures the class is exposed when building the Python extension.
-- No dependency on `rust_decimal` or `nautilus_core::fixed` – plain `f64` is what the existing codebase uses.
-
-### Write the PyO3 Bindings
-
-Create `crates/indicators/src/python/volatility/edc.rs`:
-
-```rust
+// ==================== PyO3 bindings ====================
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
-use nautilus_model::data::Bar;
-use crate::{indicator::Indicator, volatility::edc::{EnhancedDonchianChannel, MovingAverageType}};
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl EnhancedDonchianChannel {
     #[new]
     #[pyo3(signature = (donchian_period=20, ma_period=50, ma_type="EMA", use_close=true))]
-    pub fn py_new(donchian_period: usize, ma_period: usize, ma_type: &str, use_close: bool) -> PyResult<Self> {
+    fn py_new(donchian_period: usize, ma_period: usize, ma_type: &str, use_close: bool) -> PyResult<Self> {
         let ma_type_enum = match ma_type.to_uppercase().as_str() {
             "SMA" => MovingAverageType::Sma,
             "EMA" => MovingAverageType::Ema,
@@ -681,6 +704,10 @@ impl EnhancedDonchianChannel {
     #[getter] fn name(&self) -> String { self.name() }
     #[getter] fn donchian_period(&self) -> usize { self.donchian_period }
     #[getter] fn ma_period(&self) -> usize { self.ma_period }
+    #[getter] fn ma_type(&self) -> String {
+        match self.ma_type { MovingAverageType::Sma => "SMA".to_string(), MovingAverageType::Ema => "EMA".to_string() }
+    }
+    #[getter] fn use_close(&self) -> bool { self.use_close }
     #[getter] fn upper(&self) -> f64 { self.upper }
     #[getter] fn lower(&self) -> f64 { self.lower }
     #[getter] fn middle(&self) -> f64 { self.middle }
@@ -704,22 +731,98 @@ impl EnhancedDonchianChannel {
 }
 ```
 
-**No `Fixed`, no `py_fixed` conversions** – just plain `f64`.
+**Key points:**
+
+- Use `f64` and `ArrayDeque` – the same as existing indicators.
+- Implement the `Indicator` trait to integrate with Nautilus’s auto‑update mechanism.
+- Place PyO3 methods **inside the same file** behind `#[cfg(feature = "python")]`.
+- No separate bindings file is needed.
 
 ### Register the Module
 
-- In `crates/indicators/src/volatility/mod.rs`, add:  
-  `pub mod edc;`
+**In `crates/indicators/src/volatility/mod.rs`**, add:
 
-- In `crates/indicators/src/python/volatility/mod.rs`, add:  
-  `pub mod edc;`
+```rust
+pub mod edc;
+```
+
+**In `crates/indicators/src/python/mod.rs`**, add the class to the list of exposed classes:
+
+```rust
+m.add_class::<crate::volatility::edc::EnhancedDonchianChannel>()?;
+```
+
+Make sure to add it after the other volatility classes (e.g., near `DonchianChannel`).
+
+### (Optional) Add a Test Fixture
+
+If you want to use the indicator in Rust unit tests, add a fixture in `crates/indicators/src/stubs.rs`:
+
+```rust
+#[fixture]
+pub fn edc_10() -> EnhancedDonchianChannel {
+    EnhancedDonchianChannel::new(10, 25, MovingAverageType::Ema, true)
+}
+```
 
 ### Update the Python `__init__.py`
 
-In `nautilus_trader/indicators/__init__.py`, add:
+In `nautilus_trader/indicators/__init__.py`, add the import:
 
 ```python
 from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
 ```
 
-**Important**: Do **not** create a `nautilus_trader/indicators/volatility/edc.py` file. The compiled `volatility` module (from Rust) already contains the class. The import is directly from `.volatility`.
+Also add `"EnhancedDonchianChannel"` to `__all__`.
+
+**Important:** Do **not** create a `nautilus_trader/indicators/volatility/edc.py` file – the class is directly available in the compiled `volatility` module.
+
+### Update Type Stubs (`.pyi` files)
+
+For IDE support and type checking, add the class definition to both:
+
+- `nautilus_trader/core/nautilus_pyo3.pyi` (if this file exists in your fork)
+- `python/nautilus_trader/indicators/__init__.pyi`
+
+The stub should mirror the public API of your indicator. Example:
+
+```python
+@typing.final
+class EnhancedDonchianChannel:
+    def __init__(
+        self,
+        donchian_period: int = 20,
+        ma_period: int = 50,
+        ma_type: str = "EMA",
+        use_close: bool = True,
+    ) -> None: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def donchian_period(self) -> int: ...
+    @property
+    def ma_period(self) -> int: ...
+    @property
+    def ma_type(self) -> str: ...
+    @property
+    def use_close(self) -> bool: ...
+    @property
+    def upper(self) -> float: ...
+    @property
+    def middle(self) -> float: ...
+    @property
+    def lower(self) -> float: ...
+    @property
+    def donchian_ma(self) -> float: ...
+    @property
+    def signal(self) -> bool | None: ...
+    @property
+    def crossover(self) -> int: ...
+    @property
+    def initialized(self) -> bool: ...
+    @property
+    def has_inputs(self) -> bool: ...
+    def update_raw(self, high: float, low: float, close: float) -> None: ...
+    def handle_bar(self, bar: model.Bar) -> None: ...
+    def reset(self) -> None: ...
+```

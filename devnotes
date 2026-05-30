@@ -737,3 +737,282 @@ Traceback (most recent call last):
   File "nautilus_trader/cache/cache.pyx", line 1, in init nautilus_trader.cache.cache
   File "/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/__init__.py", line 67, in <module>
     from nautilus_trader.indicators.volatility.edc import EnhancedDonchianChannel
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+  [ec2-user@ip-172-31-39-31 ~]$ docker logs edgengine -f
+Traceback (most recent call last):
+  File "/app/EDGEngine.py", line 18, in <module>
+    from nautilus_trader.adapters.binance import (
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/adapters/binance/__init__.py", line 39, in <module>
+    from nautilus_trader.adapters.binance.config import BinanceDataClientConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/adapters/binance/config.py", line 22, in <module>
+    from nautilus_trader.config import InstrumentProviderConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/config/__init__.py", line 22, in <module>
+    from nautilus_trader.backtest.config import BacktestDataConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/backtest/config.py", line 24, in <module>
+    from nautilus_trader.cache.config import CacheConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/cache/__init__.py", line 23, in <module>
+    from nautilus_trader.cache.cache import Cache
+  File "nautilus_trader/cache/cache.pyx", line 1, in init nautilus_trader.cache.cache
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/__init__.py", line 67, in <module>
+    from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
+ImportError: cannot import name 'EnhancedDonchianChannel' from 'nautilus_trader.indicators.volatility' (/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/volatility.cpython-312-x86_64-linux-gnu.so)
+Traceback (most recent call last):
+  File "/app/EDGEngine.py", line 18, in <module>
+    from nautilus_trader.adapters.binance import (
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/adapters/binance/__init__.py", line 39, in <module>
+    from nautilus_trader.adapters.binance.config import BinanceDataClientConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/adapters/binance/config.py", line 22, in <module>
+    from nautilus_trader.config import InstrumentProviderConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/config/__init__.py", line 22, in <module>
+    from nautilus_trader.backtest.config import BacktestDataConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/backtest/config.py", line 24, in <module>
+    from nautilus_trader.cache.config import CacheConfig
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/cache/__init__.py", line 23, in <module>
+    from nautilus_trader.cache.cache import Cache
+  File "nautilus_trader/cache/cache.pyx", line 1, in init nautilus_trader.cache.cache
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/__init__.py", line 67, in <module>
+    from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
+ImportError: cannot import name 'EnhancedDonchianChannel' from 'nautilus_trader.indicators.volatility' (/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/volatility.cpython-312-x86_64-linux-gnu.so)
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+[ec2-user@ip-172-31-39-31 ~]$ docker run --rm \
+  --network edge-network \
+  -e REDIS_HOST=redis \
+  -e REDIS_PORT=6379 \
+  ghcr.io/andy11011/edgengine:latest \
+  python -c "from nautilus_trader.indicators.volatility import dir as v_dir; print(v_dir())"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/__init__.py", line 67, in <module>
+    from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
+ImportError: cannot import name 'EnhancedDonchianChannel' from 'nautilus_trader.indicators.volatility' (/usr/local/lib/python3.12/site-packages/nautilus_trader/indicators/volatility.cpython-312-x86_64-linux-gnu.so)
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+On branch develop
+Your branch is up to date with 'origin/develop'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .github/workflows/build-fork-wheel.yml
+	modified:   crates/indicators/src/python/mod.rs
+	modified:   crates/indicators/src/stubs.rs
+	modified:   nautilus_trader/core/nautilus_pyo3.pyi
+	modified:   nautilus_trader/indicators/__init__.py
+	modified:   python/nautilus_trader/indicators/__init__.pyi
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	file
+	tests/unit_tests/indicators/test_enhanced_donchian_channel.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
+diff --git a/.github/workflows/build-fork-wheel.yml b/.github/workflows/build-fork-wheel.yml
+index 26a178af7f..79357fe99f 100644
+--- a/.github/workflows/build-fork-wheel.yml
++++ b/.github/workflows/build-fork-wheel.yml
+@@ -29,6 +29,12 @@ jobs:
+       - name: Build wheel
+         run: make build-wheel
+ 
++      - name: Install wheel and run tests
++        run: |
++          pip install pytest
++          pip install dist/*.whl
++          pytest tests/ -v
++
+       - name: Upload wheel as artifact
+         uses: actions/upload-artifact@v4
+         with:
+diff --git a/crates/indicators/src/python/mod.rs b/crates/indicators/src/python/mod.rs
+index bfccd898ee..583e34859f 100644
+--- a/crates/indicators/src/python/mod.rs
++++ b/crates/indicators/src/python/mod.rs
+@@ -84,6 +84,7 @@ pub fn indicators(_: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+     m.add_class::<crate::volatility::atr::AverageTrueRange>()?;
+     m.add_class::<crate::volatility::vr::VolatilityRatio>()?;
+     m.add_class::<crate::volatility::dc::DonchianChannel>()?;
++    m.add_class::<crate::volatility::dc::EnhancedDonchianChannel>()?;
+     m.add_class::<crate::volatility::rvi::RelativeVolatilityIndex>()?;
+     m.add_class::<crate::volatility::kc::KeltnerChannel>()?;
+     m.add_class::<crate::volatility::fuzzy::FuzzyCandlesticks>()?;
+diff --git a/crates/indicators/src/stubs.rs b/crates/indicators/src/stubs.rs
+index c98c93a575..f2aea091e3 100644
+--- a/crates/indicators/src/stubs.rs
++++ b/crates/indicators/src/stubs.rs
+@@ -40,7 +40,7 @@ use crate::{
+     },
+     ratio::{efficiency_ratio::EfficiencyRatio, spread_analyzer::SpreadAnalyzer},
+     volatility::{
+-        dc::DonchianChannel, fuzzy::FuzzyCandlesticks, kc::KeltnerChannel, kp::KeltnerPosition,
++        dc::DonchianChannel, edc::EnhancedDonchianChannel, fuzzy::FuzzyCandlesticks, kc::KeltnerChannel, kp::KeltnerPosition,
+         rvi::RelativeVolatilityIndex, vr::VolatilityRatio,
+     },
+ };
+@@ -270,6 +270,11 @@ pub fn dc_10() -> DonchianChannel {
+     DonchianChannel::new(10)
+ }
+ 
++#[fixture]
++pub fn edc_10() -> EnhancedDonchianChannel {
++    EnhancedDonchianChannel::new(10)
++}
++
+ #[fixture]
+ pub fn rvi_10() -> RelativeVolatilityIndex {
+     RelativeVolatilityIndex::new(10, Some(10.0), Some(MovingAverageType::Simple))
+diff --git a/nautilus_trader/core/nautilus_pyo3.pyi b/nautilus_trader/core/nautilus_pyo3.pyi
+index 3f65dc09ee..e5975f70b3 100644
+--- a/nautilus_trader/core/nautilus_pyo3.pyi
++++ b/nautilus_trader/core/nautilus_pyo3.pyi
+@@ -6431,6 +6431,44 @@ class DonchianChannel:
+     def handle_bar(self, bar: Bar) -> None: ...
+     def reset(self) -> None: ...
+ 
++class EnhancedDonchianChannel:
++    def __init__(
++        self,
++        donchian_period: int = 20,
++        ma_period: int = 50,
++        ma_type: str = "EMA",
++        use_close: bool = True,
++    ) -> None: ...
++    @property
++    def name(self) -> str: ...
++    @property
++    def donchian_period(self) -> int: ...
++    @property
++    def ma_period(self) -> int: ...
++    @property
++    def ma_type(self) -> str: ...
++    @property
++    def use_close(self) -> bool: ...
++    @property
++    def upper(self) -> float: ...
++    @property
++    def middle(self) -> float: ...
++    @property
++    def lower(self) -> float: ...
++    @property
++    def donchian_ma(self) -> float: ...
++    @property
++    def signal(self) -> bool | None: ...
++    @property
++    def crossover(self) -> int: ...
++    @property
++    def initialized(self) -> bool: ...
++    @property
++    def has_inputs(self) -> bool: ...
++    def update_raw(self, high: float, low: float, close: float) -> None: ...
++    def handle_bar(self, bar: Bar) -> None: ...
++    def reset(self) -> None: ...
++
+ class KeltnerChannel:
+     def __init__(
+         self,
+diff --git a/nautilus_trader/indicators/__init__.py b/nautilus_trader/indicators/__init__.py
+index 522e732780..733510eb6f 100644
+--- a/nautilus_trader/indicators/__init__.py
++++ b/nautilus_trader/indicators/__init__.py
+@@ -60,11 +60,11 @@ from nautilus_trader.indicators.trend import Swings
+ from nautilus_trader.indicators.volatility import AverageTrueRange
+ from nautilus_trader.indicators.volatility import BollingerBands
+ from nautilus_trader.indicators.volatility import DonchianChannel
++from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
+ from nautilus_trader.indicators.volatility import KeltnerChannel
+ from nautilus_trader.indicators.volatility import KeltnerPosition
+ from nautilus_trader.indicators.volatility import VerticalHorizontalFilter
+ from nautilus_trader.indicators.volatility import VolatilityRatio
+-from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
+ from nautilus_trader.indicators.volume import KlingerVolumeOscillator
+ from nautilus_trader.indicators.volume import OnBalanceVolume
+ from nautilus_trader.indicators.volume import Pressure
+@@ -86,6 +86,7 @@ __all__ = [
+     "CommodityChannelIndex",
+     "DirectionalMovement",
+     "DonchianChannel",
++    "EnhancedDonchianChannel",
+     "DoubleExponentialMovingAverage",
+     "EfficiencyRatio",
+     "ExponentialMovingAverage",
+diff --git a/python/nautilus_trader/indicators/__init__.pyi b/python/nautilus_trader/indicators/__init__.pyi
+index 00054b5b55..ddac78b335 100644
+--- a/python/nautilus_trader/indicators/__init__.pyi
++++ b/python/nautilus_trader/indicators/__init__.pyi
+@@ -21,6 +21,7 @@ __all__ = [
+     "CommodityChannelIndex",
+     "DirectionalMovement",
+     "DonchianChannel",
++    "EnhancedDonchianChannel",
+     "DoubleExponentialMovingAverage",
+     "EfficiencyRatio",
+     "ExponentialMovingAverage",
+@@ -306,6 +307,45 @@ class DonchianChannel:
+     def handle_bar(self, bar: model.Bar) -> None: ...
+     def reset(self) -> None: ...
+ 
++@typing.final
++class EnhancedDonchianChannel:
++    def __init__(
++        self,
++        donchian_period: int = 20,
++        ma_period: int = 50,
++        ma_type: str = "EMA",
++        use_close: bool = True,
++    ) -> None: ...
++    @property
++    def name(self) -> str: ...
++    @property
++    def donchian_period(self) -> int: ...
++    @property
++    def ma_period(self) -> int: ...
++    @property
++    def ma_type(self) -> str: ...
++    @property
++    def use_close(self) -> bool: ...
++    @property
++    def upper(self) -> float: ...
++    @property
++    def middle(self) -> float: ...
++    @property
++    def lower(self) -> float: ...
++    @property
++    def donchian_ma(self) -> float: ...
++    @property
++    def signal(self) -> bool | None: ...
++    @property
++    def crossover(self) -> int: ...
++    @property
++    def has_inputs(self) -> bool: ...
++    @property
++    def initialized(self) -> bool: ...
++    def update_raw(self, high: float, low: float, close: float) -> None: ...
++    def handle_bar(self, bar: model.Bar) -> None: ...
++    def reset(self) -> None: ...
++
+ @typing.final
+ class DoubleExponentialMovingAverage:
+     def __init__(self, period: int, price_type: model.PriceType | None = None) -> None: ...
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+nautilus_trader/indicators/__init__.py:63: in <module>
+    from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
+E   ImportError: cannot import name 'EnhancedDonchianChannel' from 'nautilus_trader.indicators.volatility' (/home/runner/work/nautilus_trader/nautilus_trader/nautilus_trader/indicators/volatility.cpython-312-x86_64-linux-gnu.so)
