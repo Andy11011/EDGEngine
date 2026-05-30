@@ -524,3 +524,201 @@ PS C:\Users\andy9\nautilus_trader>
 
 ❌ PyO3 class not yet visible to Python – because the _libnautilus module isn't recompiled with your new bindings.
 ❌ No .py shim needed – Rust‑exposed classes are injected directly.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+Compiling datafusion-catalog-listing v53.1.0
+   Compiling datafusion-datasource-parquet v53.1.0
+   Compiling nautilus-indicators v0.58.0 (/home/runner/work/nautilus_trader/nautilus_trader/crates/indicators)
+error[E0432]: unresolved imports `crate::Indicator`, `crate::IndicatorConfig`
+ --> crates/indicators/src/volatility/edc.rs:1:13
+  |
+1 | use crate::{Indicator, IndicatorConfig};
+  |             ^^^^^^^^^  ^^^^^^^^^^^^^^^ no `IndicatorConfig` in the root
+  |             |
+  |             no `Indicator` in the root
+  |
+  = help: consider importing this trait instead:
+          crate::indicator::Indicator
+help: a similar name exists in the module (notice the capitalization)
+  |
+1 - use crate::{Indicator, IndicatorConfig};
+1 + use crate::{indicator, IndicatorConfig};
+  |
+error[E0432]: unresolved imports `pyo3::IntoPy`, `pyo3::PyObject`
+ --> crates/indicators/src/python/volatility/edc.rs:1:50
+  |
+1 | use pyo3::{pyclass, pymethods, PyResult, Python, IntoPy, PyObject};
+  |                                                  ^^^^^^  ^^^^^^^^ no `PyObject` in the root
+  |                                                  |
+  |                                                  no `IntoPy` in the root
+error[E0432]: unresolved import `rust_decimal`
+ --> crates/indicators/src/python/volatility/edc.rs:3:5
+  |
+3 | use rust_decimal::Decimal;
+  |     ^^^^^^^^^^^^
+  |
+help: a similar path exists
+  |
+3 | use pyo3::rust_decimal::Decimal;
+  |     ++++++
+error[E0432]: unresolved import `nautilus_pyo3`
+ --> crates/indicators/src/python/volatility/edc.rs:4:5
+  |
+4 | use nautilus_pyo3::py_decimal;
+  |     ^^^^^^^^^^^^^ use of unresolved module or unlinked crate `nautilus_pyo3`
+  |
+help: there is a crate or module with a similar name
+  |
+4 - use nautilus_pyo3::py_decimal;
+4 + use nautilus_core::py_decimal;
+  |
+error[E0432]: unresolved import `rust_decimal`
+ --> crates/indicators/src/volatility/edc.rs:2:5
+  |
+2 | use rust_decimal::Decimal;
+  |     ^^^^^^^^^^^^
+  |
+help: a similar path exists
+  |
+2 | use pyo3::rust_decimal::Decimal;
+  |     ++++++
+error[E0432]: unresolved import `serde`
+ --> crates/indicators/src/volatility/edc.rs:3:5
+  |
+3 | use serde::{Serialize, Deserialize};
+  |     ^^^^^
+  |
+help: a similar path exists
+  |
+3 | use pyo3::serde::{Serialize, Deserialize};
+  |     ++++++
+error: cannot find attribute `serde` in this scope
+ --> crates/indicators/src/volatility/edc.rs:6:3
+  |
+6 | #[serde(tag = "type")]
+  |   ^^^^^
+  |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+  |
+7 + #[derive(Deserialize, Serialize)]
+8 | pub enum MovingAverageType {
+  |
+
+
+
+
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+
+    Compiling nautilus-indicators v0.58.0 (/home/runner/work/nautilus_trader/nautilus_trader/crates/indicators)
+error[E0432]: unresolved import `nautilus_core::fixed`
+ --> crates/indicators/src/volatility/edc.rs:1:20
+  |
+1 | use nautilus_core::fixed::Fixed;
+  |                    ^^^^^ could not find `fixed` in `nautilus_core`
+error[E0432]: unresolved imports `nautilus_core::fixed`, `nautilus_core::python::py_fixed`
+ --> crates/indicators/src/python/volatility/edc.rs:4:21
+  |
+4 | use nautilus_core::{fixed::Fixed, python::py_fixed};
+  |                     ^^^^^         ^^^^^^^^^^^^^^^^ no `py_fixed` in `python`
+  |                     |
+  |                     could not find `fixed` in `nautilus_core`
+error[E0432]: unresolved import `serde`
+ --> crates/indicators/src/volatility/edc.rs:2:5
+  |
+2 | use serde::{Deserialize, Serialize};
+  |     ^^^^^
+  |
+help: a similar path exists
+  |
+2 | use pyo3::serde::{Deserialize, Serialize};
+  |     ++++++
+error: cannot find attribute `serde` in this scope
+ --> crates/indicators/src/volatility/edc.rs:5:3
+  |
+5 | #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+  |   ^^^^^
+  |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+  |
+6 + #[derive(Deserialize, Serialize)]
+7 | pub enum MovingAverageType {
+  |
+error[E0425]: cannot find type `PyObject` in this scope
+  --> crates/indicators/src/python/volatility/edc.rs:38:32
+   |
+38 |     fn update(&mut self, high: PyObject, low: PyObject, close: PyObject, py: Python) -> PyResult<()> {
+   |                                ^^^^^^^^ not found in this scope
+error[E0425]: cannot find type `PyObject` in this scope
+  --> crates/indicators/src/python/volatility/edc.rs:38:47
+   |
+38 |     fn update(&mut self, high: PyObject, low: PyObject, close: PyObject, py: Python) -> PyResult<()> {
+   |                                               ^^^^^^^^ not found in this scope
+error[E0425]: cannot find type `PyObject` in this scope
+  --> crates/indicators/src/python/volatility/edc.rs:38:64
+   |
+38 |     fn update(&mut self, high: PyObject, low: PyObject, close: PyObject, py: Python) -> PyResult<()> {
+   |                                                                ^^^^^^^^ not found in this scope
+error[E0425]: cannot find type `PyObject` in this scope
+  --> crates/indicators/src/python/volatility/edc.rs:47:43
+   |
+47 |     fn upper(&self, py: Python) -> Option<PyObject> {
+   |                                           ^^^^^^^^ not found in this scope
+   |
+help: you might be missing a type parameter
+   |
+13 | impl<PyObject> PyEnhancedDonchianChannel {
+   |     ++++++++++
+error[E0425]: cannot find type `PyObject` in this scope
+  --> crates/indicators/src/python/volatility/edc.rs:52:43
+   |
+52 |     fn lower(&self, py: Python) -> Option<PyObject> {
+   |                                           ^^^^^^^^ not found in this scope
+   |
+help: you might be missing a type parameter
+   |
+13 | impl<PyObject> PyEnhancedDonchianChannel {
+   |     ++++++++++
+error[E0425]: cannot find type `PyObject` in this scope
+  --> crates/indicators/src/python/volatility/edc.rs:57:44
+   |
+57 |     fn middle(&self, py: Python) -> Option<PyObject> {
+   |                                            ^^^^^^^^ not found in this scope
+   |
+help: you might be missing a type parameter
+   |
+13 | impl<PyObject> PyEnhancedDonchianChannel {
+   |     ++++++++++
+error[E0425]: cannot find type `PyObject` in this scope
+  --> crates/indicators/src/python/volatility/edc.rs:62:49
+   |
+62 |     fn donchian_ma(&self, py: Python) -> Option<PyObject> {
+   |                                                 ^^^^^^^^ not found in this scope
+   |
+help: you might be missing a type parameter
+   |
+13 | impl<PyObject> PyEnhancedDonchianChannel {
+   |     ++++++++++
+error[E0308]: `?` operator has incompatible types
+  --> crates/indicators/src/python/volatility/edc.rs:19:18
+   |
+19 |         ma_type: String,
+   |                  ^^^^^^ expected `String`, found `&str`
+   |
+   = note: `?` operator cannot convert from `&str` to `String`
+help: try using a conversion method
+   |
+19 |         ma_type: String.to_string(),
+   |                        ++++++++++++
+Some errors have detailed explanations: E0308, E0425, E0432.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `nautilus-indicators` (lib) due to 12 previous errors
+warning: build failed, waiting for other jobs to finish...

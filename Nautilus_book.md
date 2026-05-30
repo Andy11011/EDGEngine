@@ -4,6 +4,7 @@
 - [Redis Streams](#redis-streams)
 - [Nautilus Strategy Lifecycle and Data Flow](#nautilus-strategy-lifecycle-and-data-flow)
 - [Nautilus Sync Strategy](#nautilus-sync-strategy)
+- [Integrating New Rust Core Indicator](#integrating-new-rust-core-indicator)
 
 ---
 
@@ -538,3 +539,228 @@ RUN pip install \
 ```
 
 The only manual step after initial setup is clicking "Sync fork" occasionally — everything else is automated.
+
+---
+
+## Integrating New Rust Core Indicator
+
+Sometimes the built‑in indicators don’t cover your exact logic – you need a custom indicator, but you want it to run at Rust speed inside the Nautilus core. This guide walks you through adding a new Rust indicator, exposing it to Python via PyO3, and using it in a strategy.
+
+We’ll use the **Enhanced Donchian Channel (EDC)** as our example – an indicator that tracks the Donchian Channel, its middle‑line moving average, and a regime signal (bullish/bearish) with crossover detection.
+
+### Understand the Project Structure
+
+NautilusTrader’s Rust code lives in the `crates/` directory:
+
+```
+crates/
+├── indicators/
+│   ├── src/
+│   │   ├── volatility/
+│   │   │   ├── mod.rs         ← exports the module
+│   │   │   ├── edc.rs         ← your new indicator (Rust core)
+│   │   ├── python/
+│   │   │   ├── volatility/
+│   │   │   │   ├── mod.rs     ← exports the Python bindings
+│   │   │   │   ├── edc.rs     ← PyO3 bindings for your indicator
+```
+
+The Python side imports from the compiled `_libnautilus` module, so you’ll also need a thin Python shim.
+
+### Write the Rust Core Indicator
+
+Create `crates/indicators/src/volatility/edc.rs`. The pattern:
+
+- Use **`nautilus_core::fixed::Fixed`** for decimal precision (not `f64` or `rust_decimal`).
+- Keep state in a struct.
+- Provide a `new()` and an `update()` method.
+- No need to implement a special trait – just a plain Rust struct.
+
+```rust
+use nautilus_core::fixed::Fixed;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MovingAverageType {
+    Sma,
+    Ema,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedDonchianChannelConfig {
+    pub donchian_period: usize,
+    pub ma_period: usize,
+    pub ma_type: MovingAverageType,
+    pub use_close: bool,
+}
+
+impl Default for EnhancedDonchianChannelConfig {
+    fn default() -> Self {
+        Self {
+            donchian_period: 20,
+            ma_period: 50,
+            ma_type: MovingAverageType::Ema,
+            use_close: true,
+        }
+    }
+}
+
+pub struct EnhancedDonchianChannel {
+    config: EnhancedDonchianChannelConfig,
+    highs: Vec<Fixed>,
+    lows: Vec<Fixed>,
+    closes: Vec<Fixed>,
+    middle_buffer: Vec<Fixed>,
+    pub upper: Option<Fixed>,
+    pub lower: Option<Fixed>,
+    pub middle: Option<Fixed>,
+    pub donchian_ma: Option<Fixed>,
+    pub signal: Option<bool>,
+    pub crossover: i8,
+    ema_prev: Option<Fixed>,
+    prev_upper: Option<Fixed>,
+}
+
+impl EnhancedDonchianChannel {
+    pub fn new(config: EnhancedDonchianChannelConfig) -> Self {
+        Self {
+            config,
+            highs: Vec::new(),
+            lows: Vec::new(),
+            closes: Vec::new(),
+            middle_buffer: Vec::new(),
+            upper: None,
+            lower: None,
+            middle: None,
+            donchian_ma: None,
+            signal: None,
+            crossover: 0,
+            ema_prev: None,
+            prev_upper: None,
+        }
+    }
+
+    pub fn update(&mut self, high: Fixed, low: Fixed, close: Fixed) {
+        // Implementation as shown earlier
+        // ...
+    }
+}
+```
+
+**Key points**:
+
+- All calculations use `Fixed` – add, subtract, multiply, divide with `Fixed::from(...)`.
+- The struct exposes `pub` fields so that PyO3 getters can read them.
+
+### Expose the Indicator to Python with PyO3
+
+Create `crates/indicators/src/python/volatility/edc.rs`:
+
+```rust
+use pyo3::{pyclass, pymethods, PyResult, Python};
+use nautilus_core::{fixed::Fixed, python::py_fixed};
+use crate::volatility::edc::{EnhancedDonchianChannel, EnhancedDonchianChannelConfig, MovingAverageType};
+
+#[pyclass(name = "EnhancedDonchianChannel")]
+pub struct PyEnhancedDonchianChannel {
+    inner: EnhancedDonchianChannel,
+}
+
+#[pymethods]
+impl PyEnhancedDonchianChannel {
+    #[new]
+    #[pyo3(signature = (donchian_period=20, ma_period=50, ma_type="EMA", use_close=true))]
+    fn new(
+        donchian_period: usize,
+        ma_period: usize,
+        ma_type: String,
+        use_close: bool,
+    ) -> PyResult<Self> {
+        let ma_type_enum = match ma_type.to_uppercase().as_str() {
+            "SMA" => MovingAverageType::Sma,
+            "EMA" => MovingAverageType::Ema,
+            _ => return Err(pyo3::exceptions::PyValueError::new_err("ma_type must be 'SMA' or 'EMA'")),
+        };
+        let config = EnhancedDonchianChannelConfig {
+            donchian_period,
+            ma_period,
+            ma_type: ma_type_enum,
+            use_close,
+        };
+        Ok(PyEnhancedDonchianChannel {
+            inner: EnhancedDonchianChannel::new(config),
+        })
+    }
+
+    fn update(&mut self, high: PyObject, low: PyObject, close: PyObject, py: Python) -> PyResult<()> {
+        let high_fixed = py_fixed::py_fixed_to_fixed(high, py)?;
+        let low_fixed = py_fixed::py_fixed_to_fixed(low, py)?;
+        let close_fixed = py_fixed::py_fixed_to_fixed(close, py)?;
+        self.inner.update(high_fixed, low_fixed, close_fixed);
+        Ok(())
+    }
+
+    #[getter]
+    fn upper(&self, py: Python) -> Option<PyObject> {
+        self.inner.upper.map(|f| py_fixed::fixed_to_py_fixed(f, py))
+    }
+
+    #[getter]
+    fn lower(&self, py: Python) -> Option<PyObject> {
+        self.inner.lower.map(|f| py_fixed::fixed_to_py_fixed(f, py))
+    }
+
+    #[getter]
+    fn middle(&self, py: Python) -> Option<PyObject> {
+        self.inner.middle.map(|f| py_fixed::fixed_to_py_fixed(f, py))
+    }
+
+    #[getter]
+    fn donchian_ma(&self, py: Python) -> Option<PyObject> {
+        self.inner.donchian_ma.map(|f| py_fixed::fixed_to_py_fixed(f, py))
+    }
+
+    #[getter]
+    fn signal(&self) -> Option<bool> {
+        self.inner.signal
+    }
+
+    #[getter]
+    fn crossover(&self) -> i8 {
+        self.inner.crossover
+    }
+}
+```
+
+**Critical imports**:
+
+- `nautilus_core::python::py_fixed` provides conversion between Python decimals and `Fixed`.
+- Do **not** use `rust_decimal` or `nautilus_pyo3` directly – those are outdated paths.
+
+### Register the Module in Rust
+
+Update `crates/indicators/src/volatility/mod.rs` (add one line):
+
+```rust
+pub mod edc;   // add this line
+```
+
+Update `crates/indicators/src/python/volatility/mod.rs`:
+
+```rust
+pub mod edc;   // add this line
+```
+
+No other Rust files need changes – the `_libnautilus` module automatically collects all submodules via `wrap_pymodule!`.
+
+### Update the Top‑Level `__init__.py`
+
+In `nautilus_trader/indicators/__init__.py`, add:
+
+```python
+from nautilus_trader.indicators.volatility.edc import EnhancedDonchianChannel
+```
+
+Now users can import directly:  
+`from nautilus_trader.indicators import EnhancedDonchianChannel`

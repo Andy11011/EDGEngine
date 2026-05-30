@@ -14,6 +14,7 @@
 - [X] ~~*Build the Nautilus*~~ [2026-05-30]
 - [X] ~~*Build EDGEngine with custom Nautilus*~~ [2026-05-30]
 - [ ] Implement Donchian using Rust Core
+- [ ] Register new indicator for all callbacks
 - [ ] Donchian Channel with all data
 - [ ] Donchian Channel configs from DB
 - [ ] Bug: Solve on_historical_data issue
