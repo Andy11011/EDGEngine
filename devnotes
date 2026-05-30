@@ -405,3 +405,122 @@ Level 2 — Write actual Rust + PyO3
 Write the indicator in Rust inside the nautilus_core crate, compile it,
  bind it via PyO3. 10-100x faster but requires Rust toolchain, 
  recompiling NautilusTrader from source, and maintaining a fork.
+
+
+ [ec2-user@ip-172-31-46-218 ~]$ docker exec edgengine python -c "import nautilus_trader; print(nautilus_trader.__version__)"
+1.227.0
+
+[ec2-user@ip-172-31-46-218 ~]$ docker exec edgengine python -c "import nautilus_trader; print(nautilus_trader.__version__)"
+1.228.0
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+Files to create (2 new files):
+crates/indicators/src/volatility/edc.rs
+crates/indicators/src/python/volatility/edc.rs
+
+Files to modify (3 existing files, one line each):
+crates/indicators/src/volatility/mod.rs
+crates/indicators/src/python/volatility/mod.rs
+nautilus_trader/indicators/__init__.py
+
+Then update EDGEngine.py to import from nautilus instead of the inline Python class.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+crates/indicators/src/volatility/
+    dc.rs                           ← existing (read for pattern)
+    edc.rs                          ← NEW: our Rust indicator
+    mod.rs                          ← add one line
+
+crates/indicators/src/python/volatility/
+    dc.rs                          ← existing (read for PyO3 pattern)
+    edc.rs                         ← NEW: PyO3 bindings
+    mod.rs                         ← add one line
+
+nautilus_trader/indicators/
+    __init__.py                    ← add one export line
+
+
+
+And expose the class in the main _nautilus module (likely in crates/nautilus-pyo3/src/indicators.rs or similar – follow the existing pattern for DonchianChannel).
+
+nautilus_trader/indicators/__init__.py
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+PS C:\Users\andy9\nautilus_trader> git status
+On branch develop
+Your branch is up to date with 'origin/develop'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   crates/indicators/src/python/volatility/mod.rs
+        modified:   crates/indicators/src/volatility/mod.rs
+        modified:   nautilus_trader/indicators/__init__.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        crates/indicators/src/python/volatility/edc.rs
+        crates/indicators/src/volatility/edc.rs
+
+no changes added to commit (use "git add" and/or "git commit -a")
+PS C:\Users\andy9\nautilus_trader>
+PS C:\Users\andy9\nautilus_trader>
+PS C:\Users\andy9\nautilus_trader>
+PS C:\Users\andy9\nautilus_trader> git diff
+diff --git a/crates/indicators/src/python/volatility/mod.rs b/crates/indicators/src/python/volatility/mod.rs
+index 480334e4f9..611bf0d98f 100644
+--- a/crates/indicators/src/python/volatility/mod.rs
++++ b/crates/indicators/src/python/volatility/mod.rs
+@@ -20,3 +20,4 @@ pub mod kc;
+ pub mod kp;
+ pub mod rvi;
+ pub mod vr;
++pub mod edc;
+\ No newline at end of file
+diff --git a/crates/indicators/src/volatility/mod.rs b/crates/indicators/src/volatility/mod.rs
+index ae62f3d6a2..0c5376b32e 100644
+--- a/crates/indicators/src/volatility/mod.rs
++++ b/crates/indicators/src/volatility/mod.rs
+@@ -22,3 +22,4 @@ pub mod kc;
+ pub mod kp;
+ pub mod rvi;
+ pub mod vr;
++pub mod edc;
+\ No newline at end of file
+diff --git a/nautilus_trader/indicators/__init__.py b/nautilus_trader/indicators/__init__.py
+index 1ec7398aac..48f57031d5 100644
+--- a/nautilus_trader/indicators/__init__.py
++++ b/nautilus_trader/indicators/__init__.py
+@@ -64,6 +64,7 @@ from nautilus_trader.indicators.volatility import KeltnerChannel
+ from nautilus_trader.indicators.volatility import KeltnerPosition
+ from nautilus_trader.indicators.volatility import VerticalHorizontalFilter
+ from nautilus_trader.indicators.volatility import VolatilityRatio
++from nautilus_trader.indicators.volatility.edc import EnhancedDonchianChannel
+ from nautilus_trader.indicators.volume import KlingerVolumeOscillator
+ from nautilus_trader.indicators.volume import OnBalanceVolume
+ from nautilus_trader.indicators.volume import Pressure
+PS C:\Users\andy9\nautilus_trader>
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+✅ Rust core indicator – crates/indicators/src/volatility/edc.rs (you added)
+✅ PyO3 bindings – crates/indicators/src/python/volatility/edc.rs (you added)
+✅ Rust module exports – both mod.rs files updated
+✅ Python __init__.py import – updated
+
+❌ PyO3 class not yet visible to Python – because the _libnautilus module isn't recompiled with your new bindings.
+❌ No .py shim needed – Rust‑exposed classes are injected directly.
