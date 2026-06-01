@@ -1,0 +1,74 @@
+stateDiagram-v2
+    [*] --> IDLE
+    
+    IDLE --> ENTRY_ZONE: entry_zone
+    
+    ENTRY_ZONE --> ENTRY_ZONE: any_token_fired && entry_zone<br/>[Calculate EP/SL]
+    ENTRY_ZONE --> ENTERING: place_order_zone && got_token<br/>[Place buy order]
+    ENTRY_ZONE --> RESET_ZONE: reset_zone
+    ENTRY_ZONE --> RESET_ZONE: level_is_broken<br/>[Cancel orders, reset params]
+    
+    ENTERING --> IN_TRADE: in_trade_zone<br/>[Place exit orders,<br/>record entry bar,<br/>init chandelier]
+    ENTERING --> ENTERING: !in_trade_zone<br/>[Wait for trade open]
+    ENTERING --> RESET_ZONE: level_is_broken<br/>[Cancel orders, reset params]
+    
+    IN_TRADE --> IN_TRADE: enable_trailing<br/>[Recalculate dynamic SL,<br/>update exit orders]
+    IN_TRADE --> EXIT: date_exit<br/>[Date-based exit]
+    IN_TRADE --> EXIT: ch_stop<br/>[Chandelier exit]
+    IN_TRADE --> EXIT: trade_closed
+    
+    EXIT --> IDLE: [Send notification,<br/>reset all params]
+    
+    RESET_ZONE --> IDLE: [Cancel orders,<br/>reset all params]
+    
+    TERMINATE --> TERMINATE: [Needs reconfiguration]
+    
+    note right of IDLE
+        Waiting for entry zone
+    end note
+    
+    note right of ENTRY_ZONE
+        Waiting for token signal
+        Calculating entry params
+    end note
+    
+    note right of ENTERING
+        Order placed,
+        waiting for fill
+    end note
+    
+    note right of IN_TRADE
+        Active trade monitoring:
+        - Dynamic stop loss
+        - Exit signals
+        - Trailing stops
+    end note
+    
+    note right of EXIT
+        Trade completed,
+        cleanup and reporting
+    end note
+    
+    note right of TERMINATE
+        Reserved for unrecoverable or manual reconfiguration states
+    end note
+    
+    note left of IDLE
+        📋 KEY FEATURES:
+        • 7 distinct states with clear purposes
+        • Transitions with conditions
+        • Actions in brackets show what happens
+        • Self-loops for waiting/recalculating
+        • TERMINATE requires manual intervention
+        
+        🎯 NOTABLE PATTERNS:
+        • Happy path: IDLE → ENTRY_ZONE → 
+          ENTERING → IN_TRADE → EXIT → IDLE
+        • Safety exits to RESET_ZONE & TERMINATE
+        • IN_TRADE has continuous monitoring loop
+        
+        ✅ ARCHITECTURE:
+        • Clear separation of concerns
+        • One "dead end" state (TERMINATE)
+        • Linear flow with proper cleanup paths
+    end note
