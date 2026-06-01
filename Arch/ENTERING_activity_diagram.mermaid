@@ -1,0 +1,53 @@
+flowchart TD
+    Start([Enter ENTERING State<br/>Order has been placed]) --> Log[Log: Waiting for trade to open]
+    
+    Log --> CheckTrade{in_trade_zone?<br/>strategy.position_size > 0}
+    
+    CheckTrade -->|No| Wait[Wait for order fill]
+    CheckTrade -->|Yes| TradeOpen[Log: Trade is open]
+    
+    Wait --> Start
+    
+    TradeOpen --> InitDynamicSL[Initialize dynamic_sl<br/>= stopLossPrice]
+    
+    InitDynamicSL --> CheckTarget{enable_target1?}
+    
+    CheckTarget -->|Yes| PlaceOCO[Place OCO Order:<br/>• Take Profit at TargetPrice<br/>• Stop Loss at dynamic_sl<br/>• Include alertMsgExit]
+    CheckTarget -->|No| PlaceSLOnly[Place Stop Loss Order:<br/>• Stop at dynamic_sl<br/>• Include alertMsgExit]
+    
+    PlaceOCO --> RecordEntry
+    PlaceSLOnly --> RecordEntry
+    
+    RecordEntry[Record Entry Bar] --> GetCurrentBar[current_entry_bar =<br/>strategy.opentrades.entry_bar_index]
+    
+    GetCurrentBar --> CheckBarChange{Is this a<br/>new entry bar?}
+    
+    CheckBarChange -->|Yes| IncrementAttempts[entry_attempts += 1<br/>last_entry_bar_index = current_entry_bar]
+    CheckBarChange -->|No| KeepAttempts[Keep current entry_attempts]
+    
+    IncrementAttempts --> InitChandelier
+    KeepAttempts --> InitChandelier
+    
+    InitChandelier[Initialize Anchored Chandelier Exit] --> SetDate[ch_date = current bar time]
+    SetDate --> SetHighLow[h = high<br/>l = low<br/>Store anchor points]
+    
+    SetHighLow --> LogComplete[Log: Entry complete<br/>Chandelier initialized]
+    
+    LogComplete --> ToInTrade([Transition to<br/>IN_TRADE State])
+    
+    subgraph Legend["📊 ENTERING State Logic"]
+        direction TB
+        L1["🎯 Primary Goal: Wait for order fill and setup trade monitoring"]
+        L2["📍 Key Actions on Fill:<br/>• Initialize dynamic stop loss<br/>• Place exit orders (OCO or SL only)<br/>• Record entry bar for attempt tracking<br/>• Initialize Chandelier Exit anchor"]
+        L3["🔒 Exit Order Types:<br/>• OCO (One-Cancels-Other): TP + SL together<br/>• SL Only: Just stop loss, manual TP exit"]
+        L4["📊 Chandelier Exit Setup:<br/>• Anchored to entry bar timestamp<br/>• Records initial high/low levels<br/>• Used for ATR-based trailing stop"]
+        L5["⚡ Entry Attempts Tracking:<br/>• Counts how many times order was placed<br/>• Prevents infinite retry loops<br/>• Limited by number_of_tries setting"]
+    end
+    
+    style Start fill:#e1f5ff
+    style ToInTrade fill:#e1ffe1
+    style TradeOpen fill:#e1ffe1
+    style PlaceOCO fill:#ffe1f5
+    style PlaceSLOnly fill:#ffe1f5
+    style InitChandelier fill:#fff4e1
+    style CheckTrade fill:#fff4e1

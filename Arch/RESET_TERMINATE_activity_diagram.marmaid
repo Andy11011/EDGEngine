@@ -1,0 +1,54 @@
+flowchart TD
+    StartReset([Enter RESET_ZONE State<br/>Exit conditions met]) --> LogReset[Log: Entering RESET Zone]
+    
+    StartTerminate([Enter TERMINATE State<br/>Level broken]) --> LogTerminate[Log: Entering TERMINATE State]
+    
+    LogReset --> CancelReset[Cancel all open orders<br/>strategy.cancel]
+    LogTerminate --> CancelTerm[Cancel all open orders<br/>strategy.cancel]
+    
+    CancelReset --> ResetParams1[Reset All Entry Parameters]
+    CancelTerm --> ResetParams2[Reset All Entry Parameters]
+    
+    ResetParams1 --> ClearEntry1[Clear:<br/>• TruncatedPositionSize<br/>• entryPrice, limitPrice<br/>• alertMsgEnter]
+    ResetParams2 --> ClearEntry2[Clear:<br/>• TruncatedPositionSize<br/>• entryPrice, limitPrice<br/>• alertMsgEnter]
+    
+    ClearEntry1 --> ClearTrade1[Clear:<br/>• stopLossPrice<br/>• TargetPrice<br/>• positionValueUSDT]
+    ClearEntry2 --> ClearTrade2[Clear:<br/>• stopLossPrice<br/>• TargetPrice<br/>• positionValueUSDT]
+    
+    ClearTrade1 --> ClearDynamic1[Clear:<br/>• dynamic_sl<br/>• lock_trigger1-5]
+    ClearTrade2 --> ClearDynamic2[Clear:<br/>• dynamic_sl<br/>• lock_trigger1-5]
+    
+    ClearDynamic1 --> ClearChandelier1[Clear:<br/>• h, l anchors<br/>• ch_date<br/>• ch_stopped flag]
+    ClearDynamic2 --> ClearChandelier2[Clear:<br/>• h, l anchors<br/>• ch_date<br/>• ch_stopped flag]
+    
+    ClearChandelier1 --> LogResetComplete[Log: All params reset<br/>Orders cancelled]
+    ClearChandelier2 --> LogTermComplete[Log: Need to reconfigure script]
+    
+    LogResetComplete --> ToIdle([Transition to<br/>IDLE State<br/>Ready for next cycle])
+    LogTermComplete --> StayTerminate([Stay in<br/>TERMINATE State<br/>Manual intervention required])
+    
+    StayTerminate --> StayTerminate
+    
+    subgraph ResetZone["🔄 RESET_ZONE State"]
+        direction TB
+        R1["🎯 Trigger Conditions:<br/>• !inDateRange: Outside trading hours/dates<br/>• !ExternalCondition: External signal turned off"]
+        R2["⚡ Actions:<br/>• Cancel any pending orders<br/>• Clear all calculated parameters<br/>• Return to IDLE for clean restart"]
+        R3["✅ Purpose:<br/>• Clean exit when conditions no longer met<br/>• Prevents stale orders from filling<br/>• Ensures fresh start for next entry zone"]
+    end
+    
+    subgraph TerminateState["⛔ TERMINATE State"]
+        direction TB
+        T1["🎯 Trigger Condition:<br/>• level_is_broken: close < sl_support<br/>• Support level invalidated"]
+        T2["⚠️ Critical Issue:<br/>• Entry setup is no longer valid<br/>• Support broken = strategy assumption failed<br/>• Cannot safely continue trading"]
+        T3["🛠️ Required Action:<br/>• Manual reconfiguration needed<br/>• Update sl_support level<br/>• Review and adjust strategy parameters<br/>• Restart script after fixes"]
+        T4["🔒 Dead End State:<br/>• Self-loop: stays in TERMINATE<br/>• Only exit: script restart<br/>• Prevents automated trading on invalid setup"]
+    end
+    
+    style StartReset fill:#fff4e1
+    style StartTerminate fill:#ffe1e1
+    style ToIdle fill:#e1ffe1
+    style StayTerminate fill:#ffe1e1
+    style CancelReset fill:#fff4e1
+    style CancelTerm fill:#ffe1e1
+    style LogResetComplete fill:#e1ffe1
+    style LogTermComplete fill:#ffe1e1

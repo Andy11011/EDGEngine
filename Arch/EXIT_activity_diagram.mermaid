@@ -1,0 +1,50 @@
+flowchart TD
+    Start([Enter EXIT State<br/>Trade has closed]) --> Log[Log: Entering EXIT State]
+    
+    Log --> CalcIndex[Calculate last trade index:<br/>last_index = strategy.closedtrades - 1]
+    
+    CalcIndex --> GetProfit[Get last trade profit:<br/>last_profit = closedtrades.profit]
+    
+    GetProfit --> GetBars[Get entry and exit bars:<br/>entry_bar, exit_bar]
+    
+    GetBars --> CalcDuration[duration_bars = exit_bar - entry_bar<br/>duration_minutes = bars * timeframe]
+    
+    CalcDuration --> ComposeAlert[Compose Exit Alert Message]
+    
+    ComposeAlert --> AddStrategy["Add strategy info:<br/><strategy><name>LevelsBot_v1.0.0</name></strategy>"]
+    
+    AddStrategy --> AddAlertData["Add alert data:<br/><alert><br/>  <type>sell</type><br/>  <profit>last_profit</profit><br/>  <duration>duration_minutes</duration><br/>  <ticker>symbol</ticker><br/></alert>"]
+    
+    AddAlertData --> SendAlert[Send Alert<br/>alert.freq_once_per_bar]
+    
+    SendAlert --> UpdateCounter[Update last_closed_trades counter<br/>= strategy.closedtrades]
+    
+    UpdateCounter --> ResetParams[Reset All Entry Parameters]
+    
+    ResetParams --> ClearEntry[Clear:<br/>• TruncatedPositionSize<br/>• entryPrice, limitPrice<br/>• alertMsgEnter]
+    
+    ClearEntry --> ClearTrade[Clear:<br/>• stopLossPrice<br/>• TargetPrice<br/>• positionValueUSDT]
+    
+    ClearTrade --> ClearDynamic[Clear:<br/>• dynamic_sl<br/>• lock_trigger1-5]
+    
+    ClearDynamic --> ClearChandelier[Clear:<br/>• h, l (high/low anchors)<br/>• ch_date<br/>• ch_stopped flag]
+    
+    ClearChandelier --> LogComplete[Log: All params reset<br/>Notification sent]
+    
+    LogComplete --> ToIdle([Transition to<br/>IDLE State])
+    
+    subgraph Legend["📊 EXIT State Logic"]
+        direction TB
+        L1["🎯 Primary Goal: Report trade results and cleanup for next trade"]
+        L2["📊 Trade Analysis:<br/>• Calculate profit/loss from closed trade<br/>• Measure trade duration in bars and minutes<br/>• Extract entry/exit bar indices"]
+        L3["🔔 Notification System:<br/>• XML-formatted alert message<br/>• Includes strategy name, profit, duration, ticker<br/>• Sent once per bar to prevent duplicates<br/>• Can be processed by external systems"]
+        L4["🧹 Complete Cleanup:<br/>• All entry parameters cleared<br/>• All trade parameters cleared<br/>• All trailing stop variables cleared<br/>• All chandelier exit variables cleared"]
+        L5["♻️ Ready for Next Trade:<br/>• Returns to IDLE state<br/>• Bot ready to wait for next entry zone<br/>• No leftover state from previous trade"]
+    end
+    
+    style Start fill:#e1f5ff
+    style ToIdle fill:#e1ffe1
+    style SendAlert fill:#ffe1f5
+    style ResetParams fill:#fff4e1
+    style ComposeAlert fill:#ffe1f5
+    style LogComplete fill:#e1ffe1

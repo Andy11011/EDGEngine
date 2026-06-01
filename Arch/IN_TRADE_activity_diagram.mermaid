@@ -1,0 +1,93 @@
+flowchart TD
+    Start([IN_TRADE State]) --> CheckTrailing{enable_trailing?}
+    
+    CheckTrailing -->|No| MonitorExit[Monitor Exit Signals]
+    CheckTrailing -->|Yes| CalcTriggers[Calculate 5 lock triggers<br/>based on risk distance]
+    
+    CalcTriggers --> CheckMode{trailing_mode?}
+    
+    %% 1-Step Mode Branch
+    CheckMode -->|1-Step| Check5_1[high >= lock_trigger5?]
+    Check5_1 -->|Yes| Set5_1[dynamic_sl = lock_trigger5]
+    Check5_1 -->|No| Check4_1[high >= lock_trigger4?]
+    Check4_1 -->|Yes| Set4_1[dynamic_sl = lock_trigger4]
+    Check4_1 -->|No| Check3_1[high >= lock_trigger3?]
+    Check3_1 -->|Yes| Set3_1[dynamic_sl = lock_trigger3]
+    Check3_1 -->|No| Check2_1[high >= lock_trigger2?]
+    Check2_1 -->|Yes| Set2_1[dynamic_sl = lock_trigger2]
+    Check2_1 -->|No| Check1_1[high >= lock_trigger1?]
+    Check1_1 -->|Yes| Set1_1[dynamic_sl = lock_trigger1]
+    Check1_1 -->|No| SetOrig_1[dynamic_sl = stopLossPrice]
+    
+    Set5_1 --> Compare
+    Set4_1 --> Compare
+    Set3_1 --> Compare
+    Set2_1 --> Compare
+    Set1_1 --> Compare
+    SetOrig_1 --> Compare
+    
+    %% 2-Step Mode Branch
+    CheckMode -->|2-Step| Check5_2[high >= lock_trigger5?]
+    Check5_2 -->|Yes| Set5_2[dynamic_sl = lock_trigger4<br/>Move to PREVIOUS level]
+    Check5_2 -->|No| Check4_2[high >= lock_trigger4?]
+    Check4_2 -->|Yes| Set4_2[dynamic_sl = lock_trigger3]
+    Check4_2 -->|No| Check3_2[high >= lock_trigger3?]
+    Check3_2 -->|Yes| Set3_2[dynamic_sl = lock_trigger2]
+    Check3_2 -->|No| Check2_2[high >= lock_trigger2?]
+    Check2_2 -->|Yes| Set2_2[dynamic_sl = lock_trigger1]
+    Check2_2 -->|No| Check1_2[high >= lock_trigger1?]
+    Check1_2 -->|Yes| Set1_2[dynamic_sl = entryPrice + buffer<br/>Move to breakeven]
+    Check1_2 -->|No| SetOrig_2[dynamic_sl = stopLossPrice]
+    
+    Set5_2 --> Compare
+    Set4_2 --> Compare
+    Set3_2 --> Compare
+    Set2_2 --> Compare
+    Set1_2 --> Compare
+    SetOrig_2 --> Compare
+    
+    %% Comparison and Update
+    Compare{new dynamic_sl ><br/>old dynamic_sl?}
+    Compare -->|Yes| UpdateSL[Update dynamic_sl variable]
+    Compare -->|No| KeepSL[Keep current dynamic_sl]
+    
+    UpdateSL --> RecreateOrders[Recreate exit orders<br/>with new stop loss]
+    KeepSL --> MonitorExit
+    RecreateOrders --> CheckTarget{enable_target1?}
+    
+    CheckTarget -->|Yes| PlaceOCO[Place OCO order<br/>TP + SL]
+    CheckTarget -->|No| PlaceSL[Place Stop Loss order only]
+    
+    PlaceOCO --> MonitorExit
+    PlaceSL --> MonitorExit
+    
+    %% Exit Monitoring
+    MonitorExit --> CheckDateExit{date_exit?}
+    CheckDateExit -->|Yes| ExitDate[Exit with<br/>Date-based stop]
+    CheckDateExit -->|No| CheckChandelier{ch_stop?}
+    
+    CheckChandelier -->|Yes| ExitChandelier[Exit with<br/>Chandelier stop]
+    CheckChandelier -->|No| CheckClosed{trade_closed?}
+    
+    CheckClosed -->|Yes| ExitNormal[Exit - Target/SL hit]
+    CheckClosed -->|No| StayInTrade[Stay in IN_TRADE state]
+    
+    ExitDate --> ToExit([Transition to EXIT state])
+    ExitChandelier --> ToExit
+    ExitNormal --> ToExit
+    StayInTrade --> Start
+    
+    style Start fill:#e1f5ff
+    style ToExit fill:#ffe1e1
+    style UpdateSL fill:#fff4e1
+    style RecreateOrders fill:#fff4e1
+    style CheckMode fill:#e1ffe1
+    style Compare fill:#ffe1f5
+    
+    subgraph Legend["📊 Legend & Key Concepts"]
+        direction TB
+        L1["🎯 Trailing Stop Modes:<br/>• 1-Step: Move SL directly to current trigger<br/>• 2-Step: Move SL to PREVIOUS trigger (more conservative)"]
+        L2["🔒 5-Level Lock System:<br/>Each trigger = percentage of risk distance<br/>Protects profits incrementally as price rises"]
+        L3["⚡ Dynamic Update Logic:<br/>• Only increases SL (never decreases)<br/>• Recreates orders when SL moves up<br/>• Prevents accidental SL degradation"]
+        L4["🚪 Exit Signals:<br/>• Date-based: Trading window closed<br/>• Chandelier: ATR-based trailing stop<br/>• Target/SL: Limit or stop order hit"]
+    end

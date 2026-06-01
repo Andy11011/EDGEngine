@@ -1,0 +1,68 @@
+flowchart TD
+    Start([Enter ENTRY_ZONE State]) --> CheckToken{Token fired?<br/>TokenCondition1 OR<br/>TokenCondition2 OR<br/>TokenCondition3}
+    
+    CheckToken -->|No| CheckReset{reset_zone?<br/>!inDateRange AND<br/>!ExternalCondition}
+    CheckToken -->|Yes| CheckInZone{Still in<br/>entry_zone?}
+    
+    CheckInZone -->|Yes| CalcParams[Calculate Entry Parameters]
+    CheckInZone -->|No| WaitToken[Wait for conditions]
+    
+    CalcParams --> CalcEntry[entryPrice = close + <br/>atr_val * atr_mult_confirmation]
+    CalcEntry --> CalcSL[stopLossPrice = sl_support]
+    CalcSL --> CalcTP[TargetPrice = tp_resistance]
+    CalcTP --> CalcRisk[riskAmount = <br/>strategy.equity * RiskRatio]
+    CalcRisk --> CalcPosition[Calculate position size<br/>based on risk and distance]
+    CalcPosition --> CheckMargin{useMargin?}
+    
+    CheckMargin -->|Yes| UseFullPos[positionSize = calculated<br/>Leverage may exceed 1x]
+    CheckMargin -->|No| LimitPos[positionSize = min of:<br/>• Calculated size<br/>• 99% of available equity]
+    
+    UseFullPos --> CalcLimit
+    LimitPos --> CalcLimit
+    
+    CalcLimit[limitPrice = entryPrice + <br/>pipSizeAdjustment * mintick] --> ComposeAlert[Compose alert message<br/>with all parameters]
+    
+    ComposeAlert --> StoreParams[Store all parameters:<br/>• TruncatedPositionSize<br/>• entryPrice, limitPrice<br/>• stopLossPrice, TargetPrice<br/>• alertMsgEnter<br/>• positionValueUSDT]
+    
+    StoreParams --> CheckGotToken{got_token?<br/>All params calculated?}
+    
+    CheckGotToken -->|Yes| CheckPlaceOrder{place_order_zone?<br/>entry_attempts <<br/>number_of_tries}
+    CheckGotToken -->|No| WaitToken
+    
+    CheckPlaceOrder -->|Yes| PlaceOrder[Place Limit Buy Order<br/>with calculated parameters]
+    CheckPlaceOrder -->|No| WaitRetry[Wait for retry window]
+    
+    PlaceOrder --> ToEntering([Transition to<br/>ENTERING State])
+    
+    CheckReset -->|Yes| ResetOrders[Cancel all open orders]
+    CheckReset -->|No| CheckLevel{level_is_broken?<br/>close < sl_support}
+    
+    ResetOrders --> ClearParams1[Clear all entry parameters]
+    ClearParams1 --> ToReset([Transition to<br/>RESET_ZONE State])
+    
+    CheckLevel -->|Yes| CancelOrders[Cancel all open orders]
+    CheckLevel -->|No| StayInZone[Stay in ENTRY_ZONE]
+    
+    CancelOrders --> ClearParams2[Clear all entry parameters]
+    ClearParams2 --> ToTerminate([Transition to<br/>TERMINATE State])
+    
+    WaitToken --> StayInZone
+    WaitRetry --> StayInZone
+    StayInZone --> Start
+    
+    subgraph Legend["📊 ENTRY_ZONE Logic"]
+        direction TB
+        L1["🎯 Primary Goal: Wait for token signal and calculate entry parameters"]
+        L2["🔢 Position Sizing:<br/>• Risk-based: position size calculated from risk ratio<br/>• Margin mode: can use leverage > 1x<br/>• Spot mode: limited to 99% of available equity"]
+        L3["⚠️ Safety Checks:<br/>• Level broken (close < sl_support) → TERMINATE<br/>• Reset zone (!inDateRange) → RESET_ZONE<br/>• Entry attempts limited by number_of_tries"]
+        L4["📝 Calculated Parameters:<br/>• Entry price (with ATR confirmation)<br/>• Stop loss (support level)<br/>• Take profit (resistance level)<br/>• Position size (risk-adjusted)<br/>• Alert message (for notifications)"]
+    end
+    
+    style Start fill:#e1f5ff
+    style ToEntering fill:#e1ffe1
+    style ToReset fill:#fff4e1
+    style ToTerminate fill:#ffe1e1
+    style StoreParams fill:#ffe1f5
+    style PlaceOrder fill:#e1ffe1
+    style CheckToken fill:#fff4e1
+    style CheckLevel fill:#ffe1e1
