@@ -174,10 +174,9 @@ class RSIRegimeStrategy(Strategy):
             self.log.warning(f"on_historical_data: unexpected type {type(data).__name__}, skipping")
             return
 
-        # Update RSI with close price
-        self.rsi.update_raw(float(data.close))
+        close_float = float(data.close)   # Convert Price to float
+        self.rsi.update_raw(close_float)
 
-        # Once RSI has enough values, determine initial regime
         if self.rsi.initialized and self._last_regime is None:
             rsi_val = self.rsi.value
             regime = rsi_val > self.config.bullish_threshold
@@ -185,9 +184,10 @@ class RSIRegimeStrategy(Strategy):
             self._warming_up = False
             self.log.info(
                 f"Warmup complete | Initial regime: {'BULLISH' if regime else 'BEARISH'} | "
-                f"RSI={rsi_val:.2f} Close={data.close:.2f}",
+                f"RSI={rsi_val:.2f} Close={close_float:.2f}",
                 color=LogColor.YELLOW,
             )
+            # Pass the original bar (or use close_float in the payload)
             self._write_regime_to_redis(data, regime, rsi_val)
 
     def on_bar(self, bar: Bar) -> None:
@@ -195,21 +195,20 @@ class RSIRegimeStrategy(Strategy):
         if self._warming_up:
             return
 
-        # Update RSI
-        self.rsi.update_raw(float(bar.close))
+        close_float = float(bar.close)
+        self.rsi.update_raw(close_float)
         if not self.rsi.initialized:
             return
 
         rsi_val = self.rsi.value
         regime = rsi_val > self.config.bullish_threshold
 
-        # First live bar after warmup
         if self._last_regime is None:
             self._last_regime = regime
             self._warming_up = False
             self.log.info(
                 f"Initial regime (from live bar): {'BULLISH' if regime else 'BEARISH'} | "
-                f"RSI={rsi_val:.2f} Close={bar.close:.2f}",
+                f"RSI={rsi_val:.2f} Close={close_float:.2f}",
                 color=LogColor.YELLOW,
             )
             self._write_regime_to_redis(bar, regime, rsi_val)
@@ -223,7 +222,7 @@ class RSIRegimeStrategy(Strategy):
                 color=LogColor.GREEN if regime else LogColor.RED,
             )
             self.log.info(
-                f"RSI={rsi_val:.2f} Close={bar.close:.2f}",
+                f"RSI={rsi_val:.2f} Close={close_float:.2f}",
                 color=LogColor.CYAN,
             )
             self._write_regime_to_redis(bar, regime, rsi_val)
