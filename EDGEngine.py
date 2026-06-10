@@ -34,7 +34,7 @@ from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
-from nautilus_trader.indicators import RSI   # <-- Rust-core RSI
+from nautilus_trader.indicators import RelativeStrengthIndex   # <-- Rust-core RSI
 
 # -----------------------------------------------------------------------------
 # AWS Secrets Manager credential loader
@@ -92,7 +92,7 @@ class RSIRegimeStrategy(Strategy):
     def __init__(self, config: RSIRegimeConfig):
         super().__init__(config)
         # Create Rust‑based RSI indicator
-        self.rsi = RSI(period=config.rsi_period)
+        self.rsi = RelativeStrengthIndex(period=config.rsi_period)
         self._last_regime: Optional[bool] = None
         self._warming_up: bool = True
 

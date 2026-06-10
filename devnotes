@@ -1024,9 +1024,17 @@ E   ImportError: cannot import name 'EnhancedDonchianChannel' from 'nautilus_tra
 Yes, applying your filtering logic to all tickers from an exchange is a very common and valid use case for Nautilus. 
 While it's an event-driven engine built for high performance, its architecture does support this kind of broad "screening" functionality.
 
-
+//--------------------//
+//--------------------//
+//--------------------//
 
 Dynamic Universe: In live trading, subscribing to all ~1,000+ USDT pairs on Binance for real-time 15-minute bars is memory-intensive. 
 A better approach is to have your Nautilus strategy first load the full list of instruments from the exchange. 
 Then, it can apply your initial filters (like excluding stablecoins or low-volatility pairs, similar to your ListFilter) 
 to create a smaller "active watchlist" of ~100-200 high-potential pairs.
+
+
+[ec2-user@ip-172-31-39-31 ~]$ sudo docker run --rm -it --entrypoint /bin/sh ghcr.io/andy11011/edgengine:latest
+# python -c "import nautilus_trader; print(nautilus_trader.__version__); from nautilus_trader.indicators import *; print(dir())"
+1.228.0
+['AdaptiveMovingAverage', 'ArcherMovingAveragesTrends', 'AroonOscillator', 'AverageTrueRange', 'Bias', 'BollingerBands', 'CandleBodySize', 'CandleDirection', 'CandleSize', 'CandleWickSize', 'ChandeMomentumOscillator', 'CommodityChannelIndex', 'DirectionalMovement', 'DonchianChannel', 'DoubleExponentialMovingAverage', 'EfficiencyRatio', 'ExponentialMovingAverage', 'FuzzyCandle', 'FuzzyCandlesticks', 'HullMovingAverage', 'IchimokuCloud', 'Indicator', 'KeltnerChannel', 'KeltnerPosition', 'KlingerVolumeOscillator', 'LinearRegression', 'MovingAverage', 'MovingAverageConvergenceDivergence', 'MovingAverageFactory', 'MovingAverageType', 'OnBalanceVolume', 'Pressure', 'PsychologicalLine', 'RateOfChange', 'RelativeStrengthIndex', 'RelativeVolatilityIndex', 'SimpleMovingAverage', 'SpreadAnalyzer', 'Stochastics', 'StochasticsDMethod', 'Swings', 'VariableIndexDynamicAverage', 'VerticalHorizontalFilter', 'VolatilityRatio', 'VolumeWeightedAveragePrice', 'WeightedMovingAverage', 'WilderMovingAverage', '__annotations__', '__builtins__', '__doc__', '__loader__', '__name__', '__package__', '__spec__', 'nautilus_trader']
