@@ -3,6 +3,7 @@
 - [Update edgengine Container](#update-edgengine-container)
 - [Check Nautilus Version](#check-nautilus-version)
 - [Test New Indicators](#test-new-indicators)
+- [Inspect Redis Streams](#inspect-redis-streams)
 
 ---
 
@@ -102,6 +103,65 @@ High=50200 Low=49800 Close=50100 | Signal=True Upper=50500 Lower=49000 MA=50000.
 
 A `ModuleNotFoundError` or `AttributeError` means the new wheel wasn’t built correctly or the Python stub is missing.
 
+---
+
+## Inspect Redis Streams
+
+Once the `edgengine` container is running, you can check the Redis streams that store regime changes or crossover signals.
+
+### Connect to Redis CLI
+
+```bash
+sudo docker exec -it redis redis-cli
 ```
 
-This new section gives the user a quick way to verify the indicator is present and functioning inside the running container.
+### List all keys (streams)
+
+```bash
+KEYS *
+```
+
+Example output:
+
+```
+1) "regime:BTCUSDT"
+2) "signals:BTCUSDT"
+```
+
+### View regime changes (old version)
+
+```bash
+XRANGE regime:BTCUSDT - + COUNT 10
+```
+
+### View crossover signals (new version)
+
+```bash
+XRANGE signals:BTCUSDT - + COUNT 10
+```
+
+### Get stream metadata (length, first/last entry)
+
+```bash
+XINFO STREAM signals:BTCUSDT
+```
+
+### Monitor live signals (block until a new entry arrives)
+
+```bash
+XREAD BLOCK 0 STREAMS signals:BTCUSDT $
+```
+
+Press `Ctrl+C` to stop.
+
+### Delete a stream (if you no longer need old data)
+
+```bash
+DEL regime:BTCUSDT
+```
+
+### One‑liner from host without entering the container
+
+```bash
+sudo docker exec -it redis redis-cli XRANGE signals:BTCUSDT - + COUNT 5
+```

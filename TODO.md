@@ -2,7 +2,11 @@
 
 ## Top Priority
 
-- [ ] Implement Donchian using Rust Core
+- [ ] Integrate Nautilus with Redis (check streams)
+- [ ] Show crossovers on the chart
+- [ ] Improve RSI to MLMI
+- [ ] Add Supertrend
+- [ ] Add Volume
 - [X] ~~*Try out NautilusTrader*~~ [2026-04-04]
 - [X] ~~*Try Live Stratagy*~~ [2026-04-12]
 - [X] ~~*Investigate how to do frontend*~~ [2026-04-12]
@@ -14,11 +18,7 @@
 - [X] ~~*Add Reddis*~~ [2026-05-27]
 - [X] ~~*Build the Nautilus*~~ [2026-05-30]
 - [X] ~~*Build EDGEngine with custom Nautilus*~~ [2026-05-30]
-- [ ] Register new indicator for all callbacks
-- [ ] Donchian Channel with all data
-- [ ] Donchian Channel configs from DB
 - [ ] Bug: Solve on_historical_data issue
-- [ ] Integrate Nautilus with Redis
 - [ ] Think how to implement filter over all tickers
 - [ ] Write the EdgeBridge service (maybe be integrate it to the Java backend)
 - [ ] Intergrate EdgeBridge with the EdgeDesk
