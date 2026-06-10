@@ -1,8 +1,8 @@
-"""Live RSI regime detector for Binance using NautilusTrader.
+"""Live RSI crossover signal detector for Binance using NautilusTrader.
 
 This module loads Binance API credentials from AWS Secrets Manager
-and runs a live strategy that monitors the RSI regime (bullish/bearish)
-for a given symbol without placing any trades.
+and runs a live strategy that monitors RSI and writes to Redis when
+overbought (RSI > OB) or oversold (RSI < OS) crossovers occur.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import sys
 import json
 import redis
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from typing import Optional
 
 from nautilus_trader.adapters.binance import (
@@ -34,7 +33,7 @@ from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
-from nautilus_trader.indicators import RelativeStrengthIndex   # <-- Rust-core RSI
+from nautilus_trader.indicators import RelativeStrengthIndex
 
 # -----------------------------------------------------------------------------
 # AWS Secrets Manager credential loader
@@ -79,25 +78,25 @@ def load_credentials_from_aws(
 
 
 # -----------------------------------------------------------------------------
-# RSI Regime Strategy (read‑only, logs regime changes)
+# RSI Crossover Signal Strategy
 # -----------------------------------------------------------------------------
-class RSIRegimeConfig(StrategyConfig, frozen=True):
+class RSISignalConfig(StrategyConfig, frozen=True):
     instrument_id: InstrumentId
     bar_type: BarType
     rsi_period: int = 14
-    bullish_threshold: float = 50.0   # RSI > this → BULLISH, else BEARISH
+    overbought_threshold: float = 70.0
+    oversold_threshold: float = 30.0
 
 
-class RSIRegimeStrategy(Strategy):
-    def __init__(self, config: RSIRegimeConfig):
+class RSISignalStrategy(Strategy):
+    def __init__(self, config: RSISignalConfig):
         super().__init__(config)
-        # Create Rust‑based RSI indicator
         self.rsi = RelativeStrengthIndex(period=config.rsi_period)
-        self._last_regime: Optional[bool] = None
+        self._prev_rsi: Optional[float] = None
         self._warming_up: bool = True
 
     def on_start(self) -> None:
-        # ── Redis connection ──────────────────────────────────────────────────
+        # Redis connection
         redis_host = os.getenv("REDIS_HOST", "localhost")
         redis_port = int(os.getenv("REDIS_PORT", 6379))
         self.log.info(
@@ -117,81 +116,85 @@ class RSIRegimeStrategy(Strategy):
                     color=LogColor.GREEN,
                 )
             else:
-                self.log.warning(
-                    f"⚠️  Redis ping returned unexpected value: {pong}",
-                    color=LogColor.YELLOW,
-                )
+                self.log.warning(f"⚠️ Redis ping unexpected: {pong}", color=LogColor.YELLOW)
         except Exception as e:
-            self.log.error(
-                f"❌ Redis connection FAILED ({redis_host}:{redis_port}): {e}"
-            )
+            self.log.error(f"❌ Redis connection FAILED ({redis_host}:{redis_port}): {e}")
 
-        # ── Historical bar warmup ─────────────────────────────────────────────
-        warmup_bars = self.config.rsi_period + 10   # enough to initialise RSI
-        # Use 20% extra buffer
-        lookback_weeks = int(warmup_bars * 1.2 / (7 * 24 * 4)) + 1   # crude, but fine
-        # Better: calculate from bar duration; but 15min bars -> ~96 per day
-        # We'll request a safe amount: 7 days of 15min bars = 672 bars
+        # Warmup: request enough historical bars to initialize RSI
         lookback_days = 7
         start_dt = datetime.now(timezone.utc) - timedelta(days=lookback_days)
         self.log.info(
-            f"Requesting ~{warmup_bars} historical bars (start={start_dt.date()}) "
-            f"to warm up RSI indicator ...",
+            f"Requesting historical bars (start={start_dt.date()}) to warm up RSI...",
             color=LogColor.BLUE,
         )
         self.request_bars(self.config.bar_type, start=start_dt)
 
-        # ── Subscribe to live bars ────────────────────────────────────────────
+        # Subscribe to live bars
         self.subscribe_bars(self.config.bar_type)
 
         self.log.info(
-            f"RSI Regime Strategy started for {self.config.instrument_id} | "
-            f"RSI period={self.config.rsi_period}, "
-            f"bullish threshold={self.config.bullish_threshold}",
+            f"RSI Signal Strategy started for {self.config.instrument_id} | "
+            f"RSI period={self.config.rsi_period}, OB={self.config.overbought_threshold}, OS={self.config.oversold_threshold}",
             color=LogColor.GREEN,
         )
 
-    def _write_regime_to_redis(self, bar: Bar, regime: bool, rsi_value: float) -> None:
+    def _write_signal_to_redis(self, bar: Bar, signal_type: str, rsi_value: float) -> None:
+        """Write crossover signal to Redis stream 'signals:{symbol}'."""
         payload = {
             "symbol": str(self.config.instrument_id),
-            "regime": "BULLISH" if regime else "BEARISH",
+            "type": signal_type,          # "OB_CROSS" or "OS_CROSS"
             "rsi": rsi_value,
             "close": float(bar.close),
             "timestamp": bar.ts_event,
         }
         try:
             self.redis_client.xadd(
-                f"regime:{self.config.instrument_id.symbol}",
+                f"signals:{self.config.instrument_id.symbol}",
                 {"data": json.dumps(payload)},
                 maxlen=1000,
             )
         except Exception as e:
             self.log.error(f"Redis write failed: {e}")
 
+    def _check_crossovers(self, bar: Bar, rsi_val: float) -> None:
+        """Detect OB/OS crossovers and write signals."""
+        if self._prev_rsi is None:
+            return
+
+        # Overbought crossover (crosses above OB threshold)
+        if self._prev_rsi <= self.config.overbought_threshold and rsi_val > self.config.overbought_threshold:
+            self.log.warning(
+                f"🚨 OVERBOUGHT CROSS (RSI {self._prev_rsi:.1f} -> {rsi_val:.1f} > {self.config.overbought_threshold}) 🚨",
+                color=LogColor.MAGENTA,
+            )
+            self._write_signal_to_redis(bar, "OB_CROSS", rsi_val)
+
+        # Oversold crossover (crosses below OS threshold)
+        if self._prev_rsi >= self.config.oversold_threshold and rsi_val < self.config.oversold_threshold:
+            self.log.warning(
+                f"🚨 OVERSOLD CROSS (RSI {self._prev_rsi:.1f} -> {rsi_val:.1f} < {self.config.oversold_threshold}) 🚨",
+                color=LogColor.CYAN,
+            )
+            self._write_signal_to_redis(bar, "OS_CROSS", rsi_val)
+
     def on_historical_data(self, data) -> None:
-        """Called for each bar returned by request_bars()."""
         if not isinstance(data, Bar):
             self.log.warning(f"on_historical_data: unexpected type {type(data).__name__}, skipping")
             return
 
-        close_float = float(data.close)   # Convert Price to float
+        close_float = float(data.close)
         self.rsi.update_raw(close_float)
 
-        if self.rsi.initialized and self._last_regime is None:
+        if self.rsi.initialized:
             rsi_val = self.rsi.value
-            regime = rsi_val > self.config.bullish_threshold
-            self._last_regime = regime
-            self._warming_up = False
-            self.log.info(
-                f"Warmup complete | Initial regime: {'BULLISH' if regime else 'BEARISH'} | "
-                f"RSI={rsi_val:.2f} Close={close_float:.2f}",
-                color=LogColor.YELLOW,
-            )
-            # Pass the original bar (or use close_float in the payload)
-            self._write_regime_to_redis(data, regime, rsi_val)
+            # On historical bars, we only track previous RSI for later crossovers
+            self._prev_rsi = rsi_val
+            # Mark warmup as done after first RSI value
+            if self._warming_up:
+                self._warming_up = False
+                self.log.info(f"Warmup complete. First RSI={rsi_val:.2f}", color=LogColor.YELLOW)
 
     def on_bar(self, bar: Bar) -> None:
-        # Skip until warmup finished
         if self._warming_up:
             return
 
@@ -201,34 +204,14 @@ class RSIRegimeStrategy(Strategy):
             return
 
         rsi_val = self.rsi.value
-        regime = rsi_val > self.config.bullish_threshold
+        # Detect crossovers using previous bar's RSI
+        self._check_crossovers(bar, rsi_val)
 
-        if self._last_regime is None:
-            self._last_regime = regime
-            self._warming_up = False
-            self.log.info(
-                f"Initial regime (from live bar): {'BULLISH' if regime else 'BEARISH'} | "
-                f"RSI={rsi_val:.2f} Close={close_float:.2f}",
-                color=LogColor.YELLOW,
-            )
-            self._write_regime_to_redis(bar, regime, rsi_val)
-            return
-
-        # Regime change
-        if regime != self._last_regime:
-            self._last_regime = regime
-            self.log.warning(
-                f"🚨 REGIME CHANGE: {'BULLISH' if regime else 'BEARISH'} 🚨",
-                color=LogColor.GREEN if regime else LogColor.RED,
-            )
-            self.log.info(
-                f"RSI={rsi_val:.2f} Close={close_float:.2f}",
-                color=LogColor.CYAN,
-            )
-            self._write_regime_to_redis(bar, regime, rsi_val)
+        # Store current RSI for next bar's crossover detection
+        self._prev_rsi = rsi_val
 
     def on_stop(self) -> None:
-        self.log.info("RSI Regime Strategy stopped", color=LogColor.YELLOW)
+        self.log.info("RSI Signal Strategy stopped", color=LogColor.YELLOW)
 
 
 # -----------------------------------------------------------------------------
@@ -267,7 +250,6 @@ def build_data_only_node(
     data_clients: dict,
     log_level: str = "INFO",
 ) -> TradingNode:
-    """Build a TradingNode with data client only (no execution)."""
     config = TradingNodeConfig(
         trader_id=trader_id,
         logging=LoggingConfig(log_level=log_level, use_pyo3=True),
@@ -294,7 +276,6 @@ def run_data_node(
     strategy: Strategy,
     register_data_client_factories: callable,
 ) -> None:
-    """Run the node with the given strategy."""
     node.trader.add_strategy(strategy)
     register_data_client_factories(node)
     node.build()
@@ -310,7 +291,6 @@ def run_data_node(
 
 
 def register_binance_data_client_factory(node: TradingNode) -> None:
-    """Register only the data client factory for Binance."""
     node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
 
 
@@ -318,19 +298,17 @@ def register_binance_data_client_factory(node: TradingNode) -> None:
 # Main
 # -----------------------------------------------------------------------------
 def main():
-    # Environment variables
     symbol = os.getenv("BINANCE_SYMBOL", "BTCUSDT")
     trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
-    account_type_name = os.getenv("BINANCE_ACCOUNT_TYPE", "SPOT").upper()
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
     rsi_period = int(os.getenv("RSI_PERIOD", "14"))
-    bullish_threshold = float(os.getenv("BULLISH_THRESHOLD", "50.0"))  # RSI > 50 = bullish
+    overbought = float(os.getenv("RSI_OVERBOUGHT", "70.0"))
+    oversold = float(os.getenv("RSI_OVERSOLD", "30.0"))
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
 
-    # Load credentials from AWS Secrets Manager
     try:
         api_key, api_secret = load_credentials_from_aws(region=aws_region, sandbox=sandbox)
         print("✅ Credentials loaded from AWS Secrets Manager", file=sys.stderr)
@@ -338,13 +316,10 @@ def main():
         print(f"❌ Failed to load credentials from AWS: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Force spot account type (no futures)
     account_type = BinanceAccountType.SPOT
-
     instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")
     bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST-EXTERNAL")
 
-    # Binance client configuration
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
     binance_client_config = BinanceDataClientConfig(
         api_key=api_key,
@@ -354,20 +329,19 @@ def main():
         **binance_config_kwargs,
     )
 
-    # Build data‑only node
     node = build_data_only_node(
         trader_id=trader_id,
         data_clients={BINANCE: binance_client_config},
         log_level=log_level,
     )
 
-    # Create strategy with RSI
-    strategy = RSIRegimeStrategy(
-        RSIRegimeConfig(
+    strategy = RSISignalStrategy(
+        RSISignalConfig(
             instrument_id=instrument_id,
             bar_type=bar_type,
             rsi_period=rsi_period,
-            bullish_threshold=bullish_threshold,
+            overbought_threshold=overbought,
+            oversold_threshold=oversold,
         )
     )
 
