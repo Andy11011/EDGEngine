@@ -1016,3 +1016,17 @@ index 00054b5b55..ddac78b335 100644
 nautilus_trader/indicators/__init__.py:63: in <module>
     from nautilus_trader.indicators.volatility import EnhancedDonchianChannel
 E   ImportError: cannot import name 'EnhancedDonchianChannel' from 'nautilus_trader.indicators.volatility' (/home/runner/work/nautilus_trader/nautilus_trader/nautilus_trader/indicators/volatility.cpython-312-x86_64-linux-gnu.so)
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+Yes, applying your filtering logic to all tickers from an exchange is a very common and valid use case for Nautilus. 
+While it's an event-driven engine built for high performance, its architecture does support this kind of broad "screening" functionality.
+
+
+
+Dynamic Universe: In live trading, subscribing to all ~1,000+ USDT pairs on Binance for real-time 15-minute bars is memory-intensive. 
+A better approach is to have your Nautilus strategy first load the full list of instruments from the exchange. 
+Then, it can apply your initial filters (like excluding stablecoins or low-volatility pairs, similar to your ListFilter) 
+to create a smaller "active watchlist" of ~100-200 high-potential pairs.

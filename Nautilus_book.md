@@ -5,6 +5,7 @@
 - [Nautilus Strategy Lifecycle and Data Flow](#nautilus-strategy-lifecycle-and-data-flow)
 - [Nautilus Sync Strategy](#nautilus-sync-strategy)
 - [Integrating New Rust Core Indicator](#integrating-new-rust-core-indicator)
+- [Local Build on Windows](#local-build-on-windows)
 
 ---
 
@@ -826,3 +827,122 @@ class EnhancedDonchianChannel:
     def handle_bar(self, bar: model.Bar) -> None: ...
     def reset(self) -> None: ...
 ```
+
+---
+
+## Local Build on Windows
+
+### Why Build Locally?
+
+While the official NautilusTrader releases provide pre‑compiled wheels, you may need to build from source when:
+
+- You’ve added a **custom Rust indicator** (like the `EnhancedDonchianChannel`) and want to test it before pushing to CI.
+- You need to **debug** or modify the core library (Rust or Cython code).
+- You want to use the **latest upstream changes** that haven’t been released yet.
+
+Building on Windows is possible, but it requires careful setup because NautilusTrader relies on **Rust** and **Cython** – both need a proper build environment.
+
+### Prerequisites
+
+| Tool | Why | Installation |
+|------|-----|---------------|
+| **Python 3.12** (recommended) | The CI and many dependencies are tested with 3.12. 3.13 may work but is not officially supported. | [python.org](https://python.org) – check “Add to PATH”. |
+| **Rust** | Compiles the core indicators, networking, and other high‑performance components. | [rustup.rs](https://rustup.rs) – install `stable` toolchain. |
+| **Visual Studio Build Tools** | Provides the C++ linker (`link.exe`) required by Rust and Cython on Windows. | [VS Build Tools 2022](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) – select “Desktop development with C++”. |
+| **Git** (optional) | To clone the repository. | [git-scm.com](https://git-scm.com) |
+
+After installing Rust, open a **new terminal** and verify:
+
+```bash
+rustc --version   # e.g., rustc 1.82.0
+cargo --version
+```
+
+For Python, use a **virtual environment** to avoid conflicts:
+
+```bash
+python -m venv nautilus_build
+nautilus_build\Scripts\activate
+```
+
+### Install Build Dependencies
+
+Inside the virtual environment:
+
+```bash
+pip install --upgrade pip
+pip install cython build setuptools wheel
+```
+
+These tools are needed to compile Cython extensions and package the wheel.
+
+### Building the Wheel
+
+Navigate to the root of your NautilusTrader fork (where `pyproject.toml` or `setup.py` is located). Then run:
+
+```bash
+python -m build --wheel
+```
+
+This command:
+
+1. **Compiles the Rust crates** – `cargo` builds the core libraries (`nautilus_core`, `nautilus_indicators`, etc.) in release mode.  
+   *First build may take 15–30 minutes* as it downloads and compiles all Rust dependencies.
+2. **Cythonizes all `.pyx` files** – translates them to C and compiles them into native `.pyd` (Windows) or `.so` (Linux) modules.
+3. **Assembles the wheel** – packages everything into a `.whl` file in the `dist/` directory.
+
+If the build succeeds, you will see:
+
+```
+Successfully built dist/nautilus_trader-1.228.0-cp312-cp312-win_amd64.whl
+```
+
+### Installing the Built Wheel
+
+```bash
+pip install --no-cache-dir --force-reinstall dist\nautilus_trader-*.whl
+```
+
+Now you can test your custom indicator:
+
+```bash
+python -c "from nautilus_trader.indicators.volatility import EnhancedDonchianChannel; print('SUCCESS')"
+```
+
+### Common Issues and Solutions
+
+| Error | Likely Cause | Fix |
+|-------|--------------|-----|
+| `link.exe` not found | Visual Studio Build Tools missing or not in PATH. | Install “Desktop development with C++” and restart terminal. |
+| `ModuleNotFoundError: No module named 'Cython'` | Missing build dependency. | `pip install cython build setuptools` |
+| `error: could not find`cargo`in PATH` | Rust not installed or not in PATH. | Install Rust from rustup.rs, restart terminal. |
+| `uv` version mismatch | Using `uv` with incompatible version. | Stick to `python -m build --wheel` instead. |
+| `pip install` fails with “not a supported wheel on this platform” | Python version mismatch (e.g., wheel for 3.12, but using 3.13). | Use Python 3.12 or rebuild for your Python version. |
+| Rust compilation errors about `pyo3` | Missing Python development headers. | Ensure Python is installed with “Add to PATH” and run `pip install setuptools-rust`. |
+
+### How Nautilus Build Works (Under the Hood)
+
+The build process is orchestrated by `setup.py` / `pyproject.toml` and consists of three layers:
+
+- **Rust crates** – live in `crates/`. Each crate compiles to a static library (`.lib` on Windows) or a dynamic library (`.dll`). The main Python extension (`nautilus_pyo3`) is a Rust‑built `.pyd` that exposes the core functionality via PyO3.
+- **Cython modules** – the `.pyx` files are compiled into C, then into Python extension modules. They depend on the Rust library.
+- **Pure Python** – the remaining `.py` files (like `__init__.py`, strategy base classes) are simply copied into the wheel.
+
+The `build` module handles the entire sequence: it runs `setup.py` with the `bdist_wheel` command, which in turn invokes `cargo` and `cythonize` through custom build steps defined in `setup.py`. The result is a single wheel that contains everything needed to `import nautilus_trader`.
+
+Here’s a clear paragraph you can insert into the **“Local Build on Windows”** section (e.g., right after the “How Nautilus Build Works” subsection or as a standalone note):
+
+When you run `python -m build --wheel`, you are using the standard **PEP 517 build frontend** (`build` module) – not Nautilus’s internal `build.py`. The frontend reads `pyproject.toml`, sets up an isolated environment, and calls the configured backend (which may invoke `build.py` under the hood). Nautilus includes its own `build.py` script that orchestrates the actual Rust compilation (`cargo build`), Cythonization of `.pyx` files, and final wheel assembly. As a user, you never need to execute `build.py` directly; `python -m build` is the correct and recommended way to produce a wheel. It handles all the complexities of build isolation and dependency management for you.
+
+### When to Rebuild
+
+- After **any change** to Rust code (`crates/`) – you must rebuild the wheel; incremental Rust compilation is automatic.
+- After **any change** to Cython files (`.pyx` or `.pxd`) – rebuild is necessary.
+- After **changes to Python files only** – you can just reinstall the existing wheel (or use `pip install -e .` for editable mode, though that may not pick up Rust changes).
+
+### Speeding Up Subsequent Builds
+
+- Use `python -m build --wheel` again – it will reuse previously compiled Rust artifacts (unless you `cargo clean`).
+- For fast iteration on Rust code only, you can run `cargo build` inside `crates/` and copy the resulting `.pyd` manually – but it’s easier to just run the full build.
+
+---

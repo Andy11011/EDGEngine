@@ -2,6 +2,7 @@
 
 ## Top Priority
 
+- [ ] Implement Donchian using Rust Core
 - [X] ~~*Try out NautilusTrader*~~ [2026-04-04]
 - [X] ~~*Try Live Stratagy*~~ [2026-04-12]
 - [X] ~~*Investigate how to do frontend*~~ [2026-04-12]
@@ -13,9 +14,6 @@
 - [X] ~~*Add Reddis*~~ [2026-05-27]
 - [X] ~~*Build the Nautilus*~~ [2026-05-30]
 - [X] ~~*Build EDGEngine with custom Nautilus*~~ [2026-05-30]
-- [ ] Implement Donchian using Rust Core
-  - [ ] Fix the issue with the imort of new indicator
-  - [ ] Pass the tests
 - [ ] Register new indicator for all callbacks
 - [ ] Donchian Channel with all data
 - [ ] Donchian Channel configs from DB
