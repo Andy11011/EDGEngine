@@ -108,8 +108,8 @@ class RSISignalConfig(StrategyConfig, frozen=True):
     instrument_id: InstrumentId
     bar_type: BarType
     rsi_period: int = 14
-    overbought_threshold: float = 70.0
-    oversold_threshold: float = 30.0
+    overbought_threshold: float = 0.7
+    oversold_threshold: float = 0.3
     historical_bars: int = 3000  # number of past bars to fetch for historical signals
 
 
