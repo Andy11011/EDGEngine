@@ -3,6 +3,8 @@
 This module loads Binance API credentials from AWS Secrets Manager
 and runs a live strategy that monitors RSI and writes to Redis when
 overbought (RSI > OB) or oversold (RSI < OS) crossovers occur.
+Historical bars (configurable lookback, e.g., 3000 15min candles) are also
+processed for crossover detection.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import os
 import sys
 import json
+import re
 import redis
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -78,6 +81,27 @@ def load_credentials_from_aws(
 
 
 # -----------------------------------------------------------------------------
+# Helper: parse bar interval string to minutes
+# -----------------------------------------------------------------------------
+def _parse_interval_minutes(interval_str: str) -> int:
+    """Convert Nautilus interval string like '15-MINUTE' or '1-HOUR' to minutes."""
+    # Common patterns: <number>-MINUTE, <number>-HOUR, <number>-DAY
+    match = re.match(r"(\d+)-(MINUTE|HOUR|DAY)", interval_str, re.IGNORECASE)
+    if not match:
+        raise ValueError(f"Unsupported interval format: {interval_str}")
+    value = int(match.group(1))
+    unit = match.group(2).upper()
+    if unit == "MINUTE":
+        return value
+    elif unit == "HOUR":
+        return value * 60
+    elif unit == "DAY":
+        return value * 1440
+    else:
+        raise ValueError(f"Unknown interval unit: {unit}")
+
+
+# -----------------------------------------------------------------------------
 # RSI Crossover Signal Strategy
 # -----------------------------------------------------------------------------
 class RSISignalConfig(StrategyConfig, frozen=True):
@@ -86,6 +110,7 @@ class RSISignalConfig(StrategyConfig, frozen=True):
     rsi_period: int = 14
     overbought_threshold: float = 70.0
     oversold_threshold: float = 30.0
+    historical_bars: int = 3000  # number of past bars to fetch for historical signals
 
 
 class RSISignalStrategy(Strategy):
@@ -120,11 +145,30 @@ class RSISignalStrategy(Strategy):
         except Exception as e:
             self.log.error(f"❌ Redis connection FAILED ({redis_host}:{redis_port}): {e}")
 
-        # Warmup: request enough historical bars to initialize RSI
-        lookback_days = 7
-        start_dt = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+        # ---- HISTORICAL BACKFILL ----
+        # Calculate start date based on desired number of bars and bar interval
+        bar_interval_str = str(self.config.bar_type).split("-")[1] + "-" + str(self.config.bar_type).split("-")[2]
+        # e.g., "BTCUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL" -> extract "15-MINUTE"
+        # Simpler: use the bar_type's string representation and parse
+        # Actually the BarType has .resolution property, but we can parse from env again
+        # Re-parse from config's bar_type string
+        type_str = str(self.config.bar_type)
+        # Expected format: SYMBOL-INTERVAL-LAST-EXTERNAL
+        parts = type_str.split("-")
+        if len(parts) >= 3:
+            interval_str = f"{parts[1]}-{parts[2]}"  # e.g., "15-MINUTE"
+        else:
+            interval_str = "15-MINUTE"  # fallback
+        minutes_per_bar = _parse_interval_minutes(interval_str)
+
+        lookback_bars = self.config.historical_bars
+        # Add a small buffer (10 bars) to ensure we have enough for warmup
+        total_bars_needed = lookback_bars + self.config.rsi_period
+        days_needed = (total_bars_needed * minutes_per_bar) / (24 * 60)
+        start_dt = datetime.now(timezone.utc) - timedelta(days=days_needed + 1)
+
         self.log.info(
-            f"Requesting historical bars (start={start_dt.date()}) to warm up RSI...",
+            f"Requesting ~{lookback_bars} historical bars (since {start_dt.date()}) to compute historical signals...",
             color=LogColor.BLUE,
         )
         self.request_bars(self.config.bar_type, start=start_dt)
@@ -187,8 +231,12 @@ class RSISignalStrategy(Strategy):
 
         if self.rsi.initialized:
             rsi_val = self.rsi.value
-            # On historical bars, we only track previous RSI for later crossovers
+            # Detect crossovers on historical bars (if we have a previous RSI)
+            self._check_crossovers(data, rsi_val)
+
+            # Store current RSI for next bar's crossover detection
             self._prev_rsi = rsi_val
+
             # Mark warmup as done after first RSI value
             if self._warming_up:
                 self._warming_up = False
@@ -308,6 +356,7 @@ def main():
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
+    historical_bars = int(os.getenv("HISTORICAL_BARS", "3000"))
 
     try:
         api_key, api_secret = load_credentials_from_aws(region=aws_region, sandbox=sandbox)
@@ -342,6 +391,7 @@ def main():
             rsi_period=rsi_period,
             overbought_threshold=overbought,
             oversold_threshold=oversold,
+            historical_bars=historical_bars,
         )
     )
 
