@@ -119,6 +119,7 @@ class RSISignalStrategy(Strategy):
         self.rsi = RelativeStrengthIndex(period=config.rsi_period)
         self._prev_rsi: Optional[float] = None
         self._warming_up: bool = True
+        self._historical_bar_count = 0   # for debug logging
 
     def on_start(self) -> None:
         # Redis connection
@@ -226,18 +227,17 @@ class RSISignalStrategy(Strategy):
             self.log.warning(f"on_historical_data: unexpected type {type(data).__name__}, skipping")
             return
 
-        close_float = float(data.close)
-        self.rsi.update_raw(close_float)
+        self.rsi.handle_bar(data)                     # use handle_bar
 
         if self.rsi.initialized:
             rsi_val = self.rsi.value
-            # Detect crossovers on historical bars (if we have a previous RSI)
-            self._check_crossovers(data, rsi_val)
+            self._historical_bar_count += 1
+            if self._historical_bar_count <= 5:       # debug first few values
+                self.log.info(f"Historical bar #{self._historical_bar_count}: RSI={rsi_val:.2f}")
 
-            # Store current RSI for next bar's crossover detection
+            self._check_crossovers(data, rsi_val)     # detect crossovers on history
             self._prev_rsi = rsi_val
 
-            # Mark warmup as done after first RSI value
             if self._warming_up:
                 self._warming_up = False
                 self.log.info(f"Warmup complete. First RSI={rsi_val:.2f}", color=LogColor.YELLOW)
@@ -246,16 +246,12 @@ class RSISignalStrategy(Strategy):
         if self._warming_up:
             return
 
-        close_float = float(bar.close)
-        self.rsi.update_raw(close_float)
+        self.rsi.handle_bar(bar)                        # use handle_bar
         if not self.rsi.initialized:
             return
 
         rsi_val = self.rsi.value
-        # Detect crossovers using previous bar's RSI
         self._check_crossovers(bar, rsi_val)
-
-        # Store current RSI for next bar's crossover detection
         self._prev_rsi = rsi_val
 
     def on_stop(self) -> None:
