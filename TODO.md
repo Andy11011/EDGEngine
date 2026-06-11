@@ -2,13 +2,13 @@
 
 ## Top Priority
 
-- [ ] Signals for historical data
 - [ ] Monitor Several pairs at once
 - [ ] Show crossovers on the chart
 - [ ] Improve RSI to MLMI
 - [ ] Add Supertrend
 - [ ] Add Volume
 - [ ] Improve volume for Z-Score volume
+- [X] ~~*Signals for historical data*~~ [2026-06-11]
 - [X] ~~*Integrate Nautilus with Redis (check streams)*~~ [2026-06-10]
 - [X] ~~*Try out NautilusTrader*~~ [2026-04-04]
 - [X] ~~*Try Live Stratagy*~~ [2026-04-12]

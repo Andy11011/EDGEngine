@@ -1037,4 +1037,48 @@ to create a smaller "active watchlist" of ~100-200 high-potential pairs.
 [ec2-user@ip-172-31-39-31 ~]$ sudo docker run --rm -it --entrypoint /bin/sh ghcr.io/andy11011/edgengine:latest
 # python -c "import nautilus_trader; print(nautilus_trader.__version__); from nautilus_trader.indicators import *; print(dir())"
 1.228.0
-['AdaptiveMovingAverage', 'ArcherMovingAveragesTrends', 'AroonOscillator', 'AverageTrueRange', 'Bias', 'BollingerBands', 'CandleBodySize', 'CandleDirection', 'CandleSize', 'CandleWickSize', 'ChandeMomentumOscillator', 'CommodityChannelIndex', 'DirectionalMovement', 'DonchianChannel', 'DoubleExponentialMovingAverage', 'EfficiencyRatio', 'ExponentialMovingAverage', 'FuzzyCandle', 'FuzzyCandlesticks', 'HullMovingAverage', 'IchimokuCloud', 'Indicator', 'KeltnerChannel', 'KeltnerPosition', 'KlingerVolumeOscillator', 'LinearRegression', 'MovingAverage', 'MovingAverageConvergenceDivergence', 'MovingAverageFactory', 'MovingAverageType', 'OnBalanceVolume', 'Pressure', 'PsychologicalLine', 'RateOfChange', 'RelativeStrengthIndex', 'RelativeVolatilityIndex', 'SimpleMovingAverage', 'SpreadAnalyzer', 'Stochastics', 'StochasticsDMethod', 'Swings', 'VariableIndexDynamicAverage', 'VerticalHorizontalFilter', 'VolatilityRatio', 'VolumeWeightedAveragePrice', 'WeightedMovingAverage', 'WilderMovingAverage', '__annotations__', '__builtins__', '__doc__', '__loader__', '__name__', '__package__', '__spec__', 'nautilus_trader']
+['AdaptiveMovingAverage', 'ArcherMovingAveragesTrends', 'AroonOscillator', 'AverageTrueRange', 'Bias', 'BollingerBands', 
+'CandleBodySize', 'CandleDirection', 'CandleSize', 'CandleWickSize', 'ChandeMomentumOscillator', 'CommodityChannelIndex', 
+'DirectionalMovement', 'DonchianChannel', 'DoubleExponentialMovingAverage', 'EfficiencyRatio', 'ExponentialMovingAverage', 
+'FuzzyCandle', 'FuzzyCandlesticks', 'HullMovingAverage', 'IchimokuCloud', 'Indicator', 'KeltnerChannel', 'KeltnerPosition', 
+'KlingerVolumeOscillator', 'LinearRegression', 'MovingAverage', 'MovingAverageConvergenceDivergence', 'MovingAverageFactory', 
+'MovingAverageType', 'OnBalanceVolume', 'Pressure', 'PsychologicalLine', 'RateOfChange', 'RelativeStrengthIndex', 'RelativeVolatilityIndex', 
+'SimpleMovingAverage', 'SpreadAnalyzer', 'Stochastics', 'StochasticsDMethod', 'Swings', 'VariableIndexDynamicAverage', 
+'VerticalHorizontalFilter', 'VolatilityRatio', 'VolumeWeightedAveragePrice', 'WeightedMovingAverage', 'WilderMovingAverage', 
+'__annotations__', '__builtins__', '__doc__', '__loader__', '__name__', '__package__', '__spec__', 'nautilus_trader']
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+127.0.0.1:6379> XRANGE signals:BTCUSDT - + COUNT 10
+ 1) 1) "1781150661355-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OS_CROSS\", \"rsi\": 0.29043957200186477, \"close\": 80673.25, \"timestamp\": 1778369399999000064}"
+ 2) 1) "1781150661365-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OS_CROSS\", \"rsi\": 0.28972183020992537, \"close\": 80625.03, \"timestamp\": 1778375699999000064}"
+ 3) 1) "1781150661368-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OB_CROSS\", \"rsi\": 0.7013666324131851, \"close\": 80873.64, \"timestamp\": 1778401799999000064}"
+ 4) 1) "1781150661369-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OB_CROSS\", \"rsi\": 0.7102528007132174, \"close\": 80984.7, \"timestamp\": 1778420699999000064}"
+ 5) 1) "1781150661370-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OB_CROSS\", \"rsi\": 0.710248041808689, \"close\": 81044.73, \"timestamp\": 1778426099999000064}"
+ 6) 1) "1781150661370-1"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OB_CROSS\", \"rsi\": 0.7073749654769972, \"close\": 81141.02, \"timestamp\": 1778427899999000064}"
+ 7) 1) "1781150661371-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OB_CROSS\", \"rsi\": 0.7074090301828244, \"close\": 81476.18, \"timestamp\": 1778435999999000064}"
+ 8) 1) "1781150661372-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OS_CROSS\", \"rsi\": 0.2150865188564678, \"close\": 80800.0, \"timestamp\": 1778445899999000064}"
+ 9) 1) "1781150661372-1"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OS_CROSS\", \"rsi\": 0.29541392732314864, \"close\": 80720.47, \"timestamp\": 1778450399999000064}"
+10) 1) "1781150661373-0"
+    2) 1) "data"
+       2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OB_CROSS\", \"rsi\": 0.7625533426413846, \"close\": 81887.87999999999, \"timestamp\": 1778453099999000064}"
