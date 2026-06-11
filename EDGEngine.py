@@ -146,6 +146,10 @@ class RSISignalStrategy(Strategy):
         except Exception as e:
             self.log.error(f"❌ Redis connection FAILED ({redis_host}:{redis_port}): {e}")
 
+        
+        # Register RSI to automatically receive bars
+        self.register_indicator_for_bars(self.config.bar_type, self.rsi)
+
         # ---- HISTORICAL BACKFILL ----
         # Calculate start date based on desired number of bars and bar interval
         bar_interval_str = str(self.config.bar_type).split("-")[1] + "-" + str(self.config.bar_type).split("-")[2]
@@ -222,32 +226,26 @@ class RSISignalStrategy(Strategy):
             )
             self._write_signal_to_redis(bar, "OS_CROSS", rsi_val)
 
-    def on_historical_data(self, data) -> None:
-        if not isinstance(data, Bar):
-            self.log.warning(f"on_historical_data: unexpected type {type(data).__name__}, skipping")
+    def on_historical_data(self, data: Bar) -> None:
+        # The framework automatically updates self.rsi because it's registered.
+        # We just need to detect crossovers using the updated value.
+        if not self.rsi.initialized:
             return
 
-        self.rsi.handle_bar(data)                     # use handle_bar
+        rsi_val = self.rsi.value
 
-        if self.rsi.initialized:
-            rsi_val = self.rsi.value
-            self._historical_bar_count += 1
-            if self._historical_bar_count <= 5:       # debug first few values
-                self.log.info(f"Historical bar #{self._historical_bar_count}: RSI={rsi_val:.2f}")
+        # Detect crossover on this historical bar
+        self._check_crossovers(data, rsi_val)
 
-            self._check_crossovers(data, rsi_val)     # detect crossovers on history
-            self._prev_rsi = rsi_val
+        # Store current RSI for next bar's crossover detection
+        self._prev_rsi = rsi_val
 
-            if self._warming_up:
-                self._warming_up = False
-                self.log.info(f"Warmup complete. First RSI={rsi_val:.2f}", color=LogColor.YELLOW)
+        if self._warming_up:
+            self._warming_up = False
+            self.log.info(f"Warmup complete. First RSI={rsi_val:.2f}")
 
     def on_bar(self, bar: Bar) -> None:
-        if self._warming_up:
-            return
-
-        self.rsi.handle_bar(bar)                        # use handle_bar
-        if not self.rsi.initialized:
+        if self._warming_up or not self.rsi.initialized:
             return
 
         rsi_val = self.rsi.value
