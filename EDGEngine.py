@@ -233,6 +233,10 @@ class RSISignalStrategy(Strategy):
             return
 
         rsi_val = self.rsi.value
+        # Debug: log every 100th bar or when crossing thresholds
+        self._historical_bar_count += 1
+        if self._historical_bar_count % 100 == 0 or rsi_val > 0.68 or rsi_val < 0.32:
+            self.log.info(f"Historical bar #{self._historical_bar_count}: RSI={rsi_val:.3f} (×100={rsi_val*100:.1f}) close={data.close}")
 
         # Detect crossover on this historical bar
         self._check_crossovers(data, rsi_val)
@@ -345,8 +349,8 @@ def main():
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
     rsi_period = int(os.getenv("RSI_PERIOD", "14"))
-    overbought = float(os.getenv("RSI_OVERBOUGHT", "70.0"))
-    oversold = float(os.getenv("RSI_OVERSOLD", "30.0"))
+    overbought = float(os.getenv("RSI_OVERBOUGHT", "0.7"))
+    oversold = float(os.getenv("RSI_OVERSOLD", "0.3"))
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
