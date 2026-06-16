@@ -189,12 +189,23 @@ class RSISignalStrategy(Strategy):
 
     def _write_signal_to_redis(self, bar: Bar, signal_type: str, rsi_value: float) -> None:
         """Write crossover signal to Redis stream 'signals:{symbol}'."""
+        # Compute millisecond timestamp (rounded)
+        ts_ns = bar.ts_event
+        ts_ms = round(ts_ns / 1_000_000)
+        
+        # Log the conversion for debugging
+        self.log.info(
+            f"📝 Preparing signal: type={signal_type}, rsi={rsi_value:.3f}, "
+            f"close={bar.close}, ts_ns={ts_ns}, ts_ms={ts_ms}",
+            color=LogColor.BLUE
+        )
+        
         payload = {
             "symbol": str(self.config.instrument_id),
-            "type": signal_type,          # "OB_CROSS" or "OS_CROSS"
+            "type": signal_type,
             "rsi": rsi_value,
             "close": float(bar.close),
-            "timestamp": round(bar.ts_event / 1_000_000), # nanoseconds → milliseconds (open time)
+            "timestamp": ts_ms,
         }
         try:
             self.redis_client.xadd(
@@ -202,8 +213,9 @@ class RSISignalStrategy(Strategy):
                 {"data": json.dumps(payload)},
                 maxlen=1000,
             )
+            self.log.info(f"✅ Signal written to Redis with timestamp {ts_ms} ms", color=LogColor.GREEN)
         except Exception as e:
-            self.log.error(f"Redis write failed: {e}")
+            self.log.error(f"❌ Redis write failed: {e}")
 
     def _check_crossovers(self, bar: Bar, rsi_val: float) -> None:
         """Detect OB/OS crossovers and write signals."""

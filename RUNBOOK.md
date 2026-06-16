@@ -25,7 +25,6 @@ docker run -d \
   -e BINANCE_ENV=LIVE \
   -e BINANCE_SANDBOX=0 \
   -e BINANCE_SYMBOL=BTCUSDT \
-  -e BINANCE_BAR_INTERVAL=1-WEEK \
   -e LOG_LEVEL=INFO \
   -e AWS_REGION=ap-southeast-1 \
   -e REDIS_HOST=redis \
