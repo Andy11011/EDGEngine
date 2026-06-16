@@ -4,6 +4,7 @@
 - [Check Nautilus Version](#check-nautilus-version)
 - [Test New Indicators](#test-new-indicators)
 - [Inspect Redis Streams](#inspect-redis-streams)
+- [Reset Docker Images on Reboot](#reset-docker-images-on-reboot)
 
 ---
 
@@ -164,3 +165,30 @@ DEL regime:BTCUSDT
 ```bash
 sudo docker exec -it redis redis-cli XRANGE signals:BTCUSDT - + COUNT 5
 ```
+
+## Reset Docker Images on Reboot
+
+To force a fresh pull of all container images on the next instance reboot (e.g., after a CloudFormation update or manual cleanup), follow these steps **before** rebooting:
+
+```bash
+# Stop all running containers
+sudo docker stop edgedesk tradeproxy edgengine watchtower redis
+
+# Remove all containers
+sudo docker rm edgedesk tradeproxy edgengine watchtower redis
+
+# Delete all Docker images (forces fresh pull next start)
+sudo docker rmi -f $(sudo docker images -q)
+
+# (Optional) Prune everything – volumes, networks, build cache
+sudo docker system prune -a --volumes -f
+
+# Reset cloud‑init state so that UserData runs again on next boot
+sudo cloud-init clean --logs
+
+# Reboot the instance
+sudo reboot
+```
+
+After the reboot, your systemd scripts or CloudFormation user‑data will re‑pull the latest images and start the containers.  
+If you want the images to be pulled **on every reboot** without manual cleanup, add a `docker pull ...` command to your startup script before the `docker run` lines.
