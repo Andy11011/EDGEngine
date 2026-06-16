@@ -1082,3 +1082,42 @@ to create a smaller "active watchlist" of ~100-200 high-potential pairs.
 10) 1) "1781150661373-0"
     2) 1) "data"
        2) "{\"symbol\": \"BTCUSDT.BINANCE\", \"type\": \"OB_CROSS\", \"rsi\": 0.7625533426413846, \"close\": 81887.87999999999, \"timestamp\": 1778453099999000064}"
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+How timestamps are formed in your backend (EDGEngine.py)
+
+Inside RSISignalStrategy._write_signal_to_redis():
+
+
+payload = {
+    ...
+    "timestamp": bar.ts_event,
+}
+
+bar is a Nautilus Bar object.
+
+bar.ts_event is the event timestamp of that bar, in nanoseconds.
+
+In Nautilus, ts_event typically represents the start time (open time) of the bar.
+
+This value comes directly from the Binance data feed, but Nautilus may apply its own internal conversion.
+
+Frontend (binance-feed.js) → Binance REST & WebSocket give openTime as a millisecond integer (e.g., 1781471700000).
+
+Backend (EDGEngine.py) → Nautilus stores bar.ts_event in nanoseconds. When you convert it to milliseconds (ts_event / 1_000_000), you sometimes get a value that is exactly 1 ms less than the Binance open time (e.g., 1781471699999).
+
+
+You've hit the nail on the head: the core issue is that your frontend and backend are interpreting timestamps from the same source at different levels of precision.
+
+Let's break down exactly who uses what. The root of the problem is a precision mismatch: your frontend works in milliseconds, while the backend operates in the much more precise nanoseconds.
+
+etching Historical Data: When your binance-feed.js requests a list of candles from the REST API (/api/v3/klines), it receives a JSON response. The first value in each kline array is the openTime, and Binance's official documentation states this is a "timestamp in milliseconds".
+
+Receiving Live Updates: The logic is the same for the WebSocket stream. The kline message includes a t field (the start time of the kline), which is also provided in milliseconds by default.
+
+
+You’re absolutely right to question that – the documentation says the default is True (close time), yet your observed data (only 1 ms difference from the Binance open time) clearly shows that ts_event is not the close time.

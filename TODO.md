@@ -2,8 +2,8 @@
 
 ## Top Priority
 
-- [ ] Monitor Several pairs at once
 - [ ] Show crossovers on the chart
+- [ ] Monitor Several pairs at once
 - [ ] Improve RSI to MLMI
 - [ ] Add Supertrend
 - [ ] Add Volume

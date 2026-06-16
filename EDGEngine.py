@@ -194,7 +194,7 @@ class RSISignalStrategy(Strategy):
             "type": signal_type,          # "OB_CROSS" or "OS_CROSS"
             "rsi": rsi_value,
             "close": float(bar.close),
-            "timestamp": bar.ts_event,
+            "timestamp": round(bar.ts_event / 1_000_000), # nanoseconds → milliseconds (open time)
         }
         try:
             self.redis_client.xadd(
@@ -299,7 +299,10 @@ def build_data_only_node(
     config = TradingNodeConfig(
         trader_id=trader_id,
         logging=LoggingConfig(log_level=log_level, use_pyo3=True),
-        data_engine=LiveDataEngineConfig(validate_data_sequence=True),
+        data_engine=LiveDataEngineConfig(
+            validate_data_sequence=True,
+            time_bars_timestamp_on_close=False   # bar timestamps are open time to match frontend
+        ),
         exec_engine=LiveExecEngineConfig(
             reconciliation=False,
             generate_missing_orders=False,
