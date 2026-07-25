@@ -5,6 +5,7 @@
 - [Test New Indicators](#test-new-indicators)
 - [Inspect Redis Streams](#inspect-redis-streams)
 - [Reset Docker Images on Reboot](#reset-docker-images-on-reboot)
+- [Query PostgreSQL Database](#query-postgresql-database)
 
 ---
 
@@ -172,10 +173,10 @@ To force a fresh pull of all container images on the next instance reboot (e.g.,
 
 ```bash
 # Stop all running containers
-sudo docker stop edgedesk tradeproxy edgengine watchtower redis
+sudo docker stop edgedesk tradeproxy edgengine watchtower redis postgres
 
 # Remove all containers
-sudo docker rm edgedesk tradeproxy edgengine watchtower redis
+sudo docker rm edgedesk tradeproxy edgengine watchtower redis postgres
 
 # Delete all Docker images (forces fresh pull next start)
 sudo docker rmi -f $(sudo docker images -q)
@@ -192,3 +193,41 @@ sudo reboot
 
 After the reboot, your systemd scripts or CloudFormation user‑data will re‑pull the latest images and start the containers.  
 If you want the images to be pulled **on every reboot** without manual cleanup, add a `docker pull ...` command to your startup script before the `docker run` lines.
+
+## Query PostgreSQL Database
+
+Connect to the PostgreSQL container and run SQL queries interactively:
+
+```bash
+sudo docker exec -it postgres psql -U user -d postgres
+```
+
+Replace `user` with the actual database user (if different). Once inside the `psql` prompt:
+
+- List all tables: `\dt`
+- Describe a table: `\d table_name`
+- Run a query: `SELECT * FROM indicator_config;`
+- Exit: `\q`
+
+### Examples
+
+```sql
+-- Show all rows from the indicator_config table
+SELECT * FROM indicator_config;
+
+-- Filter by symbol
+SELECT * FROM indicator_config WHERE symbol = 'BTCUSDT__15M';
+
+-- See the JSON config data for a specific symbol
+SELECT symbol, config_data FROM indicator_config WHERE symbol = 'BTCUSDT__15M';
+```
+
+### One‑off query from the host
+
+If you prefer a single command without entering the interactive shell:
+
+```bash
+sudo docker exec -it postgres psql -U user -d postgres -c "SELECT symbol, updated_at FROM indicator_config;"
+```
+
+This is useful for quick checks or scripting.

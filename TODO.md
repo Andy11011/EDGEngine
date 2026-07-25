@@ -2,6 +2,9 @@
 
 ## Top Priority
 
+- [ ] Edge-trader: create a new container for edge-trader
+- [ ] Edge-trader: Create two AWS stack - TradeProxy and EdgeEngine (t3.micro)
+- [ ] Edge-trader: Push messages when get new signal (in java app)
 - [ ] Show crossovers on the chart
 - [ ] Monitor Several pairs at once
 - [ ] Improve RSI to MLMI

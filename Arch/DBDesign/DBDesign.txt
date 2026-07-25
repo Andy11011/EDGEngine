@@ -1,0 +1,316 @@
+1) For trades — Event Sourcing is the right choice
+
+Yes, absolutely. Trade execution involves a strict lifecycle 
+(Submitted → Accepted → PartiallyFilled → Filled → Cancelled → Rejected).
+
+Why event sourcing: You need a complete, immutable audit trail for compliance and debugging. You can reconstruct the exact state of any order at any point in time.
+Crucial benefit: You can replay events to regenerate P&L, fee calculations, or slippage analysis if your accounting logic changes later.
+Do not just store the latest state—you'll lose the "why" and the exact sequence.
+
+
+2) Account state — Event Sourcing is also better, but with a nuance
+
+Yes, but treat it as a derived projection. Your account balance, equity, margin, and available funds are calculations based on trade events, deposit/withdrawal events, and fee events.
+
+Storing only the current balance is dangerous—if a trade replay fixes a fill price, your balance would be wrong forever.
+
+Best practice: Store account events (e.g., AccountDeposited, MarginLocked, TradeSettled), and build a read-model projection (e.g., a PostgreSQL table with the current account snapshot).
+
+This way, you get the audit trail and fast reads for the UI.
+
+3) Configuration — Simple record (CRUD) is perfectly fine
+
+Yes, stick with a simple key-value store or a SQL table.
+
+Configuration (Telegram chat ID, risk limits, API keys, trading pairs) changes rarely and doesn't need historical replay.
+
+Overcomplicating this with event sourcing gives you zero benefit—just extra storage and complexity. Use a basic config table with key/value columns.
+
+4) Which DB for event storage? Postgres, NOT Redis
+
+Postgres is excellent for event sourcing. Redis is completely unsuitable as the primary source of truth for financial events.
+
+Why Postgres:
+
+ACID transactions (critical — you must never lose an event or write it partially).
+
+Use a single events table with columns: id (UUID), aggregate_id (order_id or account_id), version, event_type, payload (JSONB), created_at.
+
+JSONB allows flexible schemas and fast querying on event data.
+
+Postgres can handle millions of events easily on a t3.micro if you index properly ((aggregate_id, version)).
+
+Why NOT Redis:
+
+Redis is in-memory and primarily for caching. It has optional persistence (RDB/AOF), but it is not crash-safe in the same transactional way. If Redis restarts before flushing, you lose financial data — unacceptable.
+
+You can use Redis as a cache for the current projected state (e.g., current account balance) to speed up reads, but the source of truth must be Postgres.
+
+5) Can it fit into AWS t3.micro (1 vCPU, 1GB RAM)?
+
+Yes, it is absolutely possible, but you need to be disciplined:
+
+Memory budget: 1GB is tight. Postgres itself needs ~200–300MB. Your Python/Go/Rust app needs ~100–200MB. The OS and Docker overhead take another ~200MB. You'll have ~300–400MB left for caches and connections.
+
+Optimizations:
+
+Use async workers (FastAPI with Uvicorn, or Node.js) to handle concurrency without spawning heavy threads.
+
+Set max_connections=20 in Postgres (default is 100, which will OOM your t3.micro).
+
+Do not load all events into memory to rebuild state. Use snapshots: store a current_state snapshot every 100 events (e.g., in a account_snapshots table) so you only replay the last 100 events on startup, not the entire history.
+
+Use Redis only for session caching or pub/sub — keep its maxmemory small (~128MB).
+
+Swap: Enable swap space (e.g., 2GB) on the EBS volume to avoid OOM killer, but performance will degrade — so keep it as a safety net, not a crutch.
+
+Verdict: t3.micro works for a small-to-medium trader (a few hundred trades per day). If you hit thousands per second, you'll need to scale up.
+
+6) Microservices, shared Redis, and whether it defeats the purpose
+
+Let's clear up the dogma: "Each microservice must have its own database" refers to the write database (source of truth).
+
+Now, the bigger question: Do you even need microservices for this?
+
+Honest advice: For a single developer or small team running on t3.micro, a modular monolith is vastly simpler and cheaper.
+
+Keep edge-trader (trading engine) and edgeDesk (UI backend) as two separate deployable containers for independent scaling, but let them share one Postgres database (with different schemas: trading.events, ui.config).
+
+If you insist on microservice purity, give each its own separate Postgres database (still on the same t3.micro instance using different ports/names — e.g., db_trader, db_ui). That satisfies the principle without extra cost.
+
+//*********************************//
+
+
+The Correct Approach: Shared DB with "Single Writer" Ownership
+
+Do not force edgeDesk to call edge-trader’s REST API for every read. 
+On a t3.micro, that API hop adds CPU overhead, serialization/deserialization latency, 
+and forces you to build pagination/filtering endpoints just for your UI.
+
+1. Shared Postgres instance (one database, separate schemas if you like).
+
+2. Strict Write-ownership:
+
+edge-trader is the exclusive writer to the trades and account_events tables. It appends new events and updates snapshots.
+
+edgeDesk is strictly read-only for these tables. It queries them directly using raw SQL or an ORM to display charts, P&L, and order history.
+
+Config table: Since config is just CRUD and rarely changes, you can let both read it, but designate edgeDesk as the writer (since the UI is where the user changes the Telegram ID). Or, keep it simple and let edge-trader expose just one internal REST endpoint (POST /config) for edgeDesk to update it, while edgeDesk reads it directly from the DB.
+
+What if I choose Option B (edgeDesk reads everything via edge-trader REST API)?
+
+What if I choose Option B (edgeDesk reads everything via edge-trader REST API)?
+Yes, that would be the "pure" microservice approach.
+The benefits in a general case are:
+
+Decoupled deployments (you can update edgeDesk without restarting edge-trader).
+
+Independent scaling (if the UI gets 10,000 users, you scale edgeDesk horizontally, not the trading engine).
+
+Stronger contract enforcement (versioned APIs prevent the UI from accidentally corrupting the event store).
+
+Technology agnosticism (edgeDesk could be Node.js, edge-trader could be Rust).
+
+But what are the benefits of Option B in YOUR particular case (t3.micro, single developer, small trading volume)?
+Honestly: Almost zero. And the costs outweigh them significantly.
+
+//*********************************//
+
+First, what this design is called:
+In industry terms, this is a hybrid of:
+
+1. CQRS (Command Query Responsibility Segregation) – because Commands (writes) go through an API, while Queries (reads) go straight to the database.
+
+2. Shared Kernel (from Domain-Driven Design) – because both services share a common database model, but with strictly defined Bounded Contexts (who owns which tables).
+
+3. More casually, it's called the "Single-Writer / Multi-Reader" pattern.
+
+
+//*********************************//
+
+
+Table(s)	                            Owner (Writer)	            Reader(s)	                    Responsibility
+trading.events & trading.snapshots	    edge-trader (Rust/Python)	edgeDesk (Read-Only)	        Order lifecycle, account balance, P&L.
+account_events & account_snapshots	    Account	edge-trader	        edgeDesk (Read-Only)	        Deposits, Withdrawals, Settled P&L, Fee deductions, Margin updates.
+app.config (telegram_id, risk_limits)	edgeDesk (Java)	            edge-trader (Read-Only)	        User preferences and settings.
+
+
+You are absolutely right to push back on this. If both services write to the same tables, the architecture gets more complex—but yes, the design (shared Postgres) remains exactly the same physically.
+
+Here is the golden rule for Event Sourcing when multiple services write to the same database:
+
+Event Tables are Append-Only Logs (Multi-Writer allowed).
+Snapshot Tables are Mutable State (Strictly Single-Writer).
+
+If both EdgeDesk (Java) and edge-trader (Rust/Python) try to update the account_snapshots balance at the exact same millisecond (e.g., Java deducts for a withdrawal, Rust adds P&L for a fill), 
+you will get lost updates, race conditions, and a corrupted account balance. On a single t3.micro with 1 CPU, you cannot run a distributed locking mechanism (like ZooKeeper) to coordinate this.
+
+The Corrected Table Ownership (Multi-Writer Events / Single-Writer Snapshots)
+
+
+Table	                                Aggregate	  Can Append Events? (INSERT)	        Can Update Snapshots? (UPDATE)	        Responsibility Split
+order_events	                         Order	      Both (Java & Rust)	                N/A (Append-only)	                    Java writes OrderPlaced / OrderCancelled (user actions). Rust writes OrderFilled / OrderRejected (market responses).
+account_events	                         Account	  Both (Java & Rust)	                N/A (Append-only)	                    Java writes WithdrawalRequested / DepositRequested. Rust writes TradeSettled / FeeCharged / WithdrawalProcessed.
+order_snapshots & account_snapshots	     State	      Strictly edge-trader (Rust/Python)	Strictly edge-trader	                Only Rust recalculates the final state by replaying ALL events (from both Java and Rust) and writes the new balance/order status.
+app.config	                             Settings	  Strictly EdgeDesk (Java)	            Strictly EdgeDesk	                    Java manages user preferences; Rust reads them.
+
+//*********************************//
+
+1. EdgeDesk (Java) appends an event:
+
+INSERT INTO order_events (id, aggregate_id, version, event_type, payload) 
+VALUES (uuid, 'order-123', 1, 'OrderPlaced', '{"side":"BUY","price":60000}');
+
+Notice: Java does not update the balance or the order_snapshots. It just logs the user's intent.
+
+2. Edge-trader (Rust) wakes up, sees the new OrderPlaced event. It sends the order to the exchange.
+
+3. Exchange fills the order. Edge-trader appends two events in a single transaction:
+
+INSERT INTO order_events ... ('OrderFilled', '{"fill_price":60100}');
+INSERT INTO account_events ... ('TradeSettled', '{"pnl": 50.00, "new_balance": 10050}');
+
+4. Edge-trader updates the Snapshots (in the same transaction):
+
+UPDATE order_snapshots SET status='FILLED', version=2 WHERE aggregate_id='order-123';
+UPDATE account_snapshots SET current_balance=10050, version=5 WHERE aggregate_id='account-1';
+
+5. EdgeDesk (Java) refreshes its UI by running SELECT * FROM account_snapshots and SELECT * FROM order_snapshots WHERE aggregate_id='order-123'. 
+Java never calculates the balance itself—it just displays what Rust wrote to the snapshots.
+
+//*********************************//
+
+1) Is Postgres (relational) good for Event Sourcing?
+
+Yes, Postgres is excellent for Event Sourcing—it is actually the #1 choice for financial systems on a budget.
+
+Here is why it beats specialized event stores (like EventStoreDB or Kafka) for your t3.micro:
+
+The only downside: Postgres stores events as rows, not as a raw log file. But for a small-to-medium trader (thousands of events per day), you will never hit performance limits.
+
+2) How does Event Sourcing work in Postgres? (The Implementation Blueprint)
+
+Step A: The Event Table (Append-Only Log)
+
+CREATE TABLE order_events (
+    id BIGSERIAL PRIMARY KEY,           -- Global sequential ID (for easy polling)
+    aggregate_id UUID NOT NULL,          -- The order's unique ID
+    version INT NOT NULL,                -- Monotonic version per aggregate (1,2,3...)
+    event_type VARCHAR(50) NOT NULL,     -- 'OrderPlaced', 'OrderFilled', 'OrderCancelled'
+    payload JSONB NOT NULL,              -- Flexible payload: {"price": 60000, "qty": 0.5}
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- The magic bullet that prevents race conditions:
+    CONSTRAINT unique_aggregate_version UNIQUE (aggregate_id, version)
+);
+
+-- Index for fast recovery of a specific aggregate:
+CREATE INDEX idx_order_aggregate ON order_events(aggregate_id, version);
+
+3) What is the Syncing Mechanism between EdgeDesk (Java) and edge-trader (Rust)?
+
+Here is the critical clarification: They DO NOT sync via a message broker (Kafka/Redis). They sync via Postgres itself.
+
+Because they share the same database, Postgres acts as the "event bus"—the source of truth.
+
+You have two options for how edge-trader discovers new events. For your t3.micro, Option 1 is recommended:
+
+
+Option 1: High-Water Mark Polling (Simple & Bulletproof)
+
+Option 2: Postgres LISTEN/NOTIFY (Real-time, but more complex)
+
+//*********************************//
+
+I completely understand why you're thinking that. It feels cleaner to centralize everything 
+through edge-trader so there's no polling, no eventual consistency, and no "sync" to worry about.
+
+But please, do not do this. Moving all reads and writes through edge-trader would be a massive 
+architectural step backward for your t3.micro. Let me explain exactly why, and why the "syncing problem"
+ you're worried about is actually a feature, not a bug.
+
+If EdgeDesk (Java) calls edge-trader (Rust/Python) via REST API for everything (placing orders, canceling, and fetching trade history, balance, P&L charts):
+
+CPU Overhead
+
+Every UI dashboard refresh (which happens every 2-3 seconds) will require edge-trader to:
+ (1) query Postgres, (2) serialize JSON, (3) handle HTTP routing, (4) send the response. 
+ That burns CPU cycles that should be used for trading logic (WebSocket pings, order matching, risk calculations).
+
+
+If edge-trader crashes (or restarts to update config), the UI completely breaks—users can't even see their balance. In your shared-db design, even if edge-trader is down, Java can still read the snapshots and display the dashboard.
+
+Your "sync problem" (Rust polling Postgres) has a maximum latency of 250ms. That is faster than a human can blink. For financial settlement and accounting, 250ms is instant. The UI doesn't need real-time microsecond updates—it just needs accurate data.
+
+
+//*********************************//
+
+You are completely justified in disliking the "constant polling" (the SELECT WHERE id > $1 every 250ms). It feels primitive, adds unnecessary database load, and just feels wrong in a modern architecture.
+
+
+Option 1: The "REST API" Trigger (Your Suggestion)
+EdgeDesk calls edge-trader API to say "Hey, I wrote an event!"
+
+How it works: Java appends the event to Postgres, then immediately makes an HTTP POST /edge-trader/internal/notify to wake Rust up.
+
+The fatal flaw: Rust must process this request synchronously before replying to Java. If Rust is busy reconciling a trade or its connection to the exchange lags, the Java UI hangs. Worse, if Rust crashes after Java sends the notification but before Rust processes it, the event is lost forever (because Java already returned 200 OK to the user).
+
+Verdict: Avoid. It re-introduces synchronous coupling and failure modes that Event Sourcing is designed to eliminate.
+
+
+Option 2: The Message Broker (Kafka, RabbitMQ, Redis Streams)
+The "Pure Microservice" way.
+
+How it works: Java writes the event to Postgres and publishes a message to Redis Streams/SQS. Rust subscribes to the stream and processes instantly.
+
+The t3.micro reality:
+
+Redis Streams uses ~50-80MB RAM (bearable).
+
+RabbitMQ uses ~200MB+ (too heavy).
+
+AWS SQS (external) costs a few cents and uses 0 RAM—but adds 20-50ms network latency per message.
+
+The hidden cost: Now you have to manage exactly-once delivery. If Rust processes the message but crashes before updating the snapshot, you get duplicate processing. You now need idempotency logic (checking if an event already exists) which you already get for free with Postgres UNIQUE constraints.
+
+Verdict: Overkill. It adds a second infrastructure piece to monitor, backup, and secure for a marginal gain over polling.
+
+Option 3: Postgres LISTEN / NOTIFY (The Absolute Sweet Spot)
+Push-based notification built directly into Postgres. No extra services. No polling.
+
+This is the hidden gem of Postgres that solves your exact problem.
+
+How it works:
+
+1. EdgeDesk (Java): After inserting the event, immediately run:
+
+sql
+NOTIFY new_events, 'order_placed';
+(You can put this in a AFTER INSERT trigger so Java doesn't even have to remember to call it!)
+
+2. Edge-trader (Rust): Maintains one dedicated Postgres connection that is always listening:
+
+// In Rust (using sqlx or tokio-postgres)
+let mut listener = postgres.connect().await?;
+listener.execute("LISTEN new_events").await?;
+
+while let Some(notification) = listener.recv().await {
+    // Wakes up IMMEDIATELY (millisecond latency) when Java writes an event.
+    // Now go poll for new events since last_processed_id.
+    process_new_events().await?;
+}
+
+3. The Fallback (Safety net): Even with LISTEN, keep a lightweight poller that runs every 30 seconds 
+just to catch any notifications that might have been missed if Rust crashed and reconnected. This 
+gives you 100% reliability.
+
+Yes, exactly! You've nailed the core concept.
+
+Postgres has a built-in Pub/Sub (Publish-Subscribe) mechanism called LISTEN / NOTIFY.
+
+However, I need to give you one critical financial distinction so you don't make a dangerous assumption:
+LISTEN/NOTIFY is a notification system, not a persistent queue (like SQS or RabbitMQ).
+Here is exactly what that means for your EdgeDesk / edge-trader system, and why we combined it with the 
+watermark/polling fallback:
+
+//*********************************//
