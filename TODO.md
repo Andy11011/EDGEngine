@@ -2,8 +2,9 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: create a new container for edge-trader
-- [ ] Edge-trader: Create two AWS stack - TradeProxy and EdgeEngine (t3.micro)
+- [ ] Edge-trader: Fix bootup error
+- [ ] Edge-trader: Check SectetManager Binance Authentication
+- [ ] Edge-trader: Add postres event loop (with feedback)
 - [ ] Edge-trader: Push messages when get new signal (in java app)
 - [ ] Show crossovers on the chart
 - [ ] Monitor Several pairs at once
@@ -11,6 +12,8 @@
 - [ ] Add Supertrend
 - [ ] Add Volume
 - [ ] Improve volume for Z-Score volume
+- [X] ~~*Edge-trader: create a new container for edge-trader*~~ [2026-07-26]
+- [X] ~~*Edge-trader: Create two AWS stack - TradeProxy and EdgeEngine (t3.micro)*~~ [2026-07-26]
 - [X] ~~*Signals for historical data*~~ [2026-06-11]
 - [X] ~~*Integrate Nautilus with Redis (check streams)*~~ [2026-06-10]
 - [X] ~~*Try out NautilusTrader*~~ [2026-04-04]
@@ -24,6 +27,7 @@
 - [X] ~~*Add Reddis*~~ [2026-05-27]
 - [X] ~~*Build the Nautilus*~~ [2026-05-30]
 - [X] ~~*Build EDGEngine with custom Nautilus*~~ [2026-05-30]
+- [ ] Edge-trader: Fix watchtower authentication problem
 - [ ] Bug: Solve on_historical_data issue
 - [ ] Think how to implement filter over all tickers
 - [ ] Write the EdgeBridge service (maybe be integrate it to the Java backend)

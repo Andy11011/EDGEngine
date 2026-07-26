@@ -1,0 +1,929 @@
+2026-07-26T06:15:08.529389450Z [INFO] EDGETRADER-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:15:08.529563378Z [INFO] EDGETRADER-001.RiskEngine: READY
+2026-07-26T06:15:08.541606199Z [INFO] EDGETRADER-001.RiskEngine: TradingState is ACTIVE
+2026-07-26T06:15:08.553622108Z [INFO] EDGETRADER-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-07-26T06:15:08.554341336Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-07-26T06:15:08.554602798Z [INFO] EDGETRADER-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-07-26T06:15:08.554760958Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-07-26T06:15:08.554971290Z [INFO] EDGETRADER-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:15:08.555947846Z [INFO] EDGETRADER-001.ExecEngine: READY
+2026-07-26T06:15:08.556138638Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_orders=True
+2026-07-26T06:15:08.556153839Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions=True
+2026-07-26T06:15:08.556157451Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-07-26T06:15:08.556159913Z [INFO] EDGETRADER-001.ExecEngine: config.allow_overfills=False
+2026-07-26T06:15:08.556327630Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation=True
+2026-07-26T06:15:08.556333045Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-07-26T06:15:08.556335813Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-07-26T06:15:08.556338740Z [INFO] EDGETRADER-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-07-26T06:15:08.556341419Z [INFO] EDGETRADER-001.ExecEngine: config.filter_position_reports=False
+2026-07-26T06:15:08.556344097Z [INFO] EDGETRADER-001.ExecEngine: config.filtered_client_order_ids=None
+2026-07-26T06:15:08.556347660Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-07-26T06:15:08.556350627Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-07-26T06:15:08.556353290Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_retries=5
+2026-07-26T06:15:08.556355994Z [INFO] EDGETRADER-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-07-26T06:15:08.556358624Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_interval_secs=None
+2026-07-26T06:15:08.556361302Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_open_only=True
+2026-07-26T06:15:08.556364189Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_lookback_mins=60
+2026-07-26T06:15:08.556366629Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-07-26T06:15:08.556369498Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_missing_retries=5
+2026-07-26T06:15:08.556372019Z [INFO] EDGETRADER-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-07-26T06:15:08.556377215Z [INFO] EDGETRADER-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-07-26T06:15:08.556379748Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_interval_secs=None
+2026-07-26T06:15:08.556382019Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_lookback_mins=60
+2026-07-26T06:15:08.556384707Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-07-26T06:15:08.556403157Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_retries=3
+2026-07-26T06:15:08.556411609Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-07-26T06:15:08.556415492Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-07-26T06:15:08.556418146Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-07-26T06:15:08.556420585Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-07-26T06:15:08.556423434Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-07-26T06:15:08.556425733Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-07-26T06:15:08.556427855Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-07-26T06:15:08.556430217Z [INFO] EDGETRADER-001.ExecEngine: config.purge_from_database=False
+2026-07-26T06:15:08.556432860Z [INFO] EDGETRADER-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:15:08.561035631Z [INFO] EDGETRADER-001.Cache: Cached 0 general objects from database
+2026-07-26T06:15:08.561125832Z [INFO] EDGETRADER-001.Cache: Cached 0 currencies from database
+2026-07-26T06:15:08.561170932Z [INFO] EDGETRADER-001.Cache: Cached 0 instruments from database
+2026-07-26T06:15:08.561205799Z [INFO] EDGETRADER-001.Cache: Cached 0 accounts from database
+2026-07-26T06:15:08.561260785Z [INFO] EDGETRADER-001.Cache: Cached 0 orders from database
+2026-07-26T06:15:08.561289821Z [INFO] EDGETRADER-001.Cache: Cached 0 order lists from database
+2026-07-26T06:15:08.561332730Z [INFO] EDGETRADER-001.Cache: Cached 0 positions from database
+2026-07-26T06:15:08.561443720Z [INFO] EDGETRADER-001.Cache: Checking data integrity
+2026-07-26T06:15:08.561530328Z [INFO] EDGETRADER-001.Cache: Integrity check passed in 76μs
+2026-07-26T06:15:08.562423612Z [INFO] EDGETRADER-001.ExecEngine: Loaded cache in 5ms
+2026-07-26T06:15:08.567036789Z [INFO] EDGETRADER-001.OrderEmulator: READY
+2026-07-26T06:15:08.568723365Z [INFO] EDGETRADER-001.EDGETRADER-001: READY
+2026-07-26T06:15:08.569107452Z [INFO] EDGETRADER-001.TradingNode: Initialized in 133ms
+2026-07-26T06:15:08.569156001Z [INFO] EDGETRADER-001.TradingNode: has_cache_backing=False
+2026-07-26T06:15:08.569160675Z [INFO] EDGETRADER-001.TradingNode: has_msgbus_backing=False
+2026-07-26T06:15:08.571942773Z [INFO] EDGETRADER-001.BlueprintStrategy: READY
+2026-07-26T06:15:08.573753724Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy BlueprintStrategy-000
+2026-07-26T06:15:08.573789719Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy BlueprintStrategy-000
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 278, in <module>
+    main()
+  File "/app/EDGETrader.py", line 274, in main
+    run_node(node, strategy, register_binance_clients, register_binance_clients)
+  File "/app/EDGETrader.py", line 191, in run_node
+    register_exec_factory(node)
+  File "/app/EDGETrader.py", line 206, in register_binance_clients
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node.py", line 249, in add_data_client_factory
+    self._builder.add_data_client_factory(name, factory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node_builder.py", line 106, in add_data_client_factory
+    PyCondition.not_in(name, self._data_factories, "name", "_data_factories")
+  File "nautilus_trader/core/correctness.pyx", line 1134, in nautilus_trader.core.correctness.PyCondition.not_in
+  File "nautilus_trader/core/correctness.pyx", line 501, in nautilus_trader.core.correctness.Condition.not_in
+KeyError: "'name' BINANCE already contained in '_data_factories' collection"
+✅ Credentials loaded from AWS Secrets Manager
+2026-07-26T06:16:15.349457217Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.349484327Z [INFO] EDGETRADER-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-07-26T06:16:15.349485079Z [INFO] EDGETRADER-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-07-26T06:16:15.349485703Z [INFO] EDGETRADER-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-07-26T06:16:15.349486171Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.349486664Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:16:15.349487019Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:16:15.349496087Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-07-26T06:16:15.349497095Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-07-26T06:16:15.349497497Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-07-26T06:16:15.349497843Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-07-26T06:16:15.349498235Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-07-26T06:16:15.349498671Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-07-26T06:16:15.349498991Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-07-26T06:16:15.349500501Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-07-26T06:16:15.349500835Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-07-26T06:16:15.349501151Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-07-26T06:16:15.349501941Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:16:15.349502340Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:16:15.349502577Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.349503185Z [INFO] EDGETRADER-001.TradingNode:  SYSTEM SPECIFICATION
+2026-07-26T06:16:15.349503468Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.349504711Z [INFO] EDGETRADER-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz
+2026-07-26T06:16:15.349510517Z [INFO] EDGETRADER-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-07-26T06:16:15.352318493Z [INFO] EDGETRADER-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-07-26T06:16:15.353081418Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.353105682Z [INFO] EDGETRADER-001.TradingNode:  MEMORY USAGE
+2026-07-26T06:16:15.353106842Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.353115214Z [INFO] EDGETRADER-001.TradingNode: RAM-Total: 0.88 GiB
+2026-07-26T06:16:15.353947804Z [INFO] EDGETRADER-001.TradingNode: RAM-Used: 0.83 GiB (93.45%)
+2026-07-26T06:16:15.353954912Z [INFO] EDGETRADER-001.TradingNode: RAM-Avail: 0.06 GiB (6.55%)
+2026-07-26T06:16:15.353959198Z [INFO] EDGETRADER-001.TradingNode: Swap: disabled
+2026-07-26T06:16:15.354959101Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.354968752Z [INFO] EDGETRADER-001.TradingNode:  IDENTIFIERS
+2026-07-26T06:16:15.354970362Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.354972240Z [INFO] EDGETRADER-001.TradingNode: trader_id: EDGETRADER-001
+2026-07-26T06:16:15.355782659Z [INFO] EDGETRADER-001.TradingNode: machine_id: 389495049c9e
+2026-07-26T06:16:15.355795814Z [INFO] EDGETRADER-001.TradingNode: instance_id: 5a0acb00-cf11-48e1-a72b-10cdc97a8c5c
+2026-07-26T06:16:15.355796939Z [INFO] EDGETRADER-001.TradingNode: PID: 1
+2026-07-26T06:16:15.355797363Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.355798130Z [INFO] EDGETRADER-001.TradingNode:  VERSIONING
+2026-07-26T06:16:15.355798489Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.357805477Z [INFO] EDGETRADER-001.TradingNode: nautilus_trader: 1.228.0
+2026-07-26T06:16:15.358699931Z [INFO] EDGETRADER-001.TradingNode: python: 3.12.13
+2026-07-26T06:16:15.358719564Z [INFO] EDGETRADER-001.TradingNode: numpy: 2.5.1
+2026-07-26T06:16:15.358724688Z [INFO] EDGETRADER-001.TradingNode: pandas: 2.3.3
+2026-07-26T06:16:15.358729407Z [INFO] EDGETRADER-001.TradingNode: msgspec: 0.21.1
+2026-07-26T06:16:15.358733068Z [INFO] EDGETRADER-001.TradingNode: pyarrow: 25.0.0
+2026-07-26T06:16:15.358737391Z [INFO] EDGETRADER-001.TradingNode: pytz: 2026.2
+2026-07-26T06:16:15.358741298Z [INFO] EDGETRADER-001.TradingNode: uvloop: 0.22.1
+2026-07-26T06:16:15.358741693Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:16:15.366775848Z [INFO] EDGETRADER-001.TradingNode: Building system kernel
+2026-07-26T06:16:15.375894967Z [INFO] EDGETRADER-001.MessageBus: config.database=None
+2026-07-26T06:16:15.375913091Z [INFO] EDGETRADER-001.MessageBus: config.encoding='msgpack'
+2026-07-26T06:16:15.375915923Z [INFO] EDGETRADER-001.MessageBus: config.timestamps_as_iso8601=False
+2026-07-26T06:16:15.375917562Z [INFO] EDGETRADER-001.MessageBus: config.buffer_interval_ms=None
+2026-07-26T06:16:15.375919267Z [INFO] EDGETRADER-001.MessageBus: config.autotrim_mins=None
+2026-07-26T06:16:15.375921400Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_prefix=True
+2026-07-26T06:16:15.375924023Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_id=True
+2026-07-26T06:16:15.375927165Z [INFO] EDGETRADER-001.MessageBus: config.use_instance_id=False
+2026-07-26T06:16:15.375928888Z [INFO] EDGETRADER-001.MessageBus: config.streams_prefix='stream'
+2026-07-26T06:16:15.375930368Z [INFO] EDGETRADER-001.MessageBus: config.types_filter=None
+2026-07-26T06:16:15.379099335Z [INFO] EDGETRADER-001.Cache: READY
+2026-07-26T06:16:15.405575866Z [INFO] EDGETRADER-001.DataEngine: READY
+2026-07-26T06:16:15.411401498Z [INFO] EDGETRADER-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:16:15.411568911Z [INFO] EDGETRADER-001.RiskEngine: READY
+2026-07-26T06:16:15.420739125Z [INFO] EDGETRADER-001.RiskEngine: TradingState is ACTIVE
+2026-07-26T06:16:15.430124345Z [INFO] EDGETRADER-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-07-26T06:16:15.430907914Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-07-26T06:16:15.431196711Z [INFO] EDGETRADER-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-07-26T06:16:15.431251451Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-07-26T06:16:15.431465205Z [INFO] EDGETRADER-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:16:15.432040027Z [INFO] EDGETRADER-001.ExecEngine: READY
+2026-07-26T06:16:15.432182395Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_orders=True
+2026-07-26T06:16:15.432203195Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions=True
+2026-07-26T06:16:15.432205737Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-07-26T06:16:15.432208581Z [INFO] EDGETRADER-001.ExecEngine: config.allow_overfills=False
+2026-07-26T06:16:15.432332742Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation=True
+2026-07-26T06:16:15.432337029Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-07-26T06:16:15.432339484Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-07-26T06:16:15.432343022Z [INFO] EDGETRADER-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-07-26T06:16:15.432345518Z [INFO] EDGETRADER-001.ExecEngine: config.filter_position_reports=False
+2026-07-26T06:16:15.432348430Z [INFO] EDGETRADER-001.ExecEngine: config.filtered_client_order_ids=None
+2026-07-26T06:16:15.432351251Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-07-26T06:16:15.432353911Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-07-26T06:16:15.432356562Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_retries=5
+2026-07-26T06:16:15.432359139Z [INFO] EDGETRADER-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-07-26T06:16:15.432361615Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_interval_secs=None
+2026-07-26T06:16:15.432363885Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_open_only=True
+2026-07-26T06:16:15.432366651Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_lookback_mins=60
+2026-07-26T06:16:15.432369103Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-07-26T06:16:15.432372185Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_missing_retries=5
+2026-07-26T06:16:15.432374728Z [INFO] EDGETRADER-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-07-26T06:16:15.432378918Z [INFO] EDGETRADER-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-07-26T06:16:15.432381236Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_interval_secs=None
+2026-07-26T06:16:15.432383488Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_lookback_mins=60
+2026-07-26T06:16:15.432385782Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-07-26T06:16:15.432388401Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_retries=3
+2026-07-26T06:16:15.432394621Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-07-26T06:16:15.432398272Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-07-26T06:16:15.432400648Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-07-26T06:16:15.432403338Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-07-26T06:16:15.432405863Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-07-26T06:16:15.432408072Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-07-26T06:16:15.432410185Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-07-26T06:16:15.432412365Z [INFO] EDGETRADER-001.ExecEngine: config.purge_from_database=False
+2026-07-26T06:16:15.432414886Z [INFO] EDGETRADER-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:16:15.437035643Z [INFO] EDGETRADER-001.Cache: Cached 0 general objects from database
+2026-07-26T06:16:15.437074176Z [INFO] EDGETRADER-001.Cache: Cached 0 currencies from database
+2026-07-26T06:16:15.437081982Z [INFO] EDGETRADER-001.Cache: Cached 0 instruments from database
+2026-07-26T06:16:15.437089783Z [INFO] EDGETRADER-001.Cache: Cached 0 accounts from database
+2026-07-26T06:16:15.437096214Z [INFO] EDGETRADER-001.Cache: Cached 0 orders from database
+2026-07-26T06:16:15.437102992Z [INFO] EDGETRADER-001.Cache: Cached 0 order lists from database
+2026-07-26T06:16:15.437109135Z [INFO] EDGETRADER-001.Cache: Cached 0 positions from database
+2026-07-26T06:16:15.437204719Z [INFO] EDGETRADER-001.Cache: Checking data integrity
+2026-07-26T06:16:15.437223185Z [INFO] EDGETRADER-001.Cache: Integrity check passed in 17μs
+2026-07-26T06:16:15.437911933Z [INFO] EDGETRADER-001.ExecEngine: Loaded cache in 3ms
+2026-07-26T06:16:15.442592762Z [INFO] EDGETRADER-001.OrderEmulator: READY
+2026-07-26T06:16:15.444264894Z [INFO] EDGETRADER-001.EDGETRADER-001: READY
+2026-07-26T06:16:15.444464453Z [INFO] EDGETRADER-001.TradingNode: Initialized in 133ms
+2026-07-26T06:16:15.444535704Z [INFO] EDGETRADER-001.TradingNode: has_cache_backing=False
+2026-07-26T06:16:15.444540967Z [INFO] EDGETRADER-001.TradingNode: has_msgbus_backing=False
+2026-07-26T06:16:15.447881204Z [INFO] EDGETRADER-001.BlueprintStrategy: READY
+2026-07-26T06:16:15.449403194Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy BlueprintStrategy-000
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 278, in <module>
+2026-07-26T06:16:15.449431561Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy BlueprintStrategy-000
+    main()
+  File "/app/EDGETrader.py", line 274, in main
+    run_node(node, strategy, register_binance_clients, register_binance_clients)
+  File "/app/EDGETrader.py", line 191, in run_node
+    register_exec_factory(node)
+  File "/app/EDGETrader.py", line 206, in register_binance_clients
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node.py", line 249, in add_data_client_factory
+    self._builder.add_data_client_factory(name, factory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node_builder.py", line 106, in add_data_client_factory
+    PyCondition.not_in(name, self._data_factories, "name", "_data_factories")
+  File "nautilus_trader/core/correctness.pyx", line 1134, in nautilus_trader.core.correctness.PyCondition.not_in
+  File "nautilus_trader/core/correctness.pyx", line 501, in nautilus_trader.core.correctness.Condition.not_in
+KeyError: "'name' BINANCE already contained in '_data_factories' collection"
+✅ Credentials loaded from AWS Secrets Manager
+2026-07-26T06:17:22.272421021Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.272447389Z [INFO] EDGETRADER-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-07-26T06:17:22.272448355Z [INFO] EDGETRADER-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-07-26T06:17:22.272449099Z [INFO] EDGETRADER-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-07-26T06:17:22.272449429Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.272449955Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:17:22.272450422Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:17:22.272459257Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-07-26T06:17:22.272460214Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-07-26T06:17:22.272460695Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-07-26T06:17:22.272461215Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-07-26T06:17:22.272461659Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-07-26T06:17:22.272462022Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-07-26T06:17:22.272462362Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-07-26T06:17:22.272463622Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-07-26T06:17:22.272464227Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-07-26T06:17:22.272464635Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-07-26T06:17:22.272465042Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:17:22.272465576Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:17:22.272465819Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.272466776Z [INFO] EDGETRADER-001.TradingNode:  SYSTEM SPECIFICATION
+2026-07-26T06:17:22.272467036Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.272468519Z [INFO] EDGETRADER-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz
+2026-07-26T06:17:22.272469672Z [INFO] EDGETRADER-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-07-26T06:17:22.273663888Z [INFO] EDGETRADER-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-07-26T06:17:22.273766357Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.273768021Z [INFO] EDGETRADER-001.TradingNode:  MEMORY USAGE
+2026-07-26T06:17:22.273768417Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.273771577Z [INFO] EDGETRADER-001.TradingNode: RAM-Total: 0.88 GiB
+2026-07-26T06:17:22.273772965Z [INFO] EDGETRADER-001.TradingNode: RAM-Used: 0.83 GiB (93.53%)
+2026-07-26T06:17:22.273774117Z [INFO] EDGETRADER-001.TradingNode: RAM-Avail: 0.06 GiB (6.47%)
+2026-07-26T06:17:22.273775365Z [INFO] EDGETRADER-001.TradingNode: Swap: disabled
+2026-07-26T06:17:22.274673221Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.274682798Z [INFO] EDGETRADER-001.TradingNode:  IDENTIFIERS
+2026-07-26T06:17:22.274684442Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.274710248Z [INFO] EDGETRADER-001.TradingNode: trader_id: EDGETRADER-001
+2026-07-26T06:17:22.275644715Z [INFO] EDGETRADER-001.TradingNode: machine_id: 389495049c9e
+2026-07-26T06:17:22.275680445Z [INFO] EDGETRADER-001.TradingNode: instance_id: fafa2734-1b4e-4337-8822-c7bb4c0a1766
+2026-07-26T06:17:22.275681858Z [INFO] EDGETRADER-001.TradingNode: PID: 1
+2026-07-26T06:17:22.275682310Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.275683159Z [INFO] EDGETRADER-001.TradingNode:  VERSIONING
+2026-07-26T06:17:22.275683480Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.275734675Z [INFO] EDGETRADER-001.TradingNode: nautilus_trader: 1.228.0
+2026-07-26T06:17:22.276731242Z [INFO] EDGETRADER-001.TradingNode: python: 3.12.13
+2026-07-26T06:17:22.276758043Z [INFO] EDGETRADER-001.TradingNode: numpy: 2.5.1
+2026-07-26T06:17:22.276823592Z [INFO] EDGETRADER-001.TradingNode: pandas: 2.3.3
+2026-07-26T06:17:22.276862666Z [INFO] EDGETRADER-001.TradingNode: msgspec: 0.21.1
+2026-07-26T06:17:22.276867539Z [INFO] EDGETRADER-001.TradingNode: pyarrow: 25.0.0
+2026-07-26T06:17:22.276871551Z [INFO] EDGETRADER-001.TradingNode: pytz: 2026.2
+2026-07-26T06:17:22.276875623Z [INFO] EDGETRADER-001.TradingNode: uvloop: 0.22.1
+2026-07-26T06:17:22.276876011Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:17:22.281827714Z [INFO] EDGETRADER-001.TradingNode: Building system kernel
+2026-07-26T06:17:22.284219244Z [INFO] EDGETRADER-001.MessageBus: config.database=None
+2026-07-26T06:17:22.284242448Z [INFO] EDGETRADER-001.MessageBus: config.encoding='msgpack'
+2026-07-26T06:17:22.284246984Z [INFO] EDGETRADER-001.MessageBus: config.timestamps_as_iso8601=False
+2026-07-26T06:17:22.284249154Z [INFO] EDGETRADER-001.MessageBus: config.buffer_interval_ms=None
+2026-07-26T06:17:22.284251714Z [INFO] EDGETRADER-001.MessageBus: config.autotrim_mins=None
+2026-07-26T06:17:22.284254218Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_prefix=True
+2026-07-26T06:17:22.284257037Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_id=True
+2026-07-26T06:17:22.284260240Z [INFO] EDGETRADER-001.MessageBus: config.use_instance_id=False
+2026-07-26T06:17:22.284262906Z [INFO] EDGETRADER-001.MessageBus: config.streams_prefix='stream'
+2026-07-26T06:17:22.284265116Z [INFO] EDGETRADER-001.MessageBus: config.types_filter=None
+2026-07-26T06:17:22.287585645Z [INFO] EDGETRADER-001.Cache: READY
+2026-07-26T06:17:22.320443715Z [INFO] EDGETRADER-001.DataEngine: READY
+2026-07-26T06:17:22.324790635Z [INFO] EDGETRADER-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:17:22.324971305Z [INFO] EDGETRADER-001.RiskEngine: READY
+2026-07-26T06:17:22.334855487Z [INFO] EDGETRADER-001.RiskEngine: TradingState is ACTIVE
+2026-07-26T06:17:22.342479357Z [INFO] EDGETRADER-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-07-26T06:17:22.343330503Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-07-26T06:17:22.343545500Z [INFO] EDGETRADER-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-07-26T06:17:22.343625795Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-07-26T06:17:22.343764596Z [INFO] EDGETRADER-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:17:22.343896190Z [INFO] EDGETRADER-001.ExecEngine: READY
+2026-07-26T06:17:22.344023281Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_orders=True
+2026-07-26T06:17:22.344028588Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions=True
+2026-07-26T06:17:22.344031753Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-07-26T06:17:22.344034194Z [INFO] EDGETRADER-001.ExecEngine: config.allow_overfills=False
+2026-07-26T06:17:22.344207679Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation=True
+2026-07-26T06:17:22.344212091Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-07-26T06:17:22.344214769Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-07-26T06:17:22.344218037Z [INFO] EDGETRADER-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-07-26T06:17:22.344220622Z [INFO] EDGETRADER-001.ExecEngine: config.filter_position_reports=False
+2026-07-26T06:17:22.344223622Z [INFO] EDGETRADER-001.ExecEngine: config.filtered_client_order_ids=None
+2026-07-26T06:17:22.344226998Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-07-26T06:17:22.344229952Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-07-26T06:17:22.344232646Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_retries=5
+2026-07-26T06:17:22.344235222Z [INFO] EDGETRADER-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-07-26T06:17:22.344259459Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_interval_secs=None
+2026-07-26T06:17:22.344262967Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_open_only=True
+2026-07-26T06:17:22.344265598Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_lookback_mins=60
+2026-07-26T06:17:22.344267969Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-07-26T06:17:22.344270253Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_missing_retries=5
+2026-07-26T06:17:22.344273109Z [INFO] EDGETRADER-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-07-26T06:17:22.344278106Z [INFO] EDGETRADER-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-07-26T06:17:22.344280717Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_interval_secs=None
+2026-07-26T06:17:22.344282956Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_lookback_mins=60
+2026-07-26T06:17:22.344285380Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-07-26T06:17:22.344287952Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_retries=3
+2026-07-26T06:17:22.344301591Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-07-26T06:17:22.344305436Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-07-26T06:17:22.344307620Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-07-26T06:17:22.344310333Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-07-26T06:17:22.344313030Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-07-26T06:17:22.344315239Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-07-26T06:17:22.344338323Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-07-26T06:17:22.344342229Z [INFO] EDGETRADER-001.ExecEngine: config.purge_from_database=False
+2026-07-26T06:17:22.344345209Z [INFO] EDGETRADER-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:17:22.348449812Z [INFO] EDGETRADER-001.Cache: Cached 0 general objects from database
+2026-07-26T06:17:22.348488754Z [INFO] EDGETRADER-001.Cache: Cached 0 currencies from database
+2026-07-26T06:17:22.348497494Z [INFO] EDGETRADER-001.Cache: Cached 0 instruments from database
+2026-07-26T06:17:22.348505853Z [INFO] EDGETRADER-001.Cache: Cached 0 accounts from database
+2026-07-26T06:17:22.348512806Z [INFO] EDGETRADER-001.Cache: Cached 0 orders from database
+2026-07-26T06:17:22.348525767Z [INFO] EDGETRADER-001.Cache: Cached 0 order lists from database
+2026-07-26T06:17:22.348532674Z [INFO] EDGETRADER-001.Cache: Cached 0 positions from database
+2026-07-26T06:17:22.348673383Z [INFO] EDGETRADER-001.Cache: Checking data integrity
+2026-07-26T06:17:22.348693392Z [INFO] EDGETRADER-001.Cache: Integrity check passed in 13μs
+2026-07-26T06:17:22.349492615Z [INFO] EDGETRADER-001.ExecEngine: Loaded cache in 4ms
+2026-07-26T06:17:22.354196856Z [INFO] EDGETRADER-001.OrderEmulator: READY
+2026-07-26T06:17:22.355973786Z [INFO] EDGETRADER-001.EDGETRADER-001: READY
+2026-07-26T06:17:22.356096646Z [INFO] EDGETRADER-001.TradingNode: Initialized in 122ms
+2026-07-26T06:17:22.356130254Z [INFO] EDGETRADER-001.TradingNode: has_cache_backing=False
+2026-07-26T06:17:22.356134420Z [INFO] EDGETRADER-001.TradingNode: has_msgbus_backing=False
+2026-07-26T06:17:22.357881051Z [INFO] EDGETRADER-001.BlueprintStrategy: READY
+2026-07-26T06:17:22.363746011Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy BlueprintStrategy-000
+2026-07-26T06:17:22.363783929Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy BlueprintStrategy-000
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 278, in <module>
+    main()
+  File "/app/EDGETrader.py", line 274, in main
+    run_node(node, strategy, register_binance_clients, register_binance_clients)
+  File "/app/EDGETrader.py", line 191, in run_node
+    register_exec_factory(node)
+  File "/app/EDGETrader.py", line 206, in register_binance_clients
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node.py", line 249, in add_data_client_factory
+    self._builder.add_data_client_factory(name, factory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node_builder.py", line 106, in add_data_client_factory
+    PyCondition.not_in(name, self._data_factories, "name", "_data_factories")
+  File "nautilus_trader/core/correctness.pyx", line 1134, in nautilus_trader.core.correctness.PyCondition.not_in
+  File "nautilus_trader/core/correctness.pyx", line 501, in nautilus_trader.core.correctness.Condition.not_in
+KeyError: "'name' BINANCE already contained in '_data_factories' collection"
+✅ Credentials loaded from AWS Secrets Manager
+2026-07-26T06:18:29.154385110Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.154409978Z [INFO] EDGETRADER-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-07-26T06:18:29.154410806Z [INFO] EDGETRADER-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-07-26T06:18:29.154411465Z [INFO] EDGETRADER-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-07-26T06:18:29.154411961Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.154412513Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:18:29.154412858Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:18:29.154421298Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-07-26T06:18:29.154422235Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-07-26T06:18:29.154422761Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-07-26T06:18:29.154423079Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-07-26T06:18:29.154423521Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-07-26T06:18:29.154423897Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-07-26T06:18:29.154424338Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-07-26T06:18:29.154425868Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-07-26T06:18:29.154426229Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-07-26T06:18:29.154426646Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-07-26T06:18:29.154427075Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:18:29.154427308Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:18:29.154427522Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.154428036Z [INFO] EDGETRADER-001.TradingNode:  SYSTEM SPECIFICATION
+2026-07-26T06:18:29.154428485Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.154430258Z [INFO] EDGETRADER-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz
+2026-07-26T06:18:29.154431533Z [INFO] EDGETRADER-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-07-26T06:18:29.155363073Z [INFO] EDGETRADER-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-07-26T06:18:29.155466728Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.155468108Z [INFO] EDGETRADER-001.TradingNode:  MEMORY USAGE
+2026-07-26T06:18:29.155468747Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.155471362Z [INFO] EDGETRADER-001.TradingNode: RAM-Total: 0.88 GiB
+2026-07-26T06:18:29.155472750Z [INFO] EDGETRADER-001.TradingNode: RAM-Used: 0.83 GiB (93.44%)
+2026-07-26T06:18:29.155473756Z [INFO] EDGETRADER-001.TradingNode: RAM-Avail: 0.06 GiB (6.56%)
+2026-07-26T06:18:29.155475578Z [INFO] EDGETRADER-001.TradingNode: Swap: disabled
+2026-07-26T06:18:29.156378288Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.156385811Z [INFO] EDGETRADER-001.TradingNode:  IDENTIFIERS
+2026-07-26T06:18:29.156387428Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.156389221Z [INFO] EDGETRADER-001.TradingNode: trader_id: EDGETRADER-001
+2026-07-26T06:18:29.157223676Z [INFO] EDGETRADER-001.TradingNode: machine_id: 389495049c9e
+2026-07-26T06:18:29.157235991Z [INFO] EDGETRADER-001.TradingNode: instance_id: eb280bd2-d72b-4291-814f-7d42d829e1f6
+2026-07-26T06:18:29.157236993Z [INFO] EDGETRADER-001.TradingNode: PID: 1
+2026-07-26T06:18:29.157237397Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.157238418Z [INFO] EDGETRADER-001.TradingNode:  VERSIONING
+2026-07-26T06:18:29.157238842Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.157269706Z [INFO] EDGETRADER-001.TradingNode: nautilus_trader: 1.228.0
+2026-07-26T06:18:29.158283728Z [INFO] EDGETRADER-001.TradingNode: python: 3.12.13
+2026-07-26T06:18:29.158310953Z [INFO] EDGETRADER-001.TradingNode: numpy: 2.5.1
+2026-07-26T06:18:29.158316375Z [INFO] EDGETRADER-001.TradingNode: pandas: 2.3.3
+2026-07-26T06:18:29.158320877Z [INFO] EDGETRADER-001.TradingNode: msgspec: 0.21.1
+2026-07-26T06:18:29.158324882Z [INFO] EDGETRADER-001.TradingNode: pyarrow: 25.0.0
+2026-07-26T06:18:29.158329258Z [INFO] EDGETRADER-001.TradingNode: pytz: 2026.2
+2026-07-26T06:18:29.158333322Z [INFO] EDGETRADER-001.TradingNode: uvloop: 0.22.1
+2026-07-26T06:18:29.158334070Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:18:29.162272018Z [INFO] EDGETRADER-001.TradingNode: Building system kernel
+2026-07-26T06:18:29.164730478Z [INFO] EDGETRADER-001.MessageBus: config.database=None
+2026-07-26T06:18:29.164748707Z [INFO] EDGETRADER-001.MessageBus: config.encoding='msgpack'
+2026-07-26T06:18:29.164767446Z [INFO] EDGETRADER-001.MessageBus: config.timestamps_as_iso8601=False
+2026-07-26T06:18:29.164770328Z [INFO] EDGETRADER-001.MessageBus: config.buffer_interval_ms=None
+2026-07-26T06:18:29.164772819Z [INFO] EDGETRADER-001.MessageBus: config.autotrim_mins=None
+2026-07-26T06:18:29.164775338Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_prefix=True
+2026-07-26T06:18:29.164778171Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_id=True
+2026-07-26T06:18:29.164780332Z [INFO] EDGETRADER-001.MessageBus: config.use_instance_id=False
+2026-07-26T06:18:29.164784211Z [INFO] EDGETRADER-001.MessageBus: config.streams_prefix='stream'
+2026-07-26T06:18:29.164786707Z [INFO] EDGETRADER-001.MessageBus: config.types_filter=None
+2026-07-26T06:18:29.168243541Z [INFO] EDGETRADER-001.Cache: READY
+2026-07-26T06:18:29.195844208Z [INFO] EDGETRADER-001.DataEngine: READY
+2026-07-26T06:18:29.200419935Z [INFO] EDGETRADER-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:18:29.200743263Z [INFO] EDGETRADER-001.RiskEngine: READY
+2026-07-26T06:18:29.210435435Z [INFO] EDGETRADER-001.RiskEngine: TradingState is ACTIVE
+2026-07-26T06:18:29.220679463Z [INFO] EDGETRADER-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-07-26T06:18:29.222192620Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-07-26T06:18:29.222572011Z [INFO] EDGETRADER-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-07-26T06:18:29.222693118Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-07-26T06:18:29.222850677Z [INFO] EDGETRADER-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:18:29.223887249Z [INFO] EDGETRADER-001.ExecEngine: READY
+2026-07-26T06:18:29.224166778Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_orders=True
+2026-07-26T06:18:29.224255214Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions=True
+2026-07-26T06:18:29.224328240Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-07-26T06:18:29.224400764Z [INFO] EDGETRADER-001.ExecEngine: config.allow_overfills=False
+2026-07-26T06:18:29.224717364Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation=True
+2026-07-26T06:18:29.224732207Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-07-26T06:18:29.224735103Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-07-26T06:18:29.224738224Z [INFO] EDGETRADER-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-07-26T06:18:29.224741218Z [INFO] EDGETRADER-001.ExecEngine: config.filter_position_reports=False
+2026-07-26T06:18:29.224743576Z [INFO] EDGETRADER-001.ExecEngine: config.filtered_client_order_ids=None
+2026-07-26T06:18:29.224746284Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-07-26T06:18:29.224748747Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-07-26T06:18:29.224751373Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_retries=5
+2026-07-26T06:18:29.224753838Z [INFO] EDGETRADER-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-07-26T06:18:29.224756154Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_interval_secs=None
+2026-07-26T06:18:29.224758455Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_open_only=True
+2026-07-26T06:18:29.224761659Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_lookback_mins=60
+2026-07-26T06:18:29.224764158Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-07-26T06:18:29.224767021Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_missing_retries=5
+2026-07-26T06:18:29.224769860Z [INFO] EDGETRADER-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-07-26T06:18:29.224775060Z [INFO] EDGETRADER-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-07-26T06:18:29.224777584Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_interval_secs=None
+2026-07-26T06:18:29.224780314Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_lookback_mins=60
+2026-07-26T06:18:29.224782789Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-07-26T06:18:29.224785452Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_retries=3
+2026-07-26T06:18:29.224792068Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-07-26T06:18:29.224795905Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-07-26T06:18:29.224798426Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-07-26T06:18:29.224800609Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-07-26T06:18:29.224803004Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-07-26T06:18:29.224805376Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-07-26T06:18:29.224807673Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-07-26T06:18:29.224810346Z [INFO] EDGETRADER-001.ExecEngine: config.purge_from_database=False
+2026-07-26T06:18:29.224812717Z [INFO] EDGETRADER-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:18:29.228336677Z [INFO] EDGETRADER-001.Cache: Cached 0 general objects from database
+2026-07-26T06:18:29.228372191Z [INFO] EDGETRADER-001.Cache: Cached 0 currencies from database
+2026-07-26T06:18:29.228381854Z [INFO] EDGETRADER-001.Cache: Cached 0 instruments from database
+2026-07-26T06:18:29.228389672Z [INFO] EDGETRADER-001.Cache: Cached 0 accounts from database
+2026-07-26T06:18:29.228402644Z [INFO] EDGETRADER-001.Cache: Cached 0 orders from database
+2026-07-26T06:18:29.228410208Z [INFO] EDGETRADER-001.Cache: Cached 0 order lists from database
+2026-07-26T06:18:29.228416686Z [INFO] EDGETRADER-001.Cache: Cached 0 positions from database
+2026-07-26T06:18:29.228844632Z [INFO] EDGETRADER-001.Cache: Checking data integrity
+2026-07-26T06:18:29.228876786Z [INFO] EDGETRADER-001.Cache: Integrity check passed in 23μs
+2026-07-26T06:18:29.229708174Z [INFO] EDGETRADER-001.ExecEngine: Loaded cache in 4ms
+2026-07-26T06:18:29.234345506Z [INFO] EDGETRADER-001.OrderEmulator: READY
+2026-07-26T06:18:29.236085987Z [INFO] EDGETRADER-001.EDGETRADER-001: READY
+2026-07-26T06:18:29.236211277Z [INFO] EDGETRADER-001.TradingNode: Initialized in 121ms
+2026-07-26T06:18:29.236243914Z [INFO] EDGETRADER-001.TradingNode: has_cache_backing=False
+2026-07-26T06:18:29.236248509Z [INFO] EDGETRADER-001.TradingNode: has_msgbus_backing=False
+2026-07-26T06:18:29.238149088Z [INFO] EDGETRADER-001.BlueprintStrategy: READY
+2026-07-26T06:18:29.241651293Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy BlueprintStrategy-000
+2026-07-26T06:18:29.241683316Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy BlueprintStrategy-000
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 278, in <module>
+    main()
+  File "/app/EDGETrader.py", line 274, in main
+    run_node(node, strategy, register_binance_clients, register_binance_clients)
+  File "/app/EDGETrader.py", line 191, in run_node
+    register_exec_factory(node)
+  File "/app/EDGETrader.py", line 206, in register_binance_clients
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node.py", line 249, in add_data_client_factory
+    self._builder.add_data_client_factory(name, factory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node_builder.py", line 106, in add_data_client_factory
+    PyCondition.not_in(name, self._data_factories, "name", "_data_factories")
+  File "nautilus_trader/core/correctness.pyx", line 1134, in nautilus_trader.core.correctness.PyCondition.not_in
+  File "nautilus_trader/core/correctness.pyx", line 501, in nautilus_trader.core.correctness.Condition.not_in
+KeyError: "'name' BINANCE already contained in '_data_factories' collection"
+✅ Credentials loaded from AWS Secrets Manager
+2026-07-26T06:19:36.119698074Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.119728284Z [INFO] EDGETRADER-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-07-26T06:19:36.119729010Z [INFO] EDGETRADER-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-07-26T06:19:36.119729606Z [INFO] EDGETRADER-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-07-26T06:19:36.119729995Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.119730499Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:19:36.119730859Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:19:36.119731345Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-07-26T06:19:36.119741548Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-07-26T06:19:36.119741952Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-07-26T06:19:36.119742344Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-07-26T06:19:36.119742684Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-07-26T06:19:36.119743099Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-07-26T06:19:36.119743539Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-07-26T06:19:36.119744123Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-07-26T06:19:36.119744826Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-07-26T06:19:36.119745293Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-07-26T06:19:36.119745912Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:19:36.119746502Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:19:36.119746748Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.119747453Z [INFO] EDGETRADER-001.TradingNode:  SYSTEM SPECIFICATION
+2026-07-26T06:19:36.119747822Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.119754384Z [INFO] EDGETRADER-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz
+2026-07-26T06:19:36.119760502Z [INFO] EDGETRADER-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-07-26T06:19:36.120986649Z [INFO] EDGETRADER-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-07-26T06:19:36.121138693Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.121145483Z [INFO] EDGETRADER-001.TradingNode:  MEMORY USAGE
+2026-07-26T06:19:36.121145959Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.121148585Z [INFO] EDGETRADER-001.TradingNode: RAM-Total: 0.88 GiB
+2026-07-26T06:19:36.121150009Z [INFO] EDGETRADER-001.TradingNode: RAM-Used: 0.82 GiB (92.37%)
+2026-07-26T06:19:36.121151109Z [INFO] EDGETRADER-001.TradingNode: RAM-Avail: 0.07 GiB (7.63%)
+2026-07-26T06:19:36.121153120Z [INFO] EDGETRADER-001.TradingNode: Swap: disabled
+2026-07-26T06:19:36.122107380Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.122118536Z [INFO] EDGETRADER-001.TradingNode:  IDENTIFIERS
+2026-07-26T06:19:36.122120669Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.122122403Z [INFO] EDGETRADER-001.TradingNode: trader_id: EDGETRADER-001
+2026-07-26T06:19:36.123064719Z [INFO] EDGETRADER-001.TradingNode: machine_id: 389495049c9e
+2026-07-26T06:19:36.123073885Z [INFO] EDGETRADER-001.TradingNode: instance_id: 3a70a368-38c7-40c4-93cd-2efd94d5015d
+2026-07-26T06:19:36.123074997Z [INFO] EDGETRADER-001.TradingNode: PID: 1
+2026-07-26T06:19:36.123075486Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.123076419Z [INFO] EDGETRADER-001.TradingNode:  VERSIONING
+2026-07-26T06:19:36.123076921Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.123685473Z [INFO] EDGETRADER-001.TradingNode: nautilus_trader: 1.228.0
+2026-07-26T06:19:36.124479394Z [INFO] EDGETRADER-001.TradingNode: python: 3.12.13
+2026-07-26T06:19:36.124652358Z [INFO] EDGETRADER-001.TradingNode: numpy: 2.5.1
+2026-07-26T06:19:36.124670014Z [INFO] EDGETRADER-001.TradingNode: pandas: 2.3.3
+2026-07-26T06:19:36.124674451Z [INFO] EDGETRADER-001.TradingNode: msgspec: 0.21.1
+2026-07-26T06:19:36.124678852Z [INFO] EDGETRADER-001.TradingNode: pyarrow: 25.0.0
+2026-07-26T06:19:36.124683319Z [INFO] EDGETRADER-001.TradingNode: pytz: 2026.2
+2026-07-26T06:19:36.124687499Z [INFO] EDGETRADER-001.TradingNode: uvloop: 0.22.1
+2026-07-26T06:19:36.124687935Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:19:36.129744447Z [INFO] EDGETRADER-001.TradingNode: Building system kernel
+2026-07-26T06:19:36.133968337Z [INFO] EDGETRADER-001.MessageBus: config.database=None
+2026-07-26T06:19:36.133988588Z [INFO] EDGETRADER-001.MessageBus: config.encoding='msgpack'
+2026-07-26T06:19:36.133991839Z [INFO] EDGETRADER-001.MessageBus: config.timestamps_as_iso8601=False
+2026-07-26T06:19:36.133994021Z [INFO] EDGETRADER-001.MessageBus: config.buffer_interval_ms=None
+2026-07-26T06:19:36.133996811Z [INFO] EDGETRADER-001.MessageBus: config.autotrim_mins=None
+2026-07-26T06:19:36.133999470Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_prefix=True
+2026-07-26T06:19:36.134002267Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_id=True
+2026-07-26T06:19:36.134005516Z [INFO] EDGETRADER-001.MessageBus: config.use_instance_id=False
+2026-07-26T06:19:36.134007875Z [INFO] EDGETRADER-001.MessageBus: config.streams_prefix='stream'
+2026-07-26T06:19:36.134010008Z [INFO] EDGETRADER-001.MessageBus: config.types_filter=None
+2026-07-26T06:19:36.136391936Z [INFO] EDGETRADER-001.Cache: READY
+2026-07-26T06:19:36.163621643Z [INFO] EDGETRADER-001.DataEngine: READY
+2026-07-26T06:19:36.168012732Z [INFO] EDGETRADER-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:19:36.168134858Z [INFO] EDGETRADER-001.RiskEngine: READY
+2026-07-26T06:19:36.179082226Z [INFO] EDGETRADER-001.RiskEngine: TradingState is ACTIVE
+2026-07-26T06:19:36.186484460Z [INFO] EDGETRADER-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-07-26T06:19:36.187190619Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-07-26T06:19:36.187455667Z [INFO] EDGETRADER-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-07-26T06:19:36.187500990Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-07-26T06:19:36.187740757Z [INFO] EDGETRADER-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:19:36.188732577Z [INFO] EDGETRADER-001.ExecEngine: READY
+2026-07-26T06:19:36.188884128Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_orders=True
+2026-07-26T06:19:36.188905166Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions=True
+2026-07-26T06:19:36.188907802Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-07-26T06:19:36.188910009Z [INFO] EDGETRADER-001.ExecEngine: config.allow_overfills=False
+2026-07-26T06:19:36.189161309Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation=True
+2026-07-26T06:19:36.189175804Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-07-26T06:19:36.189178621Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-07-26T06:19:36.189181459Z [INFO] EDGETRADER-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-07-26T06:19:36.189183909Z [INFO] EDGETRADER-001.ExecEngine: config.filter_position_reports=False
+2026-07-26T06:19:36.189186431Z [INFO] EDGETRADER-001.ExecEngine: config.filtered_client_order_ids=None
+2026-07-26T06:19:36.189189669Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-07-26T06:19:36.189192007Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-07-26T06:19:36.189194761Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_retries=5
+2026-07-26T06:19:36.189197132Z [INFO] EDGETRADER-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-07-26T06:19:36.189199707Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_interval_secs=None
+2026-07-26T06:19:36.189523820Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_open_only=True
+2026-07-26T06:19:36.189560988Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_lookback_mins=60
+2026-07-26T06:19:36.189565587Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-07-26T06:19:36.189568318Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_missing_retries=5
+2026-07-26T06:19:36.189571265Z [INFO] EDGETRADER-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-07-26T06:19:36.189577524Z [INFO] EDGETRADER-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-07-26T06:19:36.189580163Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_interval_secs=None
+2026-07-26T06:19:36.189582912Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_lookback_mins=60
+2026-07-26T06:19:36.189585807Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-07-26T06:19:36.189588094Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_retries=3
+2026-07-26T06:19:36.189623173Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-07-26T06:19:36.189628053Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-07-26T06:19:36.189630436Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-07-26T06:19:36.189632812Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-07-26T06:19:36.189635265Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-07-26T06:19:36.189637684Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-07-26T06:19:36.189640140Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-07-26T06:19:36.189644125Z [INFO] EDGETRADER-001.ExecEngine: config.purge_from_database=False
+2026-07-26T06:19:36.189646544Z [INFO] EDGETRADER-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:19:36.192541649Z [INFO] EDGETRADER-001.Cache: Cached 0 general objects from database
+2026-07-26T06:19:36.192692461Z [INFO] EDGETRADER-001.Cache: Cached 0 currencies from database
+2026-07-26T06:19:36.192724066Z [INFO] EDGETRADER-001.Cache: Cached 0 instruments from database
+2026-07-26T06:19:36.192748382Z [INFO] EDGETRADER-001.Cache: Cached 0 accounts from database
+2026-07-26T06:19:36.192771699Z [INFO] EDGETRADER-001.Cache: Cached 0 orders from database
+2026-07-26T06:19:36.193291435Z [INFO] EDGETRADER-001.Cache: Cached 0 order lists from database
+2026-07-26T06:19:36.193314240Z [INFO] EDGETRADER-001.Cache: Cached 0 positions from database
+2026-07-26T06:19:36.193393993Z [INFO] EDGETRADER-001.Cache: Checking data integrity
+2026-07-26T06:19:36.193413499Z [INFO] EDGETRADER-001.Cache: Integrity check passed in 13μs
+2026-07-26T06:19:36.194244114Z [INFO] EDGETRADER-001.ExecEngine: Loaded cache in 4ms
+2026-07-26T06:19:36.199279333Z [INFO] EDGETRADER-001.OrderEmulator: READY
+2026-07-26T06:19:36.200900114Z [INFO] EDGETRADER-001.EDGETRADER-001: READY
+2026-07-26T06:19:36.201185908Z [INFO] EDGETRADER-001.TradingNode: Initialized in 125ms
+2026-07-26T06:19:36.201230010Z [INFO] EDGETRADER-001.TradingNode: has_cache_backing=False
+2026-07-26T06:19:36.201234319Z [INFO] EDGETRADER-001.TradingNode: has_msgbus_backing=False
+2026-07-26T06:19:36.202924142Z [INFO] EDGETRADER-001.BlueprintStrategy: READY
+2026-07-26T06:19:36.204709957Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy BlueprintStrategy-000
+2026-07-26T06:19:36.204736932Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy BlueprintStrategy-000
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 278, in <module>
+    main()
+  File "/app/EDGETrader.py", line 274, in main
+    run_node(node, strategy, register_binance_clients, register_binance_clients)
+  File "/app/EDGETrader.py", line 191, in run_node
+    register_exec_factory(node)
+  File "/app/EDGETrader.py", line 206, in register_binance_clients
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node.py", line 249, in add_data_client_factory
+    self._builder.add_data_client_factory(name, factory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node_builder.py", line 106, in add_data_client_factory
+    PyCondition.not_in(name, self._data_factories, "name", "_data_factories")
+  File "nautilus_trader/core/correctness.pyx", line 1134, in nautilus_trader.core.correctness.PyCondition.not_in
+  File "nautilus_trader/core/correctness.pyx", line 501, in nautilus_trader.core.correctness.Condition.not_in
+KeyError: "'name' BINANCE already contained in '_data_factories' collection"
+✅ Credentials loaded from AWS Secrets Manager
+2026-07-26T06:20:43.080012464Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.080049537Z [INFO] EDGETRADER-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-07-26T06:20:43.080050378Z [INFO] EDGETRADER-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-07-26T06:20:43.080050873Z [INFO] EDGETRADER-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-07-26T06:20:43.080051378Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.080051856Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:20:43.080052211Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:20:43.080052644Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-07-26T06:20:43.080053125Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-07-26T06:20:43.080066523Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-07-26T06:20:43.080067276Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-07-26T06:20:43.080067718Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-07-26T06:20:43.080068102Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-07-26T06:20:43.080068431Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-07-26T06:20:43.080069471Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-07-26T06:20:43.080069843Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-07-26T06:20:43.080070109Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-07-26T06:20:43.080070651Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:20:43.080071411Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:20:43.080071669Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.080072170Z [INFO] EDGETRADER-001.TradingNode:  SYSTEM SPECIFICATION
+2026-07-26T06:20:43.080072535Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.080074305Z [INFO] EDGETRADER-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz
+2026-07-26T06:20:43.080081073Z [INFO] EDGETRADER-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-07-26T06:20:43.081293240Z [INFO] EDGETRADER-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-07-26T06:20:43.081394551Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.081396506Z [INFO] EDGETRADER-001.TradingNode:  MEMORY USAGE
+2026-07-26T06:20:43.081396900Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.081400438Z [INFO] EDGETRADER-001.TradingNode: RAM-Total: 0.88 GiB
+2026-07-26T06:20:43.081402521Z [INFO] EDGETRADER-001.TradingNode: RAM-Used: 0.82 GiB (92.94%)
+2026-07-26T06:20:43.081403466Z [INFO] EDGETRADER-001.TradingNode: RAM-Avail: 0.06 GiB (7.06%)
+2026-07-26T06:20:43.081404907Z [INFO] EDGETRADER-001.TradingNode: Swap: disabled
+2026-07-26T06:20:43.082368033Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.082377960Z [INFO] EDGETRADER-001.TradingNode:  IDENTIFIERS
+2026-07-26T06:20:43.082401094Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.082404337Z [INFO] EDGETRADER-001.TradingNode: trader_id: EDGETRADER-001
+2026-07-26T06:20:43.083201998Z [INFO] EDGETRADER-001.TradingNode: machine_id: 389495049c9e
+2026-07-26T06:20:43.083210918Z [INFO] EDGETRADER-001.TradingNode: instance_id: 9e682e9b-2ba4-4e43-aefd-e29150eb482a
+2026-07-26T06:20:43.083212008Z [INFO] EDGETRADER-001.TradingNode: PID: 1
+2026-07-26T06:20:43.083212532Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.083213463Z [INFO] EDGETRADER-001.TradingNode:  VERSIONING
+2026-07-26T06:20:43.083213891Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.083237577Z [INFO] EDGETRADER-001.TradingNode: nautilus_trader: 1.228.0
+2026-07-26T06:20:43.084117615Z [INFO] EDGETRADER-001.TradingNode: python: 3.12.13
+2026-07-26T06:20:43.084177248Z [INFO] EDGETRADER-001.TradingNode: numpy: 2.5.1
+2026-07-26T06:20:43.084183429Z [INFO] EDGETRADER-001.TradingNode: pandas: 2.3.3
+2026-07-26T06:20:43.084188843Z [INFO] EDGETRADER-001.TradingNode: msgspec: 0.21.1
+2026-07-26T06:20:43.084202962Z [INFO] EDGETRADER-001.TradingNode: pyarrow: 25.0.0
+2026-07-26T06:20:43.084213056Z [INFO] EDGETRADER-001.TradingNode: pytz: 2026.2
+2026-07-26T06:20:43.084217586Z [INFO] EDGETRADER-001.TradingNode: uvloop: 0.22.1
+2026-07-26T06:20:43.084218052Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:20:43.089838513Z [INFO] EDGETRADER-001.TradingNode: Building system kernel
+2026-07-26T06:20:43.091977423Z [INFO] EDGETRADER-001.MessageBus: config.database=None
+2026-07-26T06:20:43.091995319Z [INFO] EDGETRADER-001.MessageBus: config.encoding='msgpack'
+2026-07-26T06:20:43.091998543Z [INFO] EDGETRADER-001.MessageBus: config.timestamps_as_iso8601=False
+2026-07-26T06:20:43.092001050Z [INFO] EDGETRADER-001.MessageBus: config.buffer_interval_ms=None
+2026-07-26T06:20:43.092003653Z [INFO] EDGETRADER-001.MessageBus: config.autotrim_mins=None
+2026-07-26T06:20:43.092006529Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_prefix=True
+2026-07-26T06:20:43.092009319Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_id=True
+2026-07-26T06:20:43.092012710Z [INFO] EDGETRADER-001.MessageBus: config.use_instance_id=False
+2026-07-26T06:20:43.092015127Z [INFO] EDGETRADER-001.MessageBus: config.streams_prefix='stream'
+2026-07-26T06:20:43.092017611Z [INFO] EDGETRADER-001.MessageBus: config.types_filter=None
+2026-07-26T06:20:43.094768874Z [INFO] EDGETRADER-001.Cache: READY
+2026-07-26T06:20:43.120741195Z [INFO] EDGETRADER-001.DataEngine: READY
+2026-07-26T06:20:43.125994729Z [INFO] EDGETRADER-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:20:43.126193401Z [INFO] EDGETRADER-001.RiskEngine: READY
+2026-07-26T06:20:43.135832013Z [INFO] EDGETRADER-001.RiskEngine: TradingState is ACTIVE
+2026-07-26T06:20:43.141186862Z [INFO] EDGETRADER-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-07-26T06:20:43.142628444Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-07-26T06:20:43.142900546Z [INFO] EDGETRADER-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-07-26T06:20:43.142938541Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-07-26T06:20:43.143119165Z [INFO] EDGETRADER-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:20:43.144806709Z [INFO] EDGETRADER-001.ExecEngine: READY
+2026-07-26T06:20:43.145026987Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_orders=True
+2026-07-26T06:20:43.145038859Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions=True
+2026-07-26T06:20:43.145042154Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-07-26T06:20:43.145044831Z [INFO] EDGETRADER-001.ExecEngine: config.allow_overfills=False
+2026-07-26T06:20:43.145221640Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation=True
+2026-07-26T06:20:43.145255941Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-07-26T06:20:43.145258910Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-07-26T06:20:43.145261517Z [INFO] EDGETRADER-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-07-26T06:20:43.145263987Z [INFO] EDGETRADER-001.ExecEngine: config.filter_position_reports=False
+2026-07-26T06:20:43.145268070Z [INFO] EDGETRADER-001.ExecEngine: config.filtered_client_order_ids=None
+2026-07-26T06:20:43.145270633Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-07-26T06:20:43.145272929Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-07-26T06:20:43.145275708Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_retries=5
+2026-07-26T06:20:43.145278109Z [INFO] EDGETRADER-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-07-26T06:20:43.145280820Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_interval_secs=None
+2026-07-26T06:20:43.145283334Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_open_only=True
+2026-07-26T06:20:43.145286505Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_lookback_mins=60
+2026-07-26T06:20:43.145289439Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-07-26T06:20:43.145292559Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_missing_retries=5
+2026-07-26T06:20:43.145294822Z [INFO] EDGETRADER-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-07-26T06:20:43.145299290Z [INFO] EDGETRADER-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-07-26T06:20:43.145301715Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_interval_secs=None
+2026-07-26T06:20:43.145304050Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_lookback_mins=60
+2026-07-26T06:20:43.145306104Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-07-26T06:20:43.145308440Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_retries=3
+2026-07-26T06:20:43.145314836Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-07-26T06:20:43.145318944Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-07-26T06:20:43.145321183Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-07-26T06:20:43.145323849Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-07-26T06:20:43.145326100Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-07-26T06:20:43.145328562Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-07-26T06:20:43.145330886Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-07-26T06:20:43.145333712Z [INFO] EDGETRADER-001.ExecEngine: config.purge_from_database=False
+2026-07-26T06:20:43.145335940Z [INFO] EDGETRADER-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:20:43.149193130Z [INFO] EDGETRADER-001.Cache: Cached 0 general objects from database
+2026-07-26T06:20:43.149223414Z [INFO] EDGETRADER-001.Cache: Cached 0 currencies from database
+2026-07-26T06:20:43.149230935Z [INFO] EDGETRADER-001.Cache: Cached 0 instruments from database
+2026-07-26T06:20:43.149463656Z [INFO] EDGETRADER-001.Cache: Cached 0 accounts from database
+2026-07-26T06:20:43.149477728Z [INFO] EDGETRADER-001.Cache: Cached 0 orders from database
+2026-07-26T06:20:43.149490637Z [INFO] EDGETRADER-001.Cache: Cached 0 order lists from database
+2026-07-26T06:20:43.149498762Z [INFO] EDGETRADER-001.Cache: Cached 0 positions from database
+2026-07-26T06:20:43.149564171Z [INFO] EDGETRADER-001.Cache: Checking data integrity
+2026-07-26T06:20:43.149584165Z [INFO] EDGETRADER-001.Cache: Integrity check passed in 13μs
+2026-07-26T06:20:43.150339547Z [INFO] EDGETRADER-001.ExecEngine: Loaded cache in 4ms
+2026-07-26T06:20:43.154886873Z [INFO] EDGETRADER-001.OrderEmulator: READY
+2026-07-26T06:20:43.156119612Z [INFO] EDGETRADER-001.EDGETRADER-001: READY
+2026-07-26T06:20:43.156314097Z [INFO] EDGETRADER-001.TradingNode: Initialized in 115ms
+2026-07-26T06:20:43.156353871Z [INFO] EDGETRADER-001.TradingNode: has_cache_backing=False
+2026-07-26T06:20:43.156357712Z [INFO] EDGETRADER-001.TradingNode: has_msgbus_backing=False
+2026-07-26T06:20:43.158146017Z [INFO] EDGETRADER-001.BlueprintStrategy: READY
+2026-07-26T06:20:43.159978017Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy BlueprintStrategy-000
+2026-07-26T06:20:43.160008284Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy BlueprintStrategy-000
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 278, in <module>
+    main()
+  File "/app/EDGETrader.py", line 274, in main
+    run_node(node, strategy, register_binance_clients, register_binance_clients)
+  File "/app/EDGETrader.py", line 191, in run_node
+    register_exec_factory(node)
+  File "/app/EDGETrader.py", line 206, in register_binance_clients
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node.py", line 249, in add_data_client_factory
+    self._builder.add_data_client_factory(name, factory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node_builder.py", line 106, in add_data_client_factory
+    PyCondition.not_in(name, self._data_factories, "name", "_data_factories")
+  File "nautilus_trader/core/correctness.pyx", line 1134, in nautilus_trader.core.correctness.PyCondition.not_in
+  File "nautilus_trader/core/correctness.pyx", line 501, in nautilus_trader.core.correctness.Condition.not_in
+KeyError: "'name' BINANCE already contained in '_data_factories' collection"
+✅ Credentials loaded from AWS Secrets Manager
+2026-07-26T06:21:50.101411254Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.101441970Z [INFO] EDGETRADER-001.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-07-26T06:21:50.101442813Z [INFO] EDGETRADER-001.TradingNode:  by Nautech Systems Pty Ltd.
+2026-07-26T06:21:50.101443413Z [INFO] EDGETRADER-001.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-07-26T06:21:50.101443803Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.101444442Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:21:50.101458067Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:21:50.101458647Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-07-26T06:21:50.101459153Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-07-26T06:21:50.101459485Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-07-26T06:21:50.101459923Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-07-26T06:21:50.101460270Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-07-26T06:21:50.101460790Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-07-26T06:21:50.101461231Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-07-26T06:21:50.101462254Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-07-26T06:21:50.101462610Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-07-26T06:21:50.101463029Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-07-26T06:21:50.101463528Z [INFO] EDGETRADER-001.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-07-26T06:21:50.101464201Z [INFO] EDGETRADER-001.TradingNode:
+2026-07-26T06:21:50.101464418Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.101464927Z [INFO] EDGETRADER-001.TradingNode:  SYSTEM SPECIFICATION
+2026-07-26T06:21:50.101465873Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.101467061Z [INFO] EDGETRADER-001.TradingNode: CPU architecture: Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz
+2026-07-26T06:21:50.101469143Z [INFO] EDGETRADER-001.TradingNode: CPU(s): 2 @ 2499 MHz
+2026-07-26T06:21:50.102685232Z [INFO] EDGETRADER-001.TradingNode: OS: kernel-6.1.153-175.280.amzn2023.x86_64 Linux (Debian GNU/Linux 13)
+2026-07-26T06:21:50.102781373Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.102782881Z [INFO] EDGETRADER-001.TradingNode:  MEMORY USAGE
+2026-07-26T06:21:50.102783336Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.102786623Z [INFO] EDGETRADER-001.TradingNode: RAM-Total: 0.88 GiB
+2026-07-26T06:21:50.102788021Z [INFO] EDGETRADER-001.TradingNode: RAM-Used: 0.82 GiB (92.88%)
+2026-07-26T06:21:50.102789542Z [INFO] EDGETRADER-001.TradingNode: RAM-Avail: 0.06 GiB (7.12%)
+2026-07-26T06:21:50.102791001Z [INFO] EDGETRADER-001.TradingNode: Swap: disabled
+2026-07-26T06:21:50.103723140Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.103734574Z [INFO] EDGETRADER-001.TradingNode:  IDENTIFIERS
+2026-07-26T06:21:50.103736517Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.103739985Z [INFO] EDGETRADER-001.TradingNode: trader_id: EDGETRADER-001
+2026-07-26T06:21:50.104736616Z [INFO] EDGETRADER-001.TradingNode: machine_id: 389495049c9e
+2026-07-26T06:21:50.104748729Z [INFO] EDGETRADER-001.TradingNode: instance_id: 31395866-2d8b-4c44-b2bf-5f4fc100447e
+2026-07-26T06:21:50.104759575Z [INFO] EDGETRADER-001.TradingNode: PID: 1
+2026-07-26T06:21:50.104760333Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.104761816Z [INFO] EDGETRADER-001.TradingNode:  VERSIONING
+2026-07-26T06:21:50.104762288Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.104787631Z [INFO] EDGETRADER-001.TradingNode: nautilus_trader: 1.228.0
+2026-07-26T06:21:50.105563287Z [INFO] EDGETRADER-001.TradingNode: python: 3.12.13
+2026-07-26T06:21:50.105597374Z [INFO] EDGETRADER-001.TradingNode: numpy: 2.5.1
+2026-07-26T06:21:50.105603467Z [INFO] EDGETRADER-001.TradingNode: pandas: 2.3.3
+2026-07-26T06:21:50.105607928Z [INFO] EDGETRADER-001.TradingNode: msgspec: 0.21.1
+2026-07-26T06:21:50.105611932Z [INFO] EDGETRADER-001.TradingNode: pyarrow: 25.0.0
+2026-07-26T06:21:50.105616252Z [INFO] EDGETRADER-001.TradingNode: pytz: 2026.2
+2026-07-26T06:21:50.105619796Z [INFO] EDGETRADER-001.TradingNode: uvloop: 0.22.1
+2026-07-26T06:21:50.105620204Z [INFO] EDGETRADER-001.TradingNode: =================================================================
+2026-07-26T06:21:50.110035611Z [INFO] EDGETRADER-001.TradingNode: Building system kernel
+2026-07-26T06:21:50.111609901Z [INFO] EDGETRADER-001.MessageBus: config.database=None
+2026-07-26T06:21:50.111630218Z [INFO] EDGETRADER-001.MessageBus: config.encoding='msgpack'
+2026-07-26T06:21:50.111636056Z [INFO] EDGETRADER-001.MessageBus: config.timestamps_as_iso8601=False
+2026-07-26T06:21:50.111638556Z [INFO] EDGETRADER-001.MessageBus: config.buffer_interval_ms=None
+2026-07-26T06:21:50.111641061Z [INFO] EDGETRADER-001.MessageBus: config.autotrim_mins=None
+2026-07-26T06:21:50.111643832Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_prefix=True
+2026-07-26T06:21:50.111647099Z [INFO] EDGETRADER-001.MessageBus: config.use_trader_id=True
+2026-07-26T06:21:50.111650838Z [INFO] EDGETRADER-001.MessageBus: config.use_instance_id=False
+2026-07-26T06:21:50.111653488Z [INFO] EDGETRADER-001.MessageBus: config.streams_prefix='stream'
+2026-07-26T06:21:50.111655665Z [INFO] EDGETRADER-001.MessageBus: config.types_filter=None
+2026-07-26T06:21:50.114737448Z [INFO] EDGETRADER-001.Cache: READY
+2026-07-26T06:21:50.140672631Z [INFO] EDGETRADER-001.DataEngine: READY
+2026-07-26T06:21:50.146160934Z [INFO] EDGETRADER-001.DataEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:21:50.146278401Z [INFO] EDGETRADER-001.RiskEngine: READY
+2026-07-26T06:21:50.156529486Z [INFO] EDGETRADER-001.RiskEngine: TradingState is ACTIVE
+2026-07-26T06:21:50.167169608Z [INFO] EDGETRADER-001.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-07-26T06:21:50.167968560Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-07-26T06:21:50.168319260Z [INFO] EDGETRADER-001.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-07-26T06:21:50.168353007Z [INFO] EDGETRADER-001.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-07-26T06:21:50.168790697Z [INFO] EDGETRADER-001.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:21:50.168952421Z [INFO] EDGETRADER-001.ExecEngine: READY
+2026-07-26T06:21:50.169249896Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_orders=True
+2026-07-26T06:21:50.169258231Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions=True
+2026-07-26T06:21:50.169265598Z [INFO] EDGETRADER-001.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-07-26T06:21:50.169267744Z [INFO] EDGETRADER-001.ExecEngine: config.allow_overfills=False
+2026-07-26T06:21:50.169627697Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation=True
+2026-07-26T06:21:50.169638274Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_lookback_mins=None
+2026-07-26T06:21:50.169641300Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_instrument_ids=None
+2026-07-26T06:21:50.169643849Z [INFO] EDGETRADER-001.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-07-26T06:21:50.169646208Z [INFO] EDGETRADER-001.ExecEngine: config.filter_position_reports=False
+2026-07-26T06:21:50.169649809Z [INFO] EDGETRADER-001.ExecEngine: config.filtered_client_order_ids=None
+2026-07-26T06:21:50.169668196Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_interval_ms=2000
+2026-07-26T06:21:50.169671102Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-07-26T06:21:50.169673919Z [INFO] EDGETRADER-001.ExecEngine: config.inflight_check_retries=5
+2026-07-26T06:21:50.169676367Z [INFO] EDGETRADER-001.ExecEngine: config.own_books_audit_interval_secs=None
+2026-07-26T06:21:50.169678742Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_interval_secs=None
+2026-07-26T06:21:50.169681067Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_open_only=True
+2026-07-26T06:21:50.169683745Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_lookback_mins=60
+2026-07-26T06:21:50.169686122Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_threshold_ms=5000
+2026-07-26T06:21:50.169688735Z [INFO] EDGETRADER-001.ExecEngine: config.open_check_missing_retries=5
+2026-07-26T06:21:50.169691222Z [INFO] EDGETRADER-001.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-07-26T06:21:50.169695965Z [INFO] EDGETRADER-001.ExecEngine: config.single_order_query_delay_ms=100
+2026-07-26T06:21:50.169698132Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_interval_secs=None
+2026-07-26T06:21:50.169700440Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_lookback_mins=60
+2026-07-26T06:21:50.169702980Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_threshold_ms=5000
+2026-07-26T06:21:50.169705456Z [INFO] EDGETRADER-001.ExecEngine: config.position_check_retries=3
+2026-07-26T06:21:50.169712272Z [INFO] EDGETRADER-001.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-07-26T06:21:50.169715715Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-07-26T06:21:50.169717943Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-07-26T06:21:50.169721077Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-07-26T06:21:50.169723420Z [INFO] EDGETRADER-001.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-07-26T06:21:50.169725744Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_interval_mins=None
+2026-07-26T06:21:50.169728352Z [INFO] EDGETRADER-001.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-07-26T06:21:50.169731199Z [INFO] EDGETRADER-001.ExecEngine: config.purge_from_database=False
+2026-07-26T06:21:50.169733816Z [INFO] EDGETRADER-001.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-07-26T06:21:50.175037369Z [INFO] EDGETRADER-001.Cache: Cached 0 general objects from database
+2026-07-26T06:21:50.175072194Z [INFO] EDGETRADER-001.Cache: Cached 0 currencies from database
+2026-07-26T06:21:50.175079935Z [INFO] EDGETRADER-001.Cache: Cached 0 instruments from database
+2026-07-26T06:21:50.175087878Z [INFO] EDGETRADER-001.Cache: Cached 0 accounts from database
+2026-07-26T06:21:50.175095245Z [INFO] EDGETRADER-001.Cache: Cached 0 orders from database
+2026-07-26T06:21:50.175919183Z [INFO] EDGETRADER-001.Cache: Cached 0 order lists from database
+2026-07-26T06:21:50.175943199Z [INFO] EDGETRADER-001.Cache: Cached 0 positions from database
+2026-07-26T06:21:50.176147990Z [INFO] EDGETRADER-001.Cache: Checking data integrity
+2026-07-26T06:21:50.176222018Z [INFO] EDGETRADER-001.Cache: Integrity check passed in 20μs
+2026-07-26T06:21:50.177228424Z [INFO] EDGETRADER-001.ExecEngine: Loaded cache in 5ms
+2026-07-26T06:21:50.181402085Z [INFO] EDGETRADER-001.OrderEmulator: READY
+2026-07-26T06:21:50.182460028Z [INFO] EDGETRADER-001.EDGETRADER-001: READY
+2026-07-26T06:21:50.182625325Z [INFO] EDGETRADER-001.TradingNode: Initialized in 122ms
+2026-07-26T06:21:50.182686843Z [INFO] EDGETRADER-001.TradingNode: has_cache_backing=False
+2026-07-26T06:21:50.182691361Z [INFO] EDGETRADER-001.TradingNode: has_msgbus_backing=False
+2026-07-26T06:21:50.184885061Z [INFO] EDGETRADER-001.BlueprintStrategy: READY
+2026-07-26T06:21:50.186498250Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy BlueprintStrategy-000
+2026-07-26T06:21:50.186520816Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy BlueprintStrategy-000
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 278, in <module>
+    main()
+  File "/app/EDGETrader.py", line 274, in main
+    run_node(node, strategy, register_binance_clients, register_binance_clients)
+  File "/app/EDGETrader.py", line 191, in run_node
+    register_exec_factory(node)
+  File "/app/EDGETrader.py", line 206, in register_binance_clients
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node.py", line 249, in add_data_client_factory
+    self._builder.add_data_client_factory(name, factory)
+  File "/usr/local/lib/python3.12/site-packages/nautilus_trader/live/node_builder.py", line 106, in add_data_client_factory
+    PyCondition.not_in(name, self._data_factories, "name", "_data_factories")
+  File "nautilus_trader/core/correctness.pyx", line 1134, in nautilus_trader.core.correctness.PyCondition.not_in
+  File "nautilus_trader/core/correctness.pyx", line 501, in nautilus_trader.core.correctness.Condition.not_in
+KeyError: "'name' BINANCE already contained in '_data_factories' collection"
