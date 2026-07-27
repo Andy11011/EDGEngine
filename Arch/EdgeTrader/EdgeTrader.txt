@@ -21,3 +21,12 @@ The failure occurs during the WebSocket login handshake for the user data stream
 
 Binance API keys have a separate toggle for WebSocket API access. If it’s disabled, the HMAC‑SHA‑256 authentication on the WebSocket will fail.
 ✅ Fix: Log in to Binance, go to API Management, edit your API key, and check “Enable WebSocket API” (or similar). Then restart the container.
+
+
+//********************************//
+[ec2-user@ip-172-31-41-35 ~]$ sudo docker container logs edgetrader
+✅ Credentials loaded from AWS Secrets Manager
+🔑 (Ed25519) Fetching Key from: binance-api-public-key-ed25519
+🔐 (Ed25519) Fetching Secret from: binance-api-private-key-ed25519
+⚠️ Ed25519 credentials not loaded: Failed to fetch AWS secret binance-api-public-key-ed25519: An error occurred (ResourceNotFoundException) 
+when calling the GetSecretValue operation: Secrets Manager can't find the specified secret.
