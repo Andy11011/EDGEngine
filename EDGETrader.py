@@ -78,6 +78,39 @@ def load_credentials_from_aws(
     return api_key, api_secret
 
 
+def load_ed25519_credentials_from_aws(
+    region: str = "ap-southeast-1",
+) -> tuple[str, str]:
+    """
+    NEW FUNCTION: Load Binance Ed25519 API key and private key from AWS Secrets Manager.
+    This is separate from the original HMAC loader and leaves it untouched.
+    """
+    # Hardcoded Ed25519 secret names
+    key_secret_name = "binance-api-public-key-ed25519"
+    secret_secret_name = "binance-api-private-key-ed25519"
+
+    print(f"🔑 (Ed25519) Fetching Key from: {key_secret_name}", file=sys.stderr)
+    print(f"🔐 (Ed25519) Fetching Secret from: {secret_secret_name}", file=sys.stderr)
+
+    session = boto3.session.Session()
+    client = session.client("secretsmanager", region_name=region)
+
+    def get_secret(name: str) -> str:
+        try:
+            response = client.get_secret_value(SecretId=name)
+            if "SecretString" not in response:
+                raise ValueError(f"Secret {name} has no string value")
+            return response["SecretString"]
+        except (BotoCoreError, ClientError) as e:
+            raise RuntimeError(f"Failed to fetch AWS secret {name}: {e}")
+
+    public_key = get_secret(key_secret_name)
+    private_key = get_secret(secret_secret_name)
+
+    if not public_key or not private_key:
+        raise RuntimeError("AWS Ed25519 secrets returned empty values")
+    return public_key, private_key
+
 # -----------------------------------------------------------------------------
 # Dummy Blueprint Strategy (No indicators, no scanning)
 # -----------------------------------------------------------------------------
@@ -227,6 +260,16 @@ def main():
     except Exception as e:
         print(f"❌ Failed to load credentials from AWS: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # --- NEW: Load Ed25519 keys separately (does not affect the above) ---
+    try:
+        ed25519_public_key, ed25519_private_key = load_ed25519_credentials_from_aws(region=aws_region)
+        print("✅ Ed25519 credentials also loaded from AWS Secrets Manager", file=sys.stderr)
+        # Optional: show first few chars to confirm retrieval
+        print(f"🔑 Ed25519 Public Key: {ed25519_public_key[:10]}...", file=sys.stderr)
+        print(f"🔐 Ed25519 Private Key: {ed25519_private_key[:10]}...", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️ Ed25519 credentials not loaded: {e}", file=sys.stderr)
 
     account_type = BinanceAccountType.SPOT
     instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")

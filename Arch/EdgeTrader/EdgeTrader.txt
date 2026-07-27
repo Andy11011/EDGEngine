@@ -4,3 +4,20 @@ Data client (BinanceLiveDataClientFactory) – handles market data subscriptions
 Execution client (BinanceLiveExecClientFactory) – handles order placement, account balances, position management.
 
 //********************************//
+
+The duplicate‑registration bug is fixed, and the node now builds successfully. However, 
+the execution client fails to connect to Binance’s WebSocket API with the error:
+
+RuntimeError(Request session.logon failed: HMAC-SHA-256 API key is not supported.)
+
+The data client connects fine (it loads instruments and subscribes to bars), so the API key works for 
+market‑data endpoints but not for the account/order WebSocket used by the execution client.
+
+Data engine: connected (DataEngine.check_connected() == True)
+Execution engine: not connected (ExecEngine.check_connected() == False)
+Execution client uses live WebSocket: wss://ws-api.binance.com:443/ws-api/v3
+The API key is recognised and has trading permissions (log line: “API key FCuv…cVVV has trading permissions”).
+The failure occurs during the WebSocket login handshake for the user data stream.
+
+Binance API keys have a separate toggle for WebSocket API access. If it’s disabled, the HMAC‑SHA‑256 authentication on the WebSocket will fail.
+✅ Fix: Log in to Binance, go to API Management, edit your API key, and check “Enable WebSocket API” (or similar). Then restart the container.

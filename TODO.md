@@ -2,8 +2,7 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: Fix bootup error
-- [ ] Edge-trader: Check SectetManager Binance Authentication
+- [ ] Edge-trader: Authenticate both for data and trading on binance
 - [ ] Edge-trader: Add postres event loop (with feedback)
 - [ ] Edge-trader: Push messages when get new signal (in java app)
 - [ ] Show crossovers on the chart
@@ -12,6 +11,7 @@
 - [ ] Add Supertrend
 - [ ] Add Volume
 - [ ] Improve volume for Z-Score volume
+- [X] ~~*Edge-trader: Fix bootup error*~~ [2026-07-27]
 - [X] ~~*Edge-trader: create a new container for edge-trader*~~ [2026-07-26]
 - [X] ~~*Edge-trader: Create two AWS stack - TradeProxy and EdgeEngine (t3.micro)*~~ [2026-07-26]
 - [X] ~~*Signals for historical data*~~ [2026-06-11]
