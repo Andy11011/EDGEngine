@@ -201,9 +201,10 @@ def run_node(
             node.dispose()
 
 
-def register_binance_clients(node: TradingNode) -> None:
-    """Register both Data and Execution client factories for Binance."""
+def register_binance_data(node: TradingNode) -> None:
     node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+
+def register_binance_exec(node: TradingNode) -> None:
     node.add_exec_client_factory(BINANCE, BinanceLiveExecClientFactory)
 
 
@@ -271,7 +272,7 @@ def main():
     )
 
     # Run
-    run_node(node, strategy, register_binance_clients, register_binance_clients)
+    run_node(node, strategy, register_binance_data, register_binance_exec)
 
 
 if __name__ == "__main__":

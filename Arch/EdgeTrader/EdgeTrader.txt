@@ -1,0 +1,6 @@
+However, it does not create two separate Nautilus TradingNode instances. Instead, it creates a single TradingNode 
+that contains two different client components inside the same process:
+Data client (BinanceLiveDataClientFactory) – handles market data subscriptions (e.g., live bars, order books).
+Execution client (BinanceLiveExecClientFactory) – handles order placement, account balances, position management.
+
+//********************************//
