@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import re
+import base64
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -117,6 +118,50 @@ def load_ed25519_credentials_from_aws(
             f"'{private_key_field}' fields (found keys: {list(secret_dict.keys())})"
         )
     return public_key, private_key
+
+def _validate_ed25519_private_key(pem_str: str) -> None:
+    """
+    Raise a clear RuntimeError if the given Ed25519 private key looks like an
+    ENCRYPTED (password-protected) PKCS8 key. Binance/NautilusTrader only
+    accept unencrypted Ed25519 PEM private keys.
+
+    An unencrypted Ed25519 PKCS8 key is always a fixed 48-byte DER structure
+    starting with a short-form length header (b'\\x30\\x2e...'). An encrypted
+    PKCS8 key (EncryptedPrivateKeyInfo) is larger and uses a long-form length
+    header, and contains the PBES2 OID.
+    """
+    body = pem_str.strip()
+    if "BEGIN" in body:
+        lines = [ln for ln in body.splitlines() if "BEGIN" not in ln and "END" not in ln]
+        body = "".join(lines)
+    try:
+        der = base64.b64decode(body)
+    except Exception:
+        return  # not decodable here; let the downstream client surface the real error
+
+    pbes2_oid = bytes([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x05, 0x0D])
+    if len(der) >= 2 and der[0] == 0x30 and der[1] >= 0x81 and pbes2_oid in der:
+        raise RuntimeError(
+            "The Ed25519 private key appears to be ENCRYPTED (password-protected) "
+            "PKCS8. Binance/NautilusTrader only accept unencrypted Ed25519 PEM keys. "
+            "Decrypt it first with: openssl pkey -in encrypted.pem -out decrypted.pem "
+            "then store the decrypted PEM content back in AWS Secrets Manager."
+        )
+
+
+def _warn_if_api_key_looks_like_raw_pem(api_key: str) -> None:
+    """Binance-issued API keys are opaque alphanumeric strings, not PEM/DER blobs."""
+    if api_key.startswith(("MC", "-----BEGIN")):
+        print(
+            "⚠️ WARNING: the Ed25519 'public key' value looks like a raw PEM/DER "
+            "public key blob, not a Binance-issued API key. When you register a "
+            "self-generated Ed25519 public key under Binance API Management, "
+            "Binance issues a separate opaque API key string for it (like your "
+            "existing HMAC api_key) — that issued string is what belongs in "
+            "api_key, not the public key PEM itself. Double check API Management.",
+            file=sys.stderr,
+        )
+
 
 # -----------------------------------------------------------------------------
 # Dummy Blueprint Strategy (No indicators, no scanning)
@@ -268,13 +313,24 @@ def main():
         print(f"❌ Failed to load credentials from AWS: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # --- NEW: Load Ed25519 keys separately (does not affect the above) ---
+    # --- Load Ed25519 keys and use them for the EXEC client ---
+    # Binance's WebSocket API session.logon (used by Nautilus exec clients)
+    # rejects HMAC-SHA-256 keys, so the exec client must use Ed25519 (or RSA,
+    # though RSA is not supported for execution). Nautilus auto-detects the
+    # key type from the api_secret format, so no key_type config is needed.
     try:
         ed25519_public_key, ed25519_private_key = load_ed25519_credentials_from_aws(region=aws_region)
         print("✅ Ed25519 credentials also loaded from AWS Secrets Manager", file=sys.stderr)
         # Optional: show first few chars to confirm retrieval
         print(f"🔑 Ed25519 Public Key: {ed25519_public_key[:10]}...", file=sys.stderr)
         print(f"🔐 Ed25519 Private Key: {ed25519_private_key[:10]}...", file=sys.stderr)
+
+        _validate_ed25519_private_key(ed25519_private_key)
+        _warn_if_api_key_looks_like_raw_pem(ed25519_public_key)
+
+        exec_api_key = ed25519_public_key
+        exec_api_secret = ed25519_private_key
+        print("🔐 Using Ed25519 credentials for the execution client", file=sys.stderr)
     except Exception as e:
         print(f"⚠️ Ed25519 credentials not loaded: {e}", file=sys.stderr)
 
@@ -297,9 +353,11 @@ def main():
     )
 
     # Execution client config (crucial for trading)
+    # Uses Ed25519 credentials when available/valid (see above), since Binance's
+    # WebSocket API session.logon rejects HMAC keys for the exec client.
     exec_config = BinanceExecClientConfig(
-        api_key=api_key,
-        api_secret=api_secret,
+        api_key=exec_api_key,
+        api_secret=exec_api_secret,
         account_type=account_type,
         instrument_provider=instrument_provider_config,
         **binance_config_kwargs,

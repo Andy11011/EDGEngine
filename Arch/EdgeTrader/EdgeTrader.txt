@@ -30,3 +30,31 @@ Binance API keys have a separate toggle for WebSocket API access. If it’s disa
 🔐 (Ed25519) Fetching Secret from: binance-api-private-key-ed25519
 ⚠️ Ed25519 credentials not loaded: Failed to fetch AWS secret binance-api-public-key-ed25519: An error occurred (ResourceNotFoundException) 
 when calling the GetSecretValue operation: Secrets Manager can't find the specified secret.
+
+//********************************//
+
+1. Nautilus does support Ed25519 for execution — that advice was wrong (or outdated). The current docs are explicit:
+
+Binance execution clients support Ed25519 (recommended), HMAC (deprecated but still works for now), 
+ RSA (not supported for execution). The adapter auto-detects the key type just from the format of api_secret 
+ — no key_type config needed at all.
+
+2. The real bug: your code fetches the Ed25519 keys but never uses them.
+
+3. A second, separate problem I found in your log: your Ed25519 private key blob (MIGjMF8GCS...) decodes to a 
+DER structure with a long-form length header containing the PBES2 encryption OID — that's the signature of an
+ encrypted (password-protected) PKCS8 key. An unencrypted Ed25519 key is always a fixed 48-byte structure 
+ starting MC4CAQAwBQYDK2Vw.... Binance/Nautilus explicitly refuse encrypted keys. You'll need to decrypt it:
+
+openssl pkey -in encrypted.pem -out decrypted.pem
+
+and store decrypted.pem's contents back in Secrets Manager.
+
+//********************************//
+
+1. Decrypt the private key, since it looks encrypted:
+
+# pull the current secret value, save it as encrypted.pem (with proper PEM headers if missing), then:
+openssl pkey -in encrypted.pem -out decrypted.pem
+
+Update binance-api-private-key-ed25519 in the Binance_async_keys_Ed25519 secret with the decrypted PEM content.
