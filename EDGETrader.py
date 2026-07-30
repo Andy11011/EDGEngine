@@ -257,10 +257,10 @@ def build_trading_node(
         data_clients=data_clients,
         exec_clients=exec_clients,
         timeout_connection=30.0,
-        timeout_reconciliation=0.0,
+        timeout_reconciliation=10.0,
         timeout_portfolio=10.0,
         timeout_disconnection=10.0,
-        timeout_post_stop=0.0,
+        timeout_post_stop=5.0,
     )
     return TradingNode(config=config)
 

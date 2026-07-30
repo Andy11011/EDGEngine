@@ -173,10 +173,10 @@ To force a fresh pull of all container images on the next instance reboot (e.g.,
 
 ```bash
 # Stop all running containers
-sudo docker stop edgedesk tradeproxy edgengine watchtower redis postgres
+sudo docker stop edgedesk edgetrader postgres
 
 # Remove all containers
-sudo docker rm edgedesk tradeproxy edgengine watchtower redis postgres
+sudo docker rm edgedesk edgetrader postgres
 
 # Delete all Docker images (forces fresh pull next start)
 sudo docker rmi -f $(sudo docker images -q)

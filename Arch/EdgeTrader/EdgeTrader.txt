@@ -58,3 +58,28 @@ and store decrypted.pem's contents back in Secrets Manager.
 openssl pkey -in encrypted.pem -out decrypted.pem
 
 Update binance-api-private-key-ed25519 in the Binance_async_keys_Ed25519 secret with the decrypted PEM content.
+
+//********************************//
+
+Binance's error moved from HMAC-SHA-256 API key is not supported to:
+
+{'code': -2008, 'msg': 'Invalid Api-Key ID.'}
+{'code': -2014, 'msg': 'API-key format invalid.'}
+
+This confirms it: binance-api-public-key-ed25519 in your secret is the raw Ed25519 public
+ key PEM (MCowBQYDK2...), not a Binance-issued API key. Binance API keys are always a fixed-length 
+ opaque alphanumeric string (like your existing HMAC key, e.g. FCuv...cVVV, ~64 characters) — never a PEM blob. 
+ You're passing the wrong value into api_key.
+
+//********************************//
+
+Yes — authentication is now fully working for both clients. The log confirms it clearly:
+ExecClient-BINANCE: Account BINANCE-SPOT-master registered in cache — exec client authenticated 
+and pulled your account state.
+
+BinanceUserDataWebSocketClient: Connected to wss://ws-api.binance.com... → Session authenticated → 
+Subscribed to user data stream → ExecClient-BINANCE: Connected
+
+//********************************//
+
+But there's a new, unrelated crash right after that
