@@ -80,35 +80,42 @@ def load_credentials_from_aws(
 
 def load_ed25519_credentials_from_aws(
     region: str = "ap-southeast-1",
+    secret_name: str = "Binance_async_keys_Ed25519",
+    public_key_field: str = "binance-api-public-key-ed25519",
+    private_key_field: str = "binance-api-private-key-ed25519",
 ) -> tuple[str, str]:
     """
-    NEW FUNCTION: Load Binance Ed25519 API key and private key from AWS Secrets Manager.
-    This is separate from the original HMAC loader and leaves it untouched.
-    """
-    # Hardcoded Ed25519 secret names
-    key_secret_name = "binance-api-public-key-ed25519"
-    secret_secret_name = "binance-api-private-key-ed25519"
+    Load Binance Ed25519 API key and private key from AWS Secrets Manager.
 
-    print(f"🔑 (Ed25519) Fetching Key from: {key_secret_name}", file=sys.stderr)
-    print(f"🔐 (Ed25519) Fetching Secret from: {secret_secret_name}", file=sys.stderr)
+    Unlike the HMAC loader, these two values live as fields inside a single
+    JSON secret (secret_name), not as two separate secrets.
+    """
+    print(f"🔑 (Ed25519) Fetching secret: {secret_name}", file=sys.stderr)
 
     session = boto3.session.Session()
     client = session.client("secretsmanager", region_name=region)
 
-    def get_secret(name: str) -> str:
-        try:
-            response = client.get_secret_value(SecretId=name)
-            if "SecretString" not in response:
-                raise ValueError(f"Secret {name} has no string value")
-            return response["SecretString"]
-        except (BotoCoreError, ClientError) as e:
-            raise RuntimeError(f"Failed to fetch AWS secret {name}: {e}")
+    try:
+        response = client.get_secret_value(SecretId=secret_name)
+    except (BotoCoreError, ClientError) as e:
+        raise RuntimeError(f"Failed to fetch AWS secret {secret_name}: {e}")
 
-    public_key = get_secret(key_secret_name)
-    private_key = get_secret(secret_secret_name)
+    if "SecretString" not in response:
+        raise ValueError(f"Secret {secret_name} has no string value")
+
+    try:
+        secret_dict = json.loads(response["SecretString"])
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Secret {secret_name} is not valid JSON: {e}")
+
+    public_key = secret_dict.get(public_key_field)
+    private_key = secret_dict.get(private_key_field)
 
     if not public_key or not private_key:
-        raise RuntimeError("AWS Ed25519 secrets returned empty values")
+        raise RuntimeError(
+            f"Secret {secret_name} is missing '{public_key_field}' or "
+            f"'{private_key_field}' fields (found keys: {list(secret_dict.keys())})"
+        )
     return public_key, private_key
 
 # -----------------------------------------------------------------------------
