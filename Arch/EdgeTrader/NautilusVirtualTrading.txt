@@ -1,0 +1,12 @@
+1. Nautilus's own Sandbox execution client (what you want by default)
+
+Nautilus ships a SandboxExecutionClient (crate nautilus-sandbox) that simulates order fills locally 
+using the same production-grade OrderMatchingEngine used in backtesting — but fed by live real-time 
+market data. No orders ever leave your machine; nothing touches Binance's order-entry API at all. You
+ get a virtual account with balances you set yourself, and fills are computed against the real live 
+ order book/quotes as they arrive.
+
+
+
+
+Nautilus's docs formally call this the "Sandbox" environment: real-time data + simulated venue (as opposed to Backtest = historical data + simulated venue, or Live = real-time data + live venue).

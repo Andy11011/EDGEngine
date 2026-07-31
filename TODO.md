@@ -2,9 +2,10 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: Fix the time value errors
-- [ ] Edge-trader: Add postres event loop (with feedback)
 - [ ] Edge-trader: Draw a SM diagramm
+- [ ] Edge-trader: Draw a State diagramm for trades event sourcing
+- [ ] Edge-trader: Implement vertual trade switch
+- [ ] Edge-trader: Add postres event loop (with feedback)
 - [ ] Edge-trader: Push messages when get new signal (in java app)
 - [ ] Show crossovers on the chart
 - [ ] Monitor Several pairs at once
@@ -12,6 +13,7 @@
 - [ ] Add Supertrend
 - [ ] Add Volume
 - [ ] Improve volume for Z-Score
+- [X] ~~*Edge-trader: Fix the time value errors*~~ [2026-07-30]
 - [X] ~~*Edge-trader: Authenticate both for data and trading on binance*~~ [2026-07-30]
 - [X] ~~*Edge-trader: Fix bootup error*~~ [2026-07-27]
 - [X] ~~*Edge-trader: create a new container for edge-trader*~~ [2026-07-26]

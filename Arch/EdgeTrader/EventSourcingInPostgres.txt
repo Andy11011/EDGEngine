@@ -1,0 +1,57 @@
+//********************************//
+
+ Yes, in a PostgreSQL implementation of event sourcing, the records are logically connected to form a strict, 
+ immutable chain – but they are not connected by traditional foreign keys pointing to each other. Instead, they
+  are connected by a combination of grouping, sequential numbering, and (optionally) cryptographic hashing.
+
+
+CREATE TABLE trade_events (
+    id              BIGSERIAL PRIMARY KEY,          -- Global sequence (not for chaining)
+    trade_id        UUID NOT NULL,                  -- The "stream" / aggregate ID
+    version         INT NOT NULL,                   -- The "link" number (1, 2, 3...)
+    event_type      TEXT NOT NULL,                  -- e.g., 'TradeOpened', 'EntryFilled'
+    payload         JSONB NOT NULL,                 -- The actual event data
+    created_at      TIMESTAMP DEFAULT NOW(),
+    
+    -- OPTIONAL: Cryptographic integrity links (blockchain-style chain)
+    previous_hash   TEXT,                           -- Hash of the previous event's payload+hash
+    current_hash    TEXT,                           -- Hash of this event (prev_hash + payload)
+    
+    -- Enforces the chain: No gaps, no duplicates per trade
+    CONSTRAINT unique_trade_version UNIQUE (trade_id, version)
+);
+
+1. Grouping Connection (Logical "Stream")
+All records belonging to the same trade share the same trade_id. This groups them into a single "stream".
+Example: trade_id = 'abc-123' has 5 rows, trade_id = 'xyz-789' has 3 rows.
+
+2. Ordering Connection (The Sequential Link)
+The version column starts at 1 and increments by exactly 1 for each new event in that trade.
+The UNIQUE (trade_id, version) constraint guarantees there are no gaps or duplicates – this is the database enforcing the chain's continuity.
+
+trade_id	version	event_type
+abc-123	1	TradeOpened
+abc-123	2	EntryOrderSubmitted
+abc-123	3	EntryFilled
+abc-123	4	ProtectionPlaced
+
+To replay the chain, you simply run:
+
+SELECT * FROM trade_events 
+WHERE trade_id = 'abc-123' 
+ORDER BY version ASC;
+
+This returns the exact sequence of events. This ordered list is your event chain.
+
+3. Cryptographic Connection (Optional Integrity Link)
+If you want to make the chain tamper-evident (so no one can delete/modify a historical event without breaking the chain),
+ you add previous_hash and current_hash.
+
+Event #1: previous_hash = null, current_hash = hash(version + payload).
+
+Event #2: previous_hash = Event #1.current_hash, current_hash = hash(previous_hash + version + payload).
+
+Event #3: previous_hash = Event #2.current_hash, and so on.
+
+Now, if someone changes payload in Event #2, its current_hash changes, 
+which no longer matches the previous_hash stored in Event #3 – breaking the cryptographic chain.

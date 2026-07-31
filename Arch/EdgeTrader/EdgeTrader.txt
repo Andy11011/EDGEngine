@@ -83,3 +83,41 @@ Subscribed to user data stream → ExecClient-BINANCE: Connected
 //********************************//
 
 But there's a new, unrelated crash right after that
+
+ValueError: 'timeout_secs' not a positive real, was 0.0
+
+timeout_reconciliation — how long (in seconds) the node waits, right after connecting, 
+for the execution engine to reconcile its internal state (open orders, positions, balances)
+ against what the venue (Binance) actually reports. This is the "am I in sync with reality" 
+ check that runs at startup. If reconciliation can't finish within this window, the node logs
+  a timeout/warning instead of hanging forever.
+
+timeout_post_stop — how long the node waits after it's told to stop, before final shutdown/disposal, 
+to let any residual in-flight events (a fill that was already on the wire, a last WebSocket message, etc.) 
+get processed and cleanly recorded rather than being dropped mid-flight.
+
+
+//********************************//
+
+Good — I read through the LevelsBot pine script, and its shape is actually very transferable: it's already a 
+state machine (IDLE → ENTRY_ZONE → PLACE_ORDER → ENTERING → IN_TRADE → EXIT) built around zone/token conditions 
+triggering entry, then OCO protection once filled. For EdgeTrader you keep that skeleton but swap the trigger 
+(indicator zones/tokens → an external Postgres event) and add explicit protection/reconciliation states, since 
+you're now dealing with a real async exchange connection instead of a single-threaded backtest bar loop.
+
+One architectural point before the diagrams: LevelsBot's FSM manages one position at a time. EdgeTrader, 
+listening to EdgeDesk events, will likely need to open multiple trades concurrently — so the state machine
+ should be per-trade (one instance keyed by trade_id), not global. I've drawn it that way.
+
+//********************************//
+
+Syntax-checks clean. Summary of what changed:
+
+New env var TRADING_MODE (default VIRTUAL). Options: VIRTUAL / TESTNET / LIVE.
+VIRTUAL (new default): live Binance market data feeds Nautilus's own SandboxExecutionClientConfig + SandboxLiveExecClientFactory. 
+Orders are matched locally against real live prices with a virtual balance you control via SANDBOX_STARTING_BALANCES
+ (default "10000 USDT,1 BTC") and SANDBOX_ACCOUNT_TYPE (default "CASH"). Ed25519 credential loading is skipped entirely 
+ in this mode — nothing execution-related ever leaves your machine.
+TESTNET: your existing BINANCE_ENV=TESTNET / BINANCE_SANDBOX=1 path, now routed through
+ this same switch — real orders against Binance's actual testnet, needs separate testnet API keys.
+LIVE: unchanged, real mainnet trading with Ed25519 exec credentials.

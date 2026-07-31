@@ -23,6 +23,8 @@ from nautilus_trader.adapters.binance import (
     BinanceLiveDataClientFactory,
     BinanceLiveExecClientFactory,
 )
+from nautilus_trader.adapters.sandbox.config import SandboxExecutionClientConfig
+from nautilus_trader.adapters.sandbox.factory import SandboxLiveExecClientFactory
 from nautilus_trader.common.enums import LogColor
 from nautilus_trader.config import (
     InstrumentProviderConfig,
@@ -293,6 +295,11 @@ def register_binance_exec(node: TradingNode) -> None:
     node.add_exec_client_factory(BINANCE, BinanceLiveExecClientFactory)
 
 
+def register_sandbox_exec(node: TradingNode) -> None:
+    """Register Nautilus's own simulated exec client (virtual/paper trading)."""
+    node.add_exec_client_factory(BINANCE, SandboxLiveExecClientFactory)
+
+
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
@@ -304,6 +311,26 @@ def main():
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
+
+    # TRADING_MODE controls how the *execution* client behaves:
+    #   VIRTUAL  (default) - live market data, but orders are simulated locally
+    #                        by Nautilus's own SandboxExecutionClient. Nothing is
+    #                        ever sent to Binance. No exec credentials are needed.
+    #   TESTNET  - orders go to Binance's real Spot/Futures Testnet (requires
+    #              separate testnet API keys; set BINANCE_ENV=TESTNET and
+    #              BINANCE_SANDBOX=1).
+    #   LIVE     - real trading on Binance mainnet (current default behaviour).
+    trading_mode = os.getenv("TRADING_MODE", "VIRTUAL").upper()
+    if trading_mode not in {"VIRTUAL", "TESTNET", "LIVE"}:
+        print(f"❌ Unsupported TRADING_MODE: {trading_mode}. Use VIRTUAL, TESTNET, or LIVE.", file=sys.stderr)
+        sys.exit(1)
+
+    if trading_mode == "VIRTUAL":
+        print("🧪 TRADING_MODE=VIRTUAL — execution is simulated locally (Nautilus Sandbox). "
+              "No real orders will be sent to Binance.", file=sys.stderr)
+    else:
+        print(f"🔴 TRADING_MODE={trading_mode} — orders WILL be sent to Binance "
+              f"({'testnet' if trading_mode == 'TESTNET' else 'mainnet'}).", file=sys.stderr)
 
     # Load credentials
     try:
@@ -318,21 +345,21 @@ def main():
     # rejects HMAC-SHA-256 keys, so the exec client must use Ed25519 (or RSA,
     # though RSA is not supported for execution). Nautilus auto-detects the
     # key type from the api_secret format, so no key_type config is needed.
-    try:
-        ed25519_public_key, ed25519_private_key = load_ed25519_credentials_from_aws(region=aws_region)
-        print("✅ Ed25519 credentials also loaded from AWS Secrets Manager", file=sys.stderr)
-        # Optional: show first few chars to confirm retrieval
-        print(f"🔑 Ed25519 Public Key: {ed25519_public_key[:10]}...", file=sys.stderr)
-        print(f"🔐 Ed25519 Private Key: {ed25519_private_key[:10]}...", file=sys.stderr)
+    # Skipped entirely in VIRTUAL mode since no real exec connection is made.
+    exec_api_key = exec_api_secret = None
+    if trading_mode != "VIRTUAL":
+        try:
+            ed25519_public_key, ed25519_private_key = load_ed25519_credentials_from_aws(region=aws_region)
+            print("✅ Ed25519 credentials also loaded from AWS Secrets Manager", file=sys.stderr)
 
-        _validate_ed25519_private_key(ed25519_private_key)
-        _warn_if_api_key_looks_like_raw_pem(ed25519_public_key)
+            _validate_ed25519_private_key(ed25519_private_key)
+            _warn_if_api_key_looks_like_raw_pem(ed25519_public_key)
 
-        exec_api_key = ed25519_public_key
-        exec_api_secret = ed25519_private_key
-        print("🔐 Using Ed25519 credentials for the execution client", file=sys.stderr)
-    except Exception as e:
-        print(f"⚠️ Ed25519 credentials not loaded: {e}", file=sys.stderr)
+            exec_api_key = ed25519_public_key
+            exec_api_secret = ed25519_private_key
+            print("🔐 Using Ed25519 credentials for the execution client", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ Ed25519 credentials not loaded: {e}", file=sys.stderr)
 
     account_type = BinanceAccountType.SPOT
     instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")
@@ -352,16 +379,32 @@ def main():
         **binance_config_kwargs,
     )
 
-    # Execution client config (crucial for trading)
-    # Uses Ed25519 credentials when available/valid (see above), since Binance's
-    # WebSocket API session.logon rejects HMAC keys for the exec client.
-    exec_config = BinanceExecClientConfig(
-        api_key=exec_api_key,
-        api_secret=exec_api_secret,
-        account_type=account_type,
-        instrument_provider=instrument_provider_config,
-        **binance_config_kwargs,
-    )
+    # Execution client config
+    if trading_mode == "VIRTUAL":
+        # Nautilus's own simulated exec client: fills are computed locally
+        # against the live data feed above, no order ever reaches Binance.
+        starting_balances = [
+            b.strip()
+            for b in os.getenv("SANDBOX_STARTING_BALANCES", "10000 USDT,1 BTC").split(",")
+            if b.strip()
+        ]
+        exec_config = SandboxExecutionClientConfig(
+            venue=BINANCE,
+            account_type=os.getenv("SANDBOX_ACCOUNT_TYPE", "CASH"),
+            starting_balances=starting_balances,
+            instrument_provider=instrument_provider_config,
+        )
+    else:
+        # Real Binance execution (testnet or mainnet). Uses Ed25519 credentials
+        # when available/valid (see above), since Binance's WebSocket API
+        # session.logon rejects HMAC keys for the exec client.
+        exec_config = BinanceExecClientConfig(
+            api_key=exec_api_key,
+            api_secret=exec_api_secret,
+            account_type=account_type,
+            instrument_provider=instrument_provider_config,
+            **binance_config_kwargs,
+        )
 
     # Build the full trading node
     node = build_trading_node(
@@ -380,7 +423,8 @@ def main():
     )
 
     # Run
-    run_node(node, strategy, register_binance_data, register_binance_exec)
+    register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
+    run_node(node, strategy, register_binance_data, register_exec)
 
 
 if __name__ == "__main__":

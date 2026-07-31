@@ -1,0 +1,26 @@
+Yes, limit orders (and advanced combo orders like OCO and Stop-Limit) are exactly how institutional and retail traders fight price slippage in volatile markets—but they fight it in slightly different ways.
+
+
+1. The Core Weapon Against Slippage: The Limit Order
+
+
+Slippage happens when you use a Market Order (or a Stop-Loss that converts to a Market Order). The market fills you at whatever the current best available price is. In a volatile second, that price can be several ticks (or even dollars) worse than expected.
+
+Market Order = Guaranteed fill, unguaranteed price (slippage).
+
+Limit Order = Guaranteed price (no slippage!), unguaranteed fill.
+
+So, to strictly avoid price slippage, you must use limit orders. You say, *"Fill me only at $100 or better, never worse."* 
+If the market jumps from $100 to $102 instantly, your limit order simply won't execute—you miss the trade entirely, but 
+you saved yourself from buying at $102.
+
+
+The Brutal Reality (The Trade-off)
+In highly volatile markets (crypto, NFP news, thin liquidity), you cannot have zero slippage and guaranteed fills at the same time.
+
+If you use Limit / Stop-Limit (to fight slippage): The price can "gap" right over your limit price without triggering it. You survive without slippage, 
+but you get skipped (your protective order never fills), and you lose even more as the price moves against you.
+
+If you use Market / Stop-Market (to guarantee the exit): You guarantee you get out, but you absorb the slippage.
+
+Professional high-frequency traders (HFTs) actually embrace slippage if they can model it statistically—they use "market-if-touched" orders and actively adjust limit prices based on real-time order book depth.
