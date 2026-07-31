@@ -1,0 +1,42 @@
+Two design decisions to nail down before the diagram, since they change the shape of everything else:
+
+
+1. One node, not many. A TradingNode is heavyweight — it owns its own data/exec client connections, 
+its own instrument provider, its own WebSocket sessions to Binance. Spinning up a fresh node per 
+incoming trade means a fresh Binance connection per trade, which will hit connection/rate limits 
+fast and is redundant since they'd all be pulling the same market data anyway. Nautilus's own docs
+are explicit that multiple strategies are meant to run inside one Trader (each just needs a unique
+order_id_tag so client order IDs and strategy IDs don't collide) — the Trader API supports adding
+a strategy while the system is already running (it only rejects a strategy that's already RUNNING/DISPOSED,
+not the trader). So: build the node once at startup as you do now, keep it running indefinitely,
+and add a new BlueprintStrategy instance to the same running node for each incoming trade, tagged 
+with that trade's ID.
+
+
+2. Yes — the order-management state machine belongs inside BlueprintStrategy, 
+one instance per trade. The Strategy is the only place with order_factory, 
+submit_order, on_order_filled, cache, etc. — the SM needs all of that to act.
+Since each open trade gets its own BlueprintStrategy instance (unique order_id_tag), 
+each strategy instance owns exactly one OrderManagementSM — no need to key a dict of 
+trades inside a single shared strategy. When the SM reaches Idle (closed) or you're
+done with Cancelled, that strategy instance is stopped and removed from the trader to free it up.
+
+
+3. Postgres reliability pattern. LISTEN/NOTIFY alone will silently lose events during any 
+disconnect/reconnect window, so you need the fallback poll you're already thinking of: a 
+periodic query (SELECT * FROM trade_events WHERE status = 'pending') that catches anything
+the notify channel missed. To avoid double-processing the same event from both channels, 
+claim it atomically (UPDATE ... SET status='processing' WHERE id = $1 AND status = 'pending'
+RETURNING *) before spawning a strategy for it.
+
+
+3. I confirmed from Nautilus's docs that Trader.add_strategy() only rejects a strategy whose state is already 
+RUNNING/DISPOSED — meaning adding a strategy to an already-running trader is the intended pattern, not a hack.
+
+4. The order_id_tag needs to be something Nautilus's StrategyId format accepts — check the length/character 
+constraints against your trade UUIDs (you may need to truncate or hash them) before using them directly as tags.
+
+5. Decide now what happens to a trade's BlueprintStrategy/SM if the whole node process restarts mid-trade — 
+your existing reconciliation=True exec engine config will resync order/position state with Binance, but 
+the strategy-level SM state (which step of Validating → PlacingEntry → ... it was in) lives only in memory
+ unless you persist it (e.g., writing SM state transitions back to the same trade_events row).

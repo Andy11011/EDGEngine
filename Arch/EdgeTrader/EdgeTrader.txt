@@ -121,3 +121,9 @@ Orders are matched locally against real live prices with a virtual balance you c
 TESTNET: your existing BINANCE_ENV=TESTNET / BINANCE_SANDBOX=1 path, now routed through
  this same switch — real orders against Binance's actual testnet, needs separate testnet API keys.
 LIVE: unchanged, real mainnet trading with Ed25519 exec credentials.
+
+//********************************//
+
+🧪 TRADING_MODE=VIRTUAL — execution is simulated locally (Nautilus Sandbox) printed first — the env var is being read correctly.
+No Ed25519 log lines at all (✅ Ed25519 credentials also loaded... never appears) — confirms the code path correctly skipped 
+fetching exec credentials since they're not needed in VIRTUAL mode. Only the HMAC data-client creds were loaded (✅ Credentials loaded from AWS Secrets Manager).

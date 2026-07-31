@@ -35,4 +35,14 @@ stateDiagram-v2
         placing the OCO is a network
         call that can partially fail
     end note
+
+    note left of Idle
+        One instance of this SM per open trade,
+        owned by a single EdgeStrategy instance
+        (order_id_tag = trade_id). The strategy is
+        added to the one long-running TradingNode
+        when the trade opens, and stopped/removed
+        from the node once this SM returns to Idle
+        or Cancelled terminally.
+    end note
 ```
