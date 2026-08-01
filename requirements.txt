@@ -2,3 +2,4 @@ numpy
 pandas
 boto3
 redis
+asyncpg
