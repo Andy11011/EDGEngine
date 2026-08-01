@@ -127,3 +127,31 @@ LIVE: unchanged, real mainnet trading with Ed25519 exec credentials.
 🧪 TRADING_MODE=VIRTUAL — execution is simulated locally (Nautilus Sandbox) printed first — the env var is being read correctly.
 No Ed25519 log lines at all (✅ Ed25519 credentials also loaded... never appears) — confirms the code path correctly skipped 
 fetching exec credentials since they're not needed in VIRTUAL mode. Only the HMAC data-client creds were loaded (✅ Credentials loaded from AWS Secrets Manager).
+
+//********************************//
+
+Today's flow is simple: node.run() blocks the whole program until Ctrl+C. That's fine when there's exactly one thing to run.
+
+But the target architecture (MainSD2) needs the node to be running and a Postgres listener to be running, concurrently, forever, in the same process — 
+the node streams bars/fills to strategies while the listener is simultaneously waiting on LISTEN trade_events and polling. Neither one can block the other.
+
+
+Python has a few ways to run two things "at once":
+
+Threads — real OS-level concurrency, but you'd need locks/queues to safely hand data between the listener and the node,
+ and Nautilus's own internals are generally built around asyncio, not threads.
+
+ Separate processes — clean isolation, but then the listener can't directly call node.trader.add_strategy(...) — you'd need IPC to bridge processes.
+
+asyncio (one event loop, cooperative tasks) — this is what Nautilus itself is built on. node.run_async() and listen_trade_events() can both be awaited
+inside the same event loop (e.g. via asyncio.gather(node.run_async(), listen_trade_events(...))), so they take turns on the same thread whenever one of
+them is waiting on I/O (a network read, a DB notification, etc.) instead of blocking each other.
+
+So run_node_async isn't really "the same thing but async for its own sake" — it's the entry point that lets the node's lifetime be one coroutine 
+among several, instead of a hard blocking call that owns the whole process. node.run() (sync) can't share the process with anything 
+else; node.run_async() can.
+
+Exactly right. node.run_async() is Nautilus's own async entry point — it's not something we're forcing async from the outside, it's how the library 
+itself expects to be run when you want it sharing an event loop with other work.
+
+//********************************//

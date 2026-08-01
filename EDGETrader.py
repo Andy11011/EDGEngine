@@ -7,6 +7,7 @@ without any indicator or scanning logic.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import json
@@ -280,6 +281,31 @@ def run_node(
     try:
         node.run()
     except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            node.stop()
+        finally:
+            node.dispose()
+
+
+async def run_node_async(node: TradingNode) -> None:
+    """
+    Async counterpart to `run_node()`.
+
+    NOTE (Integration Map / Step 1): this is additive and not yet wired into
+    `main()`. It exists so future steps (Postgres listener running
+    concurrently with the node) have an `await`-able entry point that mirrors
+    the teardown semantics of the sync `run_node()` below. Unlike `run_node()`,
+    this does NOT add/start a strategy or register client factories itself —
+    callers are expected to have done that already (matching how MainSD2's
+    `main()` builds the node, registers factories, and calls `node.build()`
+    *before* running it, since strategies are added dynamically per trade
+    rather than once at startup).
+    """
+    try:
+        await node.run_async()
+    except asyncio.CancelledError:
         pass
     finally:
         try:

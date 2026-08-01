@@ -4,7 +4,7 @@ sequenceDiagram
     participant AWS as AWS Secrets Manager<br/>(external)
     participant Node as TradingNode<br/>(built ONCE, long-running)
     participant PG as Postgres<br/>(trade_events table)
-    participant Strategy as EdgeStrategy<br/>(one instance PER open trade)
+    participant Strategy as TradeStrategy<br/>(one instance PER open trade)
     participant SM as OrderManagementSM<br/>(owned by that Strategy instance)
 
     Note over Main: Startup — unchanged from before
@@ -33,8 +33,8 @@ sequenceDiagram
             PG-->>Main: claimed row, or 0 rows if already<br/>claimed by the other path
 
             alt row claimed successfully
-                Main->>Main: Build EdgeStrategyConfig(<br/>instrument_id, bar_type,<br/>order_id_tag=trade_id)  // unique per trade
-                Main->>Strategy: EdgeStrategy(config)
+                Main->>Main: Build TradeStrategyConfig(<br/>instrument_id, bar_type,<br/>order_id_tag=trade_id)  // unique per trade
+                Main->>Strategy: TradeStrategy(config)
                 Strategy->>SM: create OrderManagementSM (state=Idle)
 
                 Main->>Node: node.trader.add_strategy(strategy)
@@ -58,5 +58,5 @@ sequenceDiagram
         end
     end
 
-    Note over Node,Strategy: Many EdgeStrategy instances can be<br/>RUNNING concurrently inside the ONE node —<br/>one per open trade, each with its own SM.
+    Note over Node,Strategy: Many TradeStrategy instances can be<br/>RUNNING concurrently inside the ONE node —<br/>one per open trade, each with its own SM.
 ```
