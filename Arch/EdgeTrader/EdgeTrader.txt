@@ -155,3 +155,5 @@ Exactly right. node.run_async() is Nautilus's own async entry point — it's not
 itself expects to be run when you want it sharing an event loop with other work.
 
 //********************************//
+
+Create Control_Events and Trade_Events tables
