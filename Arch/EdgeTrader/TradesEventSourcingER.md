@@ -3,11 +3,6 @@ erDiagram
     TRADES ||--o{ TRADE_EVENTS : "has many"
     TRADE_EVENTS ||--o| TRADE_EVENTS : "caused_by (previous event)"
 
-    TRADES {
-        varchar trade_id PK
-        timestamp created_at
-    }
-
     TRADE_EVENTS {
         bigint trade_id FK "from trade_id_seq on Created row; copied from previous on later events"
         varchar event_type "Created|Opening|Filled|Protected|Finished|Canceled"

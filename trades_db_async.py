@@ -1,28 +1,12 @@
 """
-trade_events_db.py — Postgres connectivity for the `trade_events` table.
+trade_events_db.py — Postgres connectivity for the event‑sourced trade log.
 
-Integration Map / Step 2 (Postgres Connectivity Module — Silent Internal):
-This module is ADDITIVE and NOT wired into EDGETrader.py's main() yet.
-Nothing in the live trader calls anything here.
+Updated to match the corrected ER diagram (no separate TRADES table):
+- trade_events (immutable event log, self‑referencing for chaining)
+- order_fills (fill details)
+- processed_events (infrastructure for consumer offset)
 
-Design note — why this is `asyncpg`, not PSM.py's `psycopg2` pattern:
-EDGETrader.py's node will run inside ONE asyncio event loop (Step 1),
-and Step 4 needs a Postgres LISTEN/NOTIFY loop running concurrently
-alongside it. `psycopg2` has no native asyncio integration — bridging it
-with `asyncio.to_thread(...)` works for one-off calls, but:
-  1. psycopg2 connections/cursors are NOT thread-safe for concurrent use,
-     and Step 4 runs the NOTIFY path and the poll-fallback path at the
-     same time — a shared cursor across worker threads is a real race,
-     not a hypothetical one.
-  2. psycopg2 has no async LISTEN/NOTIFY hook; you'd have to manually
-     poll the raw socket with `select()` inside the loop.
-`asyncpg` solves both: a real connection pool (`asyncpg.create_pool`)
-with proper `async with pool.acquire()` scoping instead of one shared
-cursor, and a native `conn.add_listener(channel, callback)` API for
-Step 4 to build on directly.
-
-The class below keeps the same *shape* as PSM.py (lazy singleton,
-schema-ensure on first connect, dict-like rows) — just async throughout.
+All methods are async and use asyncpg.
 """
 
 from __future__ import annotations
@@ -31,7 +15,7 @@ import asyncio
 import json
 import os
 import sys
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import asyncpg
 
@@ -41,14 +25,7 @@ TRADE_EVENTS_POLL_SECONDS = int(os.getenv("TRADE_EVENTS_POLL_SECONDS", "60"))
 
 class TradeEventsDB:
     """
-    Async singleton wrapper around an asyncpg connection pool for the
-    `trade_events` table.
-
-    Use `await TradeEventsDB.get_instance()` to obtain it — not the
-    constructor directly, since establishing the pool requires an
-    `await`. A module-level asyncio.Lock guards first-time creation so
-    concurrent callers (e.g. the listener and the poll loop starting up
-    together in Step 4) don't race to create two pools.
+    Async singleton wrapper around an asyncpg connection pool.
     """
 
     _instance: Optional["TradeEventsDB"] = None
@@ -79,122 +56,316 @@ class TradeEventsDB:
         return cls._instance
 
     async def _init_schema(self) -> None:
-        """Ensure the trade_events table exists (additive, no-op if present)."""
+        """Create tables according to the corrected ER diagram."""
         async with self.pool.acquire() as conn:
-            await conn.execute(
-                """
+            # 1. trade_events – immutable event log with self‑reference
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS trade_events (
-                    id SERIAL PRIMARY KEY,
-                    trade_id VARCHAR(64) UNIQUE NOT NULL,
+                    event_id BIGSERIAL PRIMARY KEY,
+                    trade_id VARCHAR(64) NOT NULL,
+                    previous_event_id BIGINT REFERENCES trade_events(event_id),
+                    event_type VARCHAR(20) NOT NULL,
                     instrument VARCHAR(64) NOT NULL,
                     side VARCHAR(8) NOT NULL,
                     size NUMERIC NOT NULL,
+                    ep NUMERIC,
                     sl NUMERIC,
                     tp NUMERIC,
-                    payload JSONB,
-                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    market_buy_order_id VARCHAR,
+                    market_sell_order_id VARCHAR,
+                    limit_buy_order_id VARCHAR,
+                    limit_sell_order_id VARCHAR,
+                    stop_limit_buy_order_id VARCHAR,
+                    stop_limit_sell_order_id VARCHAR,
+                    oco_order_id VARCHAR,
+                    fill_price NUMERIC,
+                    close_reason VARCHAR,
+                    cancel_reason VARCHAR,
+                    metadata JSONB,
+                    occurred_at TIMESTAMP NOT NULL
                 )
-                """
-            )
-        print("✅ trade_events table ready", file=sys.stderr)
+            """)
+
+            # 2. order_fills – linked by trade_id
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS order_fills (
+                    fill_id BIGINT PRIMARY KEY,
+                    trade_id VARCHAR(64) NOT NULL,
+                    order_id VARCHAR NOT NULL,
+                    price NUMERIC NOT NULL,
+                    qty NUMERIC NOT NULL,
+                    quote_qty NUMERIC NOT NULL,
+                    commission NUMERIC,
+                    commission_asset VARCHAR,
+                    is_maker BOOLEAN NOT NULL,
+                    filled_at TIMESTAMP NOT NULL
+                )
+            """)
+
+            # 3. processed_events – infrastructure for idempotent consumption
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS processed_events (
+                    event_id BIGINT PRIMARY KEY REFERENCES trade_events(event_id),
+                    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Indexes
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_trade_id ON trade_events(trade_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_occurred_at ON trade_events(occurred_at)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_order_fills_trade_id ON order_fills(trade_id)")
+
+        print("✅ Event‑sourcing tables ready", file=sys.stderr)
 
     # ------------------------------------------------------------------
-    # Query methods
+    # Insert a new event
     # ------------------------------------------------------------------
-    async def get_pending_trade_ids(self, limit: int = 10) -> list[int]:
-        """
-        Poll-fallback query (Step 4): find candidate rows still `pending`,
-        e.g. missed by NOTIFY during a reconnect window.
-        """
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT id FROM trade_events WHERE status = 'pending' "
-                "ORDER BY id ASC LIMIT $1",
-                limit,
-            )
-            return [r["id"] for r in rows]
-
-    async def claim_trade(self, trade_row_id: int) -> Optional[dict]:
-        """
-        Atomically claim a single row by id:
-            UPDATE trade_events SET status='processing'
-            WHERE id=$1 AND status='pending'
-            RETURNING *
-
-        Returns None if some other path (NOTIFY vs. poll) already claimed
-        it first — this row-level atomicity is what de-dupes the NOTIFY
-        path against the poll-fallback path per MainSD2. Safe under
-        concurrency because each call acquires its own pooled connection
-        and Postgres enforces the row-level atomicity, not app code.
-        """
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                UPDATE trade_events
-                SET status = 'processing', updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1 AND status = 'pending'
-                RETURNING id, trade_id, instrument, side, size, sl, tp, payload, status
-                """,
-                trade_row_id,
-            )
-            return dict(row) if row else None
-
-    async def mark_closed(self, trade_row_id: int) -> None:
-        """Called once a TradeStrategy's OrderManagementSM reaches terminal Idle."""
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE trade_events SET status = 'closed', updated_at = CURRENT_TIMESTAMP "
-                "WHERE id = $1",
-                trade_row_id,
-            )
-
     async def insert_trade_event(
         self,
         trade_id: str,
+        event_type: str,
         instrument: str,
         side: str,
         size: float,
+        occurred_at: Optional[str] = None,  # ISO timestamp, default now()
+        ep: Optional[float] = None,
         sl: Optional[float] = None,
         tp: Optional[float] = None,
-        payload: Optional[dict] = None,
-    ) -> dict:
+        market_buy_order_id: Optional[str] = None,
+        market_sell_order_id: Optional[str] = None,
+        limit_buy_order_id: Optional[str] = None,
+        limit_sell_order_id: Optional[str] = None,
+        stop_limit_buy_order_id: Optional[str] = None,
+        stop_limit_sell_order_id: Optional[str] = None,
+        oco_order_id: Optional[str] = None,
+        fill_price: Optional[float] = None,
+        close_reason: Optional[str] = None,
+        cancel_reason: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        previous_event_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """
-        Dev/test helper only — inserts a synthetic `pending` row. Used by
-        the Step 2 stand-alone validation script, NOT by the live trader
-        (real rows are written by whatever upstream system produces trades).
+        Insert a new event into trade_events.
+        If previous_event_id is omitted, it automatically links to the latest event
+        for the same trade_id (except for 'Created' events, which start a new chain).
+        Returns the inserted row as a dict (including the generated event_id).
+        """
+        if metadata is None:
+            metadata = {}
+        if occurred_at is None:
+            occurred_at = "CURRENT_TIMESTAMP"
+
+        async with self.pool.acquire() as conn:
+            # Auto‑link previous event unless it's a Created event
+            if previous_event_id is None and event_type != "Created":
+                prev = await conn.fetchval(
+                    """SELECT event_id FROM trade_events
+                       WHERE trade_id = $1
+                       ORDER BY occurred_at DESC, event_id DESC LIMIT 1""",
+                    trade_id,
+                )
+                previous_event_id = prev
+
+            row = await conn.fetchrow(
+                f"""
+                INSERT INTO trade_events (
+                    trade_id, previous_event_id, event_type, instrument, side, size,
+                    ep, sl, tp,
+                    market_buy_order_id, market_sell_order_id,
+                    limit_buy_order_id, limit_sell_order_id,
+                    stop_limit_buy_order_id, stop_limit_sell_order_id,
+                    oco_order_id,
+                    fill_price, close_reason, cancel_reason,
+                    metadata, occurred_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6,
+                    $7, $8, $9,
+                    $10, $11, $12, $13, $14, $15,
+                    $16, $17, $18, $19,
+                    $20::jsonb, {occurred_at}
+                )
+                RETURNING *
+                """,
+                trade_id,
+                previous_event_id,
+                event_type,
+                instrument,
+                side,
+                size,
+                ep,
+                sl,
+                tp,
+                market_buy_order_id,
+                market_sell_order_id,
+                limit_buy_order_id,
+                limit_sell_order_id,
+                stop_limit_buy_order_id,
+                stop_limit_sell_order_id,
+                oco_order_id,
+                fill_price,
+                close_reason,
+                cancel_reason,
+                json.dumps(metadata),
+            )
+            return dict(row)
+
+    # ------------------------------------------------------------------
+    # Insert an order fill
+    # ------------------------------------------------------------------
+    async def insert_order_fill(
+        self,
+        fill_id: int,
+        trade_id: str,
+        order_id: str,
+        price: float,
+        qty: float,
+        quote_qty: float,
+        is_maker: bool,
+        filled_at: Optional[str] = None,
+        commission: Optional[float] = None,
+        commission_asset: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Insert a fill record. Returns the inserted row, or None if fill_id already exists.
+        """
+        if filled_at is None:
+            filled_at = "CURRENT_TIMESTAMP"
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                f"""
+                INSERT INTO order_fills (
+                    fill_id, trade_id, order_id, price, qty, quote_qty,
+                    commission, commission_asset, is_maker, filled_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, {filled_at}
+                )
+                ON CONFLICT (fill_id) DO NOTHING
+                RETURNING *
+                """,
+                fill_id, trade_id, order_id, price, qty, quote_qty,
+                commission, commission_asset, is_maker,
+            )
+            return dict(row) if row else None
+
+    # ------------------------------------------------------------------
+    # Consumer offset / polling helpers
+    # ------------------------------------------------------------------
+    async def get_unprocessed_events(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Fetch events that have not yet been processed, ordered by occurred_at.
+        Used by the poll‑fallback loop.
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT e.*
+                FROM trade_events e
+                LEFT JOIN processed_events p ON e.event_id = p.event_id
+                WHERE p.event_id IS NULL
+                ORDER BY e.occurred_at ASC, e.event_id ASC
+                LIMIT $1
+                """,
+                limit,
+            )
+            return [dict(r) for r in rows]
+
+    async def get_pending_trade_ids(self, limit: int = 10) -> List[str]:
+        """
+        Returns trade_ids that have at least one unprocessed event.
+        Useful for prioritising trades.
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT e.trade_id
+                FROM trade_events e
+                LEFT JOIN processed_events p ON e.event_id = p.event_id
+                WHERE p.event_id IS NULL
+                ORDER BY MIN(e.occurred_at) ASC
+                LIMIT $1
+                """,
+                limit,
+            )
+            return [r["trade_id"] for r in rows]
+
+    async def claim_event(self, event_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Atomically mark an event as processed by inserting into processed_events.
+        Returns the event data if the claim succeeded (i.e. event was not already processed),
+        else None.
         """
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO trade_events (trade_id, instrument, side, size, sl, tp, payload, status)
-                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'pending')
-                RETURNING id, trade_id, instrument, side, size, sl, tp, payload, status
+                WITH claimed AS (
+                    INSERT INTO processed_events (event_id)
+                    VALUES ($1)
+                    ON CONFLICT (event_id) DO NOTHING
+                    RETURNING event_id
+                )
+                SELECT e.*
+                FROM trade_events e
+                JOIN claimed c ON e.event_id = c.event_id
                 """,
-                trade_id, instrument, side, size, sl, tp, json.dumps(payload or {}),
+                event_id,
             )
-            return dict(row)
+            return dict(row) if row else None
 
+    # ------------------------------------------------------------------
+    # Convenience queries
+    # ------------------------------------------------------------------
+    async def get_latest_event_for_trade(self, trade_id: str) -> Optional[Dict[str, Any]]:
+        """Return the most recent event for a given trade."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT *
+                FROM trade_events
+                WHERE trade_id = $1
+                ORDER BY occurred_at DESC, event_id DESC
+                LIMIT 1
+                """,
+                trade_id,
+            )
+            return dict(row) if row else None
+
+    async def get_all_events_for_trade(self, trade_id: str) -> List[Dict[str, Any]]:
+        """Return all events for a trade in chronological order."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT *
+                FROM trade_events
+                WHERE trade_id = $1
+                ORDER BY occurred_at ASC, event_id ASC
+                """,
+                trade_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def get_fills_for_trade(self, trade_id: str) -> List[Dict[str, Any]]:
+        """Return all order fills for a trade."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM order_fills WHERE trade_id = $1 ORDER BY filled_at ASC",
+                trade_id,
+            )
+            return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Shutdown
+    # ------------------------------------------------------------------
     async def close(self) -> None:
         await self.pool.close()
 
     # ------------------------------------------------------------------
-    # Step 4 preview — native LISTEN/NOTIFY (stubbed, not called yet)
+    # LISTEN/NOTIFY stub (unchanged)
     # ------------------------------------------------------------------
     async def add_notify_listener(self, channel: str, callback) -> asyncpg.Connection:
         """
-        Registers `callback(conn, pid, channel, payload)` on a channel via
-        asyncpg's native listener API.
-
-        NOTE: a listening connection should NOT be a pooled connection
-        that gets released/reused — it needs to stay open and dedicated
-        for the life of the listener, or the registration is silently
-        lost when the connection returns to the pool. Step 4 should
-        acquire a connection via `self.pool.acquire()` and hold onto it
-        for the listener's lifetime (releasing it explicitly on
-        shutdown), rather than using the `async with` pattern used
-        elsewhere in this file. Left as a stub here — not wired up yet.
+        Registers a callback on a channel via asyncpg's native listener API.
+        IMPORTANT: the returned connection must be kept alive for the listener to work.
         """
         conn = await self.pool.acquire()
         await conn.add_listener(channel, callback)
