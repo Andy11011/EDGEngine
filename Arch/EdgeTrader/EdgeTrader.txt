@@ -159,5 +159,16 @@ itself expects to be run when you want it sharing an event loop with other work.
 Create Control_Events and Trade_Events tables
 
 //********************************//
+
 processed_events isn't solving "what's my position" — it's solving "have I consumed this message," 
 which is a consumer-tracking problem, not a trading problem. Keep it.
+
+//********************************//
+
+Why you still need it: run_node_async was never about the Postgres-vs-SQS transport decision — it's just the 
+awaitable counterpart to run_node(), giving you a coroutine that keeps the node running without blocking, with
+the same stop()/dispose() teardown guarantee. Step 7's whole premise (node.run_async() running concurrently
+with the event listener) needs exactly this entry point regardless of whether the listener is 
+listen_trade_events(node, conn) against Postgres or listen_trade_events(node, sqs_client, queue_url)
+against SQS. The transport swap changed the listener; it didn't touch why you need an async-safe way
+to run the node itself. So its own body — as written in EDGETrader.py — is still correct:

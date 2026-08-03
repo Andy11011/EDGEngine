@@ -325,6 +325,63 @@ def register_sandbox_exec(node: TradingNode) -> None:
     """Register Nautilus's own simulated exec client (virtual/paper trading)."""
     node.add_exec_client_factory(BINANCE, SandboxLiveExecClientFactory)
 
+# -----------------------------------------------------------------------------
+# SQS Consumer helpers
+# -----------------------------------------------------------------------------
+
+_sqs_client = None
+
+def get_sqs_client() -> boto3.client:
+    """Return a cached SQS client."""
+    global _sqs_client
+    if _sqs_client is None:
+        _sqs_client = boto3.client(
+            "sqs",
+            region_name=os.getenv("AWS_REGION", "ap-southeast-1")
+        )
+    return _sqs_client
+
+
+async def receive_trade_events(
+    sqs_client,
+    queue_url: str,
+    max_messages: int = 10,
+    wait_seconds: int = 20,
+) -> list[dict]:
+    """
+    Long‑poll SQS for trade event messages.
+
+    Returns a list of messages, each containing:
+        - 'Body' (JSON string with event data)
+        - 'ReceiptHandle'
+        - 'MessageAttributes' (event_id, trade_id, event_type)
+    """
+    try:
+        response = sqs_client.receive_message(
+            QueueUrl=queue_url,
+            MaxNumberOfMessages=max_messages,
+            WaitTimeSeconds=wait_seconds,
+            MessageAttributeNames=["All"],
+        )
+    except Exception as e:
+        # Log error but don't crash; return empty list
+        print(f"❌ SQS receive error: {e}", file=sys.stderr)
+        return []
+
+    return response.get("Messages", [])
+
+
+async def delete_message(sqs_client, queue_url: str, receipt_handle: str) -> bool:
+    """Delete a processed SQS message. Returns True on success."""
+    try:
+        sqs_client.delete_message(
+            QueueUrl=queue_url,
+            ReceiptHandle=receipt_handle,
+        )
+        return True
+    except Exception as e:
+        print(f"❌ SQS delete error: {e}", file=sys.stderr)
+        return False
 
 # -----------------------------------------------------------------------------
 # Main

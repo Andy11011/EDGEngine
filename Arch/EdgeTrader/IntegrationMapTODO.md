@@ -6,16 +6,7 @@
 - [X] ~~*Leave `run_node()` (sync) completely untouched — still called by `main()`*~~ [2026-08-01]
 - [X] ~~*Do not call `run_node_async` from anywhere yet*~~ [2026-08-01]
 
-### Step 2 – Outbox Publisher: Postgres → SNS (Silent Internal)
-
-- [ ] Provision SNS topic `trade-events`
-- [ ] Add env var `SNS_TRADE_EVENTS_TOPIC_ARN` (reuse existing `AWS_REGION` / `boto3` session pattern)
-- [ ] Add `sns.publish(...)` call immediately after a successful `insert_trade_event` commit, with `event_id`/`trade_id`/`event_type` as message attributes
-- [ ] Validate stand-alone: insert dummy row, confirm publish succeeds, confirm a manually-subscribed test SQS queue receives it
-- [ ] Decide: accept the INSERT-then-publish gap for now (add reconciliation later, Step 8/10) vs. build a transactional outbox table now
-- [ ] Do **not** wire an SQS consumer yet
-
-### Step 3 – SQS Queue + Consumer Module (Silent Internal)
+### Step 2 – SQS Queue + Consumer Module (Silent Internal)
 
 - [ ] Provision `trade-events-queue` (Standard) subscribed to `trade-events` SNS topic
 - [ ] Provision `trade-events-queue-dlq` with redrive policy (`maxReceiveCount=5`)
@@ -25,7 +16,7 @@
 - [ ] Validate stand-alone: publish via Step 2 topic, confirm this module receives + deletes the message
 - [ ] Do not wire into `main()` yet
 
-### Step 4 – `OrderManagementSM` and `TradeStrategy` (Additive, Unused)
+### Step 3 – `OrderManagementSM` and `TradeStrategy` (Additive, Unused)
 
 - [ ] Implement `OrderManagementSM` with states `Idle, Validating, PlacingEntry, AwaitingFill, Protecting, InPosition, Closing` + transitions
 - [ ] Unit-test `OrderManagementSM` transitions in isolation (no Nautilus dependency needed)
@@ -36,7 +27,7 @@
   - [ ] `on_order_filled` / `on_order_rejected` / `on_order_canceled` feed SM, drive `AwaitingFill → Protecting → InPosition → Closing → Idle`
 - [ ] Do not instantiate `TradeStrategy` from `main()` yet — `BlueprintStrategy` remains the only strategy actually run
 
-### Step 5 – Standalone SQS Trade-Event Listener Coroutine (Additive, Unused)
+### Step 4 – Standalone SQS Trade-Event Listener Coroutine (Additive, Unused)
 
 - [ ] Implement `async def listen_trade_events(node, sqs_client, queue_url) -> None`:
   - [ ] Long-poll loop via `receive_trade_events`
@@ -49,7 +40,7 @@
 - [ ] Validate against test SQS queue + `VIRTUAL` `TRADING_MODE` node, off to the side (manual script): strategy add/remove + duplicate-delivery skip
 - [ ] Do not call this coroutine from `main()` yet
 
-### Step 6 – Telegram Notifier Lambda (Additive, Independent Subscriber)
+### Step 5 – Telegram Notifier Lambda (Additive, Independent Subscriber)
 
 - [ ] Create Lambda `trade-events-telegram-notifier`, subscribed directly to `trade-events` SNS topic
 - [ ] Format human-readable message from SNS payload (`event_type`, `trade_id`, `instrument`, `side`, `ep`/`fill_price`, `close_reason`, ...)
@@ -57,14 +48,14 @@
 - [ ] Confirm this path does **not** touch `processed_events` — duplicates here are acceptable
 - [ ] Validate stand-alone: publish test SNS message, confirm Telegram delivery; confirm duplicate publish → duplicate (acceptable) message, not an error
 
-### Step 7 – Feature Flag Wiring in `main()` (Dual-Path)
+### Step 6 – Feature Flag Wiring in `main()` (Dual-Path)
 
 - [ ] Add `trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "SINGLE").upper()` (`SINGLE` | `EVENT_DRIVEN`), validated like `TRADING_MODE`
 - [ ] `SINGLE` branch: unchanged — instantiate `BlueprintStrategy`, call existing `run_node(...)`
 - [ ] `EVENT_DRIVEN` branch: create SQS client (Step 3), run `node.run_async()` and `listen_trade_events(node, sqs_client, queue_url)` concurrently (`asyncio.gather`) inside async teardown (Step 1)
 - [ ] Confirm default stays `SINGLE` — no behavior change for existing deployments
 
-### Step 8 – Validate `EVENT_DRIVEN` Mode End-to-End (Staging)
+### Step 7 – Validate `EVENT_DRIVEN` Mode End-to-End (Staging)
 
 - [ ] Deploy with `TRADE_SOURCE_MODE=EVENT_DRIVEN` + `TRADING_MODE=VIRTUAL` in staging against real/staging SNS/SQS + Postgres
 - [ ] Confirm SNS → SQS delivery works; each event claimed and acted on exactly once
@@ -76,14 +67,14 @@
 - [ ] Add and test the reconciliation script (Step 2) against an injected "publish failed" case
 - [ ] Confirm `SINGLE` mode in production remains untouched throughout
 
-### Step 9 – Promote `EVENT_DRIVEN` to Default (Soft Switch)
+### Step 8 – Promote `EVENT_DRIVEN` to Default (Soft Switch)
 
 - [ ] Flip default: `trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "EVENT_DRIVEN").upper()`
 - [ ] Keep `SINGLE` branch and `BlueprintStrategy` fully intact as explicit opt-out
 - [ ] Set up CloudWatch alarm on DLQ depth before/at rollout
 - [ ] Roll out to production under normal deploy/monitoring practice
 
-### Step 10 – Remove the Legacy Single-Strategy Path (The Big Cleanup)
+### Step 9 – Remove the Legacy Single-Strategy Path (The Big Cleanup)
 
 - [ ] Confirm `EVENT_DRIVEN` has run stably in production for a full monitoring cycle
 - [ ] Delete `BlueprintConfig`, `BlueprintStrategy`
