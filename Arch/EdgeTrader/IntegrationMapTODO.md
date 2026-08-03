@@ -8,13 +8,13 @@
 
 ### Step 2 – SQS Queue + Consumer Module (Silent Internal)
 
-- [ ] Provision `trade-events-queue` (Standard) subscribed to `trade-events` SNS topic
-- [ ] Provision `trade-events-queue-dlq` with redrive policy (`maxReceiveCount=5`)
-- [ ] Add env vars `SQS_TRADE_EVENTS_QUEUE_URL`, `SQS_POLL_WAIT_SECONDS` (default `20`), `SQS_MAX_MESSAGES` (default `10`)
-- [ ] Implement `async def receive_trade_events(sqs_client, queue_url) -> List[dict]` (long-poll `ReceiveMessage`)
-- [ ] Implement `async def delete_message(sqs_client, queue_url, receipt_handle) -> None`
+- [X] ~~*Provision `trade-events-queue` (Standard) subscribed to `trade-events` SNS topic*~~ [2026-08-03]
+- [X] ~~*Provision `trade-events-queue-dlq` with redrive policy (`maxReceiveCount=5`)*~~ [2026-08-03]
+- [X] ~~*Add env vars `SQS_TRADE_EVENTS_QUEUE_URL`, `SQS_POLL_WAIT_SECONDS` (default `20`), `SQS_MAX_MESSAGES` (default `10`)*~~ [2026-08-03]
+- [X] ~~*Implement `async def receive_trade_events(sqs_client, queue_url) -> List[dict]` (long-poll `ReceiveMessage`)*~~ [2026-08-03]
+- [X] ~~*Implement `async def delete_message(sqs_client, queue_url, receipt_handle) -> None`*~~ [2026-08-03]
 - [ ] Validate stand-alone: publish via Step 2 topic, confirm this module receives + deletes the message
-- [ ] Do not wire into `main()` yet
+- [X] ~~*Do not wire into `main()` yet*~~ [2026-08-03]
 
 ### Step 3 – `OrderManagementSM` and `TradeStrategy` (Additive, Unused)
 
