@@ -1,4 +1,4 @@
-## EDGETrader Main Flow Refactoring (Integration Map)
+## EDGETrader Main Flow Refactoring (Integration Map — SNS/SQS + Lambda)
 
 ### Step 1 – Async Runner Alongside the Sync One (Additive)
 
@@ -6,70 +6,96 @@
 - [X] ~~*Leave `run_node()` (sync) completely untouched — still called by `main()`*~~ [2026-08-01]
 - [X] ~~*Do not call `run_node_async` from anywhere yet*~~ [2026-08-01]
 
-### Step 2 – Postgres Connectivity Module (Silent Internal)
+### Step 2 – Outbox Publisher: Postgres → SNS (Silent Internal)
 
-- [ ] Add `psycopg` (or `asyncpg`) dependency
-- [ ] Add env vars `DATABASE_URL`, `TRADE_EVENTS_POLL_SECONDS` (default `5`)
-- [ ] Implement `async def get_pg_connection() -> Connection`
-- [ ] Implement `async def claim_pending_trade(conn) -> Optional[dict]` (atomic `UPDATE ... RETURNING *`)
-- [ ] Validate stand-alone (insert dummy row, claim it, confirm `status='processing'`) — do **not** wire into `main()` yet
+- [ ] Provision SNS topic `trade-events`
+- [ ] Add env var `SNS_TRADE_EVENTS_TOPIC_ARN` (reuse existing `AWS_REGION` / `boto3` session pattern)
+- [ ] Add `sns.publish(...)` call immediately after a successful `insert_trade_event` commit, with `event_id`/`trade_id`/`event_type` as message attributes
+- [ ] Validate stand-alone: insert dummy row, confirm publish succeeds, confirm a manually-subscribed test SQS queue receives it
+- [ ] Decide: accept the INSERT-then-publish gap for now (add reconciliation later, Step 8/10) vs. build a transactional outbox table now
+- [ ] Do **not** wire an SQS consumer yet
 
-### Step 3 – `OrderManagementSM` and `TradeStrategy` (Additive, Unused)
+### Step 3 – SQS Queue + Consumer Module (Silent Internal)
+
+- [ ] Provision `trade-events-queue` (Standard) subscribed to `trade-events` SNS topic
+- [ ] Provision `trade-events-queue-dlq` with redrive policy (`maxReceiveCount=5`)
+- [ ] Add env vars `SQS_TRADE_EVENTS_QUEUE_URL`, `SQS_POLL_WAIT_SECONDS` (default `20`), `SQS_MAX_MESSAGES` (default `10`)
+- [ ] Implement `async def receive_trade_events(sqs_client, queue_url) -> List[dict]` (long-poll `ReceiveMessage`)
+- [ ] Implement `async def delete_message(sqs_client, queue_url, receipt_handle) -> None`
+- [ ] Validate stand-alone: publish via Step 2 topic, confirm this module receives + deletes the message
+- [ ] Do not wire into `main()` yet
+
+### Step 4 – `OrderManagementSM` and `TradeStrategy` (Additive, Unused)
 
 - [ ] Implement `OrderManagementSM` with states `Idle, Validating, PlacingEntry, AwaitingFill, Protecting, InPosition, Closing` + transitions
 - [ ] Unit-test `OrderManagementSM` transitions in isolation (no Nautilus dependency needed)
-- [ ] Add `TradeStrategyConfig(StrategyConfig, frozen=True)` with `instrument_id`, `bar_type`, `order_id_tag`
+- [ ] Add `TradeStrategyConfig(StrategyConfig, frozen=True)` with `instrument_id`, `bar_type`, `order_id_tag`, deterministic `client_order_id` (derived from `trade_id`)
 - [ ] Add `TradeStrategy(Strategy)`:
   - [ ] `__init__` creates `self.sm = OrderManagementSM()`
-  - [ ] `on_start()` feeds initial "OpenTradeEvent" into SM, submits entry order
+  - [ ] `on_start()` feeds initial "OpenTradeEvent" into SM, submits entry order using the deterministic `client_order_id`
   - [ ] `on_order_filled` / `on_order_rejected` / `on_order_canceled` feed SM, drive `AwaitingFill → Protecting → InPosition → Closing → Idle`
 - [ ] Do not instantiate `TradeStrategy` from `main()` yet — `BlueprintStrategy` remains the only strategy actually run
 
-### Step 4 – Standalone Trade-Event Listener Coroutine (Additive, Unused)
+### Step 5 – Standalone SQS Trade-Event Listener Coroutine (Additive, Unused)
 
-- [ ] Implement `async def listen_trade_events(node, conn) -> None`:
-  - [ ] `LISTEN trade_events`
-  - [ ] On `NOTIFY` → `claim_pending_trade`
-  - [ ] Periodic poll fallback (every `TRADE_EVENTS_POLL_SECONDS`) using the same atomic claim
-  - [ ] On successful claim: build `TradeStrategyConfig` (`order_id_tag=trade_id`), instantiate `TradeStrategy`, `add_strategy` + `start_strategy`
-  - [ ] On trade close (SM reaches terminal `Idle`): `UPDATE trade_events SET status='closed'`, then `stop_strategy` + `remove_strategy`
-- [ ] Validate against test Postgres table + `VIRTUAL` `TRADING_MODE` node, off to the side (manual script), for a few synthetic trade rows
+- [ ] Implement `async def listen_trade_events(node, sqs_client, queue_url) -> None`:
+  - [ ] Long-poll loop via `receive_trade_events`
+  - [ ] For each message: parse `event_id`, call existing `TradeEventsDB.claim_event(event_id)` (unchanged Postgres claim)
+  - [ ] If claimed: build `TradeStrategyConfig` (`order_id_tag=trade_id`), instantiate `TradeStrategy`, `add_strategy` + `start_strategy`
+  - [ ] If not claimed (duplicate): no-op
+  - [ ] Delete the SQS message once claimed-and-handed-off (or recognized as duplicate) — not held open until trade close
+  - [ ] On trade close (SM reaches terminal `Idle`): append closing event to `trade_events`, then `stop_strategy` + `remove_strategy`
+- [ ] Document the claim-then-crash gap (claimed but never started) as a known limitation; note deterministic `client_order_id` as the backstop
+- [ ] Validate against test SQS queue + `VIRTUAL` `TRADING_MODE` node, off to the side (manual script): strategy add/remove + duplicate-delivery skip
 - [ ] Do not call this coroutine from `main()` yet
 
-### Step 5 – Feature Flag Wiring in `main()` (Dual-Path)
+### Step 6 – Telegram Notifier Lambda (Additive, Independent Subscriber)
+
+- [ ] Create Lambda `trade-events-telegram-notifier`, subscribed directly to `trade-events` SNS topic
+- [ ] Format human-readable message from SNS payload (`event_type`, `trade_id`, `instrument`, `side`, `ep`/`fill_price`, `close_reason`, ...)
+- [ ] Call Telegram Bot API `sendMessage` with bot token pulled from AWS Secrets Manager
+- [ ] Confirm this path does **not** touch `processed_events` — duplicates here are acceptable
+- [ ] Validate stand-alone: publish test SNS message, confirm Telegram delivery; confirm duplicate publish → duplicate (acceptable) message, not an error
+
+### Step 7 – Feature Flag Wiring in `main()` (Dual-Path)
 
 - [ ] Add `trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "SINGLE").upper()` (`SINGLE` | `EVENT_DRIVEN`), validated like `TRADING_MODE`
 - [ ] `SINGLE` branch: unchanged — instantiate `BlueprintStrategy`, call existing `run_node(...)`
-- [ ] `EVENT_DRIVEN` branch: open Postgres connection (Step 2), run `node.run_async()` and `listen_trade_events(node, conn)` concurrently (`asyncio.gather`) inside async teardown (Step 1)
+- [ ] `EVENT_DRIVEN` branch: create SQS client (Step 3), run `node.run_async()` and `listen_trade_events(node, sqs_client, queue_url)` concurrently (`asyncio.gather`) inside async teardown (Step 1)
 - [ ] Confirm default stays `SINGLE` — no behavior change for existing deployments
 
-### Step 6 – Validate `EVENT_DRIVEN` Mode End-to-End (Staging)
+### Step 8 – Validate `EVENT_DRIVEN` Mode End-to-End (Staging)
 
-- [ ] Deploy with `TRADE_SOURCE_MODE=EVENT_DRIVEN` + `TRADING_MODE=VIRTUAL` in staging against real/staging `trade_events` table
-- [ ] Confirm NOTIFY-triggered claims work
-- [ ] Confirm poll fallback claims rows if NOTIFY is temporarily disabled
-- [ ] Confirm two near-simultaneous rows don't get double-claimed (row-level atomicity)
+- [ ] Deploy with `TRADE_SOURCE_MODE=EVENT_DRIVEN` + `TRADING_MODE=VIRTUAL` in staging against real/staging SNS/SQS + Postgres
+- [ ] Confirm SNS → SQS delivery works; each event claimed and acted on exactly once
+- [ ] Confirm SNS → Lambda → Telegram delivery works independently of the trading path
+- [ ] Confirm simulated duplicate SQS deliveries are correctly skipped by `claim_event`, no duplicate orders
+- [ ] Confirm forced poison messages land in the DLQ after `maxReceiveCount`, not lost or looping
 - [ ] Confirm each trade gets its own `TradeStrategy`/`order_id_tag`, multiple trades run concurrently without interfering
 - [ ] Confirm SM reaches `Closing → Idle` correctly and strategy is removed (`order_id_tag` freed for reuse)
+- [ ] Add and test the reconciliation script (Step 2) against an injected "publish failed" case
 - [ ] Confirm `SINGLE` mode in production remains untouched throughout
 
-### Step 7 – Promote `EVENT_DRIVEN` to Default (Soft Switch)
+### Step 9 – Promote `EVENT_DRIVEN` to Default (Soft Switch)
 
 - [ ] Flip default: `trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "EVENT_DRIVEN").upper()`
 - [ ] Keep `SINGLE` branch and `BlueprintStrategy` fully intact as explicit opt-out
+- [ ] Set up CloudWatch alarm on DLQ depth before/at rollout
 - [ ] Roll out to production under normal deploy/monitoring practice
 
-### Step 8 – Remove the Legacy Single-Strategy Path (The Big Cleanup)
+### Step 10 – Remove the Legacy Single-Strategy Path (The Big Cleanup)
 
 - [ ] Confirm `EVENT_DRIVEN` has run stably in production for a full monitoring cycle
 - [ ] Delete `BlueprintConfig`, `BlueprintStrategy`
 - [ ] Delete sync `run_node()`
 - [ ] Delete `TRADE_SOURCE_MODE` and the `SINGLE` branch in `main()`
-- [ ] `main()` unconditionally: build node → register factories → `node.build()` → `node.run_async()` concurrently with `listen_trade_events(node, conn)`
-- [ ] Update/remove single-instrument `bar_type` construction in `main()` if no longer needed globally (each `TradeStrategy` derives its own from the claimed trade payload)
+- [ ] `main()` unconditionally: build node → register factories → `node.build()` → `node.run_async()` concurrently with `listen_trade_events(node, sqs_client, queue_url)`
+- [ ] Update/remove single-instrument `bar_type` construction in `main()` if no longer needed globally
 
-### Open Questions (resolve before Step 4)
+### Open Questions (resolve before Step 5)
 
 - [ ] Confirm bar/instrument subscription model per trade (upfront multi-instrument load vs. lazy per-trade)
-- [ ] Confirm fallback-poll query semantics (grace period to avoid re-claiming rows still in-flight from a recent NOTIFY)
+- [ ] Confirm whether the outbox publish-failure gap needs a transactional outbox table before production, or reconciliation-after-the-fact is sufficient
+- [ ] Confirm DLQ `maxReceiveCount` and alerting policy
+- [ ] Confirm whether the claim-then-crash reconciliation check (Step 5) is needed before Step 9, or the deterministic `client_order_id` backstop is sufficient at current volume
 - [ ] Confirm credentials loading (`load_credentials_from_aws` / `load_ed25519_credentials_from_aws`) stays unchanged, including VIRTUAL-mode Ed25519 skip

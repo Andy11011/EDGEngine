@@ -1,0 +1,64 @@
+Broker options for a single-consumer trade-event system, heaviest to lightest:
+
+1. Kafka
+   - Needs: JVM (KRaft mode, no separate ZooKeeper needed) with its own heap
+   - Footprint: 1GB+ heap just for Kafka, plus disk-backed log segments
+   - Fits a micro instance? No — competes with your trading node for memory on a 1-2GB box
+
+2. RabbitMQ
+   - Needs: Erlang VM (BEAM)
+   - Footprint: ~150-300MB baseline, scales with queue depth
+   - Fits a micro instance? Marginal — fine on 2GB, tight on a true 1GB micro alongside Nautilus + Postgres client + boto3
+
+3. Redis Streams
+   - Needs: Redis server
+   - Footprint: ~30-50MB baseline for light use
+   - Fits a micro instance? Easily — but you build consumer-group semantics yourself (XREADGROUP, XACK, XPENDING/claim for stuck messages)
+
+4. NATS (core, no JetStream)
+   - Needs: single small Go binary
+   - Footprint: ~10-20MB
+   - Fits a micro instance? Trivially — but fire-and-forget, no persistence, no redelivery if consumer is down
+
+5. NATS JetStream
+   - Needs: same binary, persistence enabled
+   - Footprint: tens of MB + disk for the stream
+   - Fits a micro instance? Easily — durable, at-least-once, ack-based delivery, "Kafka-shaped" semantics at a fraction of the weight
+
+6. AWS SQS + SNS
+   - Needs: nothing — fully managed
+   - Footprint: zero local footprint
+   - Fits a micro instance? Trivially — no broker process at all, just API calls via boto3 (already a dependency)
+
+
+//*****************************//
+
+SQS (+ SNS if you want fan-out to multiple consumers later) — no server to run, patch, or monitor; 
+you already have AWS creds and boto3 wired up; visibility-timeout + redelivery is the exact at-least-once 
+model we walked through, so your processed_events-style dedup logic carries over unchanged. Downside:
+it's a network call per receive/delete, so there's real per-message latency (tens of ms), and no strict
+cross-message ordering unless you pay for FIFO queues (which cap throughput per message-group and cost slightly more).
+
+
+//*****************************//
+
+Short answer: for a system like yours, it's close to free — probably $0–low single digits per month, 
+unless you're doing far higher volume than "trade lifecycle events for one bot."
+
+//*****************************//
+
+
+Not natively — SNS doesn't have a "Telegram" delivery protocol. Its built-in endpoint types are: HTTP/S, 
+Email, SMS, Mobile push (APNs/FCM), SQS, Lambda, and Kinesis Data Firehose. Telegram isn't on that list.
+
+
+1. SNS → Lambda → Telegram Bot API (the standard pattern)
+Subscribe a small Lambda function to your SNS topic. On invoke, it takes the message payload and calls Telegram's sendMessage endpoint:
+
+https://api.telegram.org/bot<YOUR_BOT_TOKEN>/sendMessage
+
+with your chat_id and the text. This is maybe 15 lines of code, and since SNS→Lambda delivery is free 
+(you only pay Lambda's own — negligible — cost), it's basically zero marginal cost on top of what you're
+already paying for SNS/SQS.
+
+Given you're already leaning toward "no new service to operate," Lambda is the better fit than a webhook you host yourself.

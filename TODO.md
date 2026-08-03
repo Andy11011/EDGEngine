@@ -2,7 +2,8 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: write down integration steps
+- [ ] Edge-trader: write down integration
+
 - [ ] Edge-trader: Implement new main flow
 - [ ] Edge-trader: Push messages when get new signal (in java app)
 - [ ] Show crossovers on the chart
