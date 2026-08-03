@@ -15,4 +15,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY EDGETrader.py ./
 COPY trades_db_async.py ./
+COPY trade_strategy.py ./
 CMD ["python", "EDGETrader.py"]
