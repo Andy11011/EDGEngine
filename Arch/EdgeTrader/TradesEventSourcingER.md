@@ -1,12 +1,11 @@
 ```mermaid
 erDiagram
-    TRADES ||--o{ TRADE_EVENTS : "has many"
     TRADE_EVENTS ||--o| TRADE_EVENTS : "caused_by (previous event)"
 
     TRADE_EVENTS {
-        bigint trade_id FK "from trade_id_seq on Created row; copied from previous on later events"
-        varchar event_type "Created|Opening|Filled|Protected|Finished|Canceled"
-        varchar instrument "set on Created, carried in metadata after"
+        bigint trade_id FK "from trade_id_seq on Opened row; copied from previous on later events"
+        varchar event_type "Opened|Filled|Protected|Finished|Canceled"
+        varchar instrument "set on Opened, carried in metadata after"
         varchar side
         numeric size
         numeric ep
@@ -39,5 +38,12 @@ erDiagram
         varchar commission_asset
         boolean is_maker
         timestamp filled_at
+    }
+
+    TRADE_EVENTS ||--o| PROCESSED_EVENTS : "claimed_by"
+
+    PROCESSED_EVENTS {
+        bigint event_id PK "FK to trade_events.event_id — atomic claim, dedupes SQS/consumer redelivery"
+        timestamp processed_at
     }
 ```

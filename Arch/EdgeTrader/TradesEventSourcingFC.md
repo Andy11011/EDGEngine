@@ -1,6 +1,6 @@
 ```mermaid
 graph LR
-    S((•)) --> A[Created] --> B[Opening] --> C[Filled] --> D[Protected] --> E[Finished]
+    S((•)) --> A[Opened] --> B[Filled] --> C[Protected] --> D[Finished]
 
     A -.-> X[Canceled]
     B -.-> X

@@ -157,3 +157,7 @@ itself expects to be run when you want it sharing an event loop with other work.
 //********************************//
 
 Create Control_Events and Trade_Events tables
+
+//********************************//
+processed_events isn't solving "what's my position" — it's solving "have I consumed this message," 
+which is a consumer-tracking problem, not a trading problem. Keep it.
