@@ -6,6 +6,7 @@
 - [Inspect Redis Streams](#inspect-redis-streams)
 - [Reset Docker Images on Reboot](#reset-docker-images-on-reboot)
 - [Query PostgreSQL Database](#query-postgresql-database)
+- [Local Deploy](#local-deploy)
 
 ---
 
@@ -231,3 +232,82 @@ sudo docker exec -it postgres psql -U user -d postgres -c "SELECT symbol, update
 ```
 
 This is useful for quick checks or scripting.
+
+## Local Deploy
+
+### Prerequisites
+
+- Docker Desktop installed and running.
+- Build host: **Intel/AMD64** (the Nautilus wheel is x86_64-only, `manylinux_2_39`).
+- Base image must be `python:3.12-slim-trixie` (glibc 2.39+) — plain `python:3.12-slim` defaults to bookworm (glibc 2.36) and the wheel install will fail.
+
+### Build
+
+```powershell
+docker build -f Dockerfile.trader -t edgetrader .
+```
+
+Run from the directory containing `EdgeTrader/`, since `COPY EdgeTrader/...` paths are relative to the build context.
+
+### Run
+
+```powershell
+docker run --rm --env-file .env.local edgetrader
+```
+
+`--env-file` is required — host-shell env vars (`export`/`$env:`) are **not** automatically passed into the container.
+
+### Environment variables reference
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `BINANCE_SYMBOL` | `BTCUSDT` | Trading symbol |
+| `TRADER_ID` | `EDGETRADER-001` | Nautilus trader ID |
+| `BINANCE_ENV` | `LIVE` | `LIVE` or `TESTNET` — must match the environment the API key was issued for |
+| `BINANCE_BAR_INTERVAL` | `15-MINUTE` | Bar aggregation interval |
+| `LOG_LEVEL` | `INFO` | Nautilus log level |
+| `BINANCE_SANDBOX` | `0` | `1` to use sandbox credential names |
+| `AWS_REGION` | `ap-southeast-1` | Region for AWS Secrets Manager and SQS |
+| `TRADING_MODE` | `VIRTUAL` | `VIRTUAL` (simulated exec), `TESTNET`, or `LIVE` |
+| `SANDBOX_STARTING_BALANCES` | `10000 USDT,1 BTC` | Starting balances for `VIRTUAL` mode |
+| `SANDBOX_ACCOUNT_TYPE` | `CASH` | Account type for `VIRTUAL` mode |
+| `DB_HOST` | `productiondb` | Postgres host; won't resolve locally unless overridden |
+| `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_PORT` | `postgres` / `user` / `pass` / `5432` | Postgres connection details |
+
+**Credential variables:**
+
+| Variable | Used when |
+| --- | --- |
+| `BINANCE_API_KEY` / `BINANCE_API_SECRET` | HMAC credentials, live |
+| `BINANCE_SANDBOX_API_KEY` / `BINANCE_SANDBOX_API_SECRET` | HMAC credentials, `BINANCE_SANDBOX=1` |
+| `BINANCE_ED25519_PUBLIC_KEY` / `BINANCE_ED25519_PRIVATE_KEY` | Ed25519, only needed when `TRADING_MODE` is `TESTNET` or `LIVE` |
+
+### Trading modes
+
+| Mode | Behavior | Credentials needed |
+| --- | --- | --- |
+| `VIRTUAL` (default) | Live market data; orders simulated locally, nothing reaches Binance | HMAC only |
+| `TESTNET` | Real orders to Binance Testnet | HMAC + Ed25519 (testnet), `BINANCE_ENV=TESTNET`, `BINANCE_SANDBOX=1` |
+| `LIVE` | Real trading on mainnet | HMAC + Ed25519 (mainnet) |
+
+### Setting credentials locally
+
+**Linux / macOS:**
+
+```bash
+export BINANCE_API_KEY="your_api_key_here"
+export BINANCE_API_SECRET="your_api_secret_here"
+export BINANCE_ED25519_PUBLIC_KEY="your_binance_issued_api_key"
+export BINANCE_ED25519_PRIVATE_KEY="$(cat /path/to/ed25519_private_key.pem)"
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:BINANCE_API_KEY = "your_api_key_here"
+$env:BINANCE_API_SECRET = "your_api_secret_here"
+$env:BINANCE_ED25519_PUBLIC_KEY = "your_binance_issued_api_key"
+$env:BINANCE_ED25519_PRIVATE_KEY = Get-Content -Raw C:\path\to\ed25519_private_key.pem
+```
+
+Preferred for Docker runs: put these in `.env.local` (add to `.gitignore`) and use `docker run --rm --env-file .env.local edgetrader`.

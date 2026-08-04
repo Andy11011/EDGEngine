@@ -1,48 +1,56 @@
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
+    [*] --> Validating
 
-    Idle --> Validating: OpenTradeEvent received
+    Validating --> PlacingEntry: validate_passed()
+    Validating --> Canceling: validate_failed() / force_cancel
 
-    Validating --> Cancelled: invalid payload / risk check fails
-    Validating --> PlacingEntry: valid
+    PlacingEntry --> AwaitingFill: entry_accepted()
+    PlacingEntry --> Canceling: entry_rejected() / force_cancel
 
-    PlacingEntry --> AwaitingFill: entry order submitted
+    AwaitingFill --> Protecting: entry_filled()
+    AwaitingFill --> Canceling: entry_rejected() / entry_cancelled() / force_cancel
 
-    AwaitingFill --> Cancelled: cancel event / timeout / price invalidated
-    AwaitingFill --> Protecting: entry filled
-
-    Protecting --> InPosition: OCO / stop-limit placed
+    Protecting --> InPosition: protection_placed()
+    Protecting --> Canceling: force_cancel
 
     state InPosition {
         [*] --> Monitoring
-        Monitoring --> Monitoring: break-even / trailing update
+        Monitoring --> Monitoring: break-even / trailing updates
     }
 
-    InPosition --> Closing: exit leg filled / manual close / stop hit
-
-    Closing --> Idle: sibling leg cancelled, reconciled
-    Cancelled --> Idle
+    InPosition --> Closing: protection_filled() / close_order_submitted()
+    InPosition --> Canceling: force_cancel
 
     note right of AwaitingFill
-        Watches for CancelEvent from
-        EdgeDesk, order timeout, or
-        price-invalidation guard
+        Transitions to Canceling on:
+        - entry rejection (entry_rejected)
+        - user cancellation (entry_cancelled)
+        - timeout / price invalidation (force_cancel)
     end note
 
     note right of Protecting
-        Separated from InPosition since
-        placing the OCO is a network
-        call that can partially fail
+        Separated from InPosition because
+        placing protection orders (OCO/stop-limit)
+        is a network call that can partially fail.
+        If it fails, force_cancel can be used.
     end note
 
-    note left of Idle
-        One instance of this SM per open trade,
-        owned by a single EdgeStrategy instance
-        (order_id_tag = trade_id). The strategy is
-        added to the one long-running TradingNode
-        when the trade opens, and stopped/removed
-        from the node once this SM returns to Idle
-        or Cancelled terminally.
+    note left of Canceling
+        Terminal state – once entered,
+        the SM does not transition further.
+        The owning TradeStrategy is stopped.
+    end note
+
+    note left of Closing
+        Terminal state – once entered,
+        the SM does not transition further.
+        The owning TradeStrategy is stopped.
+    end note
+
+    note left of Validating
+        Any non-terminal state (Validating, PlacingEntry,
+        AwaitingFill, Protecting, InPosition) can be forced
+        to Canceling via the `force_cancel()` method.
     end note
 ```

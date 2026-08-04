@@ -18,7 +18,7 @@
 
 ### Step 3 – `OrderManagementSM` and `TradeStrategy` (Additive, Unused)
 
-- [ ] Implement `OrderManagementSM` with states `Idle, Validating, PlacingEntry, AwaitingFill, Protecting, InPosition, Closing` + transitions
+- [X] ~~*Implement `OrderManagementSM` with states `Validating, PlacingEntry, AwaitingFill, Protecting, InPosition, Canceling,Closing` + transitions*~~ [2026-08-04]
 - [ ] Unit-test `OrderManagementSM` transitions in isolation (no Nautilus dependency needed)
 - [ ] Add `TradeStrategyConfig(StrategyConfig, frozen=True)` with `instrument_id`, `bar_type`, `order_id_tag`, deterministic `client_order_id` (derived from `trade_id`)
 - [ ] Add `TradeStrategy(Strategy)`:
