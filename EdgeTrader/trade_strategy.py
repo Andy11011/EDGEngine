@@ -27,15 +27,20 @@ from nautilus_trader.trading.strategy import Strategy
 # ----------------------------------------------------------------------
 
 class TradeState(Enum):
-    """States of a single trade lifecycle."""
-    IDLE = auto()
+    """States of a single trade lifecycle.
+
+    No IDLE state: an OrderManagementSM starts life already VALIDATING.
+    CLOSING and CANCELING double as terminal states (there is no separate
+    CLOSED/CANCELLED state) — once a trade reaches CLOSING or CANCELING it
+    does not transition further.
+    """
+    VALIDATING = auto()
     PLACING_ENTRY = auto()
     AWAITING_FILL = auto()
     PROTECTING = auto()
     IN_POSITION = auto()
     CLOSING = auto()
-    CLOSED = auto()
-    CANCELLED = auto()
+    CANCELING = auto()
 
 
 class OrderManagementSM:
@@ -44,8 +49,11 @@ class OrderManagementSM:
     No external dependencies – tested in isolation.
     """
 
+    #: States that do not transition any further once entered.
+    TERMINAL_STATES = (TradeState.CLOSING, TradeState.CANCELING)
+
     def __init__(self):
-        self.state = TradeState.IDLE
+        self.state = TradeState.VALIDATING
         self.trade_id: Optional[str] = None
         self.entry_order_id: Optional[str] = None
         self.close_order_id: Optional[str] = None
@@ -53,13 +61,20 @@ class OrderManagementSM:
 
     # ---------- Transitions ----------
 
-    def open_trade(self, trade_id: str, entry_order_id: str) -> None:
-        """Start a new trade: submit entry order."""
-        if self.state != TradeState.IDLE:
-            raise ValueError(f"Cannot open trade from {self.state}")
+    def validate_passed(self, trade_id: str, entry_order_id: str) -> None:
+        """Validation succeeded → ready to submit the entry order."""
+        if self.state != TradeState.VALIDATING:
+            raise ValueError(f"validate_passed only from VALIDATING, not {self.state}")
         self.trade_id = trade_id
         self.entry_order_id = entry_order_id
         self.state = TradeState.PLACING_ENTRY
+
+    def validate_failed(self, reason: str = "") -> None:
+        """Validation failed (e.g. bad size/price, risk limits) → cancel."""
+        if self.state != TradeState.VALIDATING:
+            raise ValueError(f"validate_failed only from VALIDATING, not {self.state}")
+        self.state = TradeState.CANCELING
+        self.extra_data["cancel_reason"] = reason or "validation_failed"
 
     def entry_accepted(self) -> None:
         """Entry order accepted by exchange → waiting for fill."""
@@ -77,14 +92,14 @@ class OrderManagementSM:
         """Entry order rejected → trade cancelled."""
         if self.state not in (TradeState.PLACING_ENTRY, TradeState.AWAITING_FILL):
             raise ValueError(f"entry_rejected only from PLACING_ENTRY/AWAITING_FILL, not {self.state}")
-        self.state = TradeState.CANCELLED
+        self.state = TradeState.CANCELING
         self.extra_data["cancel_reason"] = reason or "entry_rejected"
 
     def entry_cancelled(self) -> None:
         """Entry order cancelled (e.g. user request) → cancelled."""
         if self.state != TradeState.AWAITING_FILL:
             raise ValueError(f"entry_cancelled only from AWAITING_FILL, not {self.state}")
-        self.state = TradeState.CANCELLED
+        self.state = TradeState.CANCELING
         self.extra_data["cancel_reason"] = "entry_cancelled"
 
     def protection_placed(self) -> None:
@@ -97,7 +112,8 @@ class OrderManagementSM:
         """Protection order (SL/TP) filled → position closed."""
         if self.state != TradeState.IN_POSITION:
             raise ValueError(f"protection_filled only from IN_POSITION, not {self.state}")
-        self.state = TradeState.CLOSED
+        self.state = TradeState.CLOSING
+        self.extra_data["close_reason"] = "protection_filled"
 
     def close_order_submitted(self, close_order_id: str) -> None:
         """User‑initiated close: submit market/limit order."""
@@ -105,35 +121,39 @@ class OrderManagementSM:
             raise ValueError(f"close_order_submitted only from IN_POSITION, not {self.state}")
         self.close_order_id = close_order_id
         self.state = TradeState.CLOSING
+        self.extra_data["close_reason"] = "user_close"
 
     def close_filled(self) -> None:
-        """Close order filled → trade closed."""
+        """Close order filled → trade fully closed (stays in CLOSING, terminal)."""
         if self.state != TradeState.CLOSING:
             raise ValueError(f"close_filled only from CLOSING, not {self.state}")
-        self.state = TradeState.CLOSED
+        self.extra_data["close_filled"] = True
 
     def close_rejected(self) -> None:
-        """Close order rejected → for now mark as closed."""
+        """Close order rejected → trade still considered closed for now."""
         if self.state != TradeState.CLOSING:
             raise ValueError(f"close_rejected only from CLOSING, not {self.state}")
-        self.state = TradeState.CLOSED
+        self.extra_data["close_rejected"] = True
 
     def force_cancel(self, reason: str = "forced") -> None:
-        """Emergency cancel from any state (except terminal)."""
-        if self.state in (TradeState.CLOSED, TradeState.CANCELLED):
+        """Emergency cancel from any non‑terminal state."""
+        if self.state in self.TERMINAL_STATES:
             return
-        self.state = TradeState.CANCELLED
+        self.state = TradeState.CANCELING
         self.extra_data["cancel_reason"] = reason
 
     # ---------- Query helpers ----------
     def is_active(self) -> bool:
-        return self.state not in (TradeState.CLOSED, TradeState.CANCELLED)
+        return self.state not in self.TERMINAL_STATES
 
     def is_open(self) -> bool:
         return self.state == TradeState.IN_POSITION
 
     def is_terminal(self) -> bool:
-        return self.state in (TradeState.CLOSED, TradeState.CANCELLED)
+        return self.state in self.TERMINAL_STATES
+
+    def needs_validation(self) -> bool:
+        return self.state == TradeState.VALIDATING
 
     def needs_protection(self) -> bool:
         return self.state == TradeState.PROTECTING
@@ -195,8 +215,13 @@ class TradeStrategy(Strategy):
             f"(instrument={self.config.instrument_id})"
         )
 
-        # Advance SM
-        self.sm.open_trade(self.config.trade_id, self._client_order_id)
+        # TODO: Real validation logic (size/price sanity, risk limits, etc.)
+        # goes here. For now we assume it always passes.
+        self.sm.validate_passed(self.config.trade_id, self._client_order_id)
+        # On failure this would instead be:
+        #     self.sm.validate_failed(reason="...")
+        #     self.stop()
+        #     return
 
         # Subscribe to bars (needed for price updates or if we want to monitor)
         self.subscribe_bars(self.config.bar_type)

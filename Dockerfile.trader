@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir "${NAUTILUS_WHEEL_URL}"
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY EDGETrader.py ./
-COPY trades_db_async.py ./
-COPY trade_strategy.py ./
+COPY EdgeTrader/EDGETrader.py ./
+COPY EdgeTrader/trades_db_async.py ./
+COPY EdgeTrader/trade_strategy.py ./
 CMD ["python", "EDGETrader.py"]
