@@ -82,6 +82,35 @@ def load_credentials_from_aws(
     return api_key, api_secret
 
 
+def load_credentials_from_env(sandbox: bool = False) -> Optional[tuple[str, str]]:
+    """
+    Load Binance API key/secret from environment variables, for local runs
+    where AWS Secrets Manager isn't reachable or desired.
+
+    Returns None (rather than raising) if the env vars aren't set, so callers
+    can fall back to AWS.
+    """
+    prefix = "BINANCE_SANDBOX" if sandbox else "BINANCE"
+    api_key = os.getenv(f"{prefix}_API_KEY")
+    api_secret = os.getenv(f"{prefix}_API_SECRET")
+    if api_key and api_secret:
+        return api_key, api_secret
+    return None
+
+
+def load_credentials(region: str = "ap-southeast-1", sandbox: bool = False) -> tuple[str, str]:
+    """
+    Load Binance API key/secret, preferring local environment variables
+    (BINANCE_API_KEY / BINANCE_API_SECRET, or the BINANCE_SANDBOX_* variants)
+    and falling back to AWS Secrets Manager if they're not set.
+    """
+    env_creds = load_credentials_from_env(sandbox=sandbox)
+    if env_creds is not None:
+        print("✅ Credentials loaded from environment variables (local override)", file=sys.stderr)
+        return env_creds
+    return load_credentials_from_aws(region=region, sandbox=sandbox)
+
+
 def load_ed25519_credentials_from_aws(
     region: str = "ap-southeast-1",
     secret_name: str = "Binance_async_keys_Ed25519",
@@ -121,6 +150,44 @@ def load_ed25519_credentials_from_aws(
             f"'{private_key_field}' fields (found keys: {list(secret_dict.keys())})"
         )
     return public_key, private_key
+
+def load_ed25519_credentials_from_env() -> Optional[tuple[str, str]]:
+    """
+    Load Binance Ed25519 public/private key from environment variables, for
+    local runs where AWS Secrets Manager isn't reachable or desired.
+
+    Returns None (rather than raising) if the env vars aren't set, so callers
+    can fall back to AWS.
+    """
+    public_key = os.getenv("BINANCE_ED25519_PUBLIC_KEY")
+    private_key = os.getenv("BINANCE_ED25519_PRIVATE_KEY")
+    if public_key and private_key:
+        return public_key, private_key
+    return None
+
+
+def load_ed25519_credentials(
+    region: str = "ap-southeast-1",
+    secret_name: str = "Binance_async_keys_Ed25519",
+    public_key_field: str = "binance-api-public-key-ed25519",
+    private_key_field: str = "binance-api-private-key-ed25519",
+) -> tuple[str, str]:
+    """
+    Load Ed25519 credentials, preferring local environment variables
+    (BINANCE_ED25519_PUBLIC_KEY / BINANCE_ED25519_PRIVATE_KEY) and falling
+    back to AWS Secrets Manager if they're not set.
+    """
+    env_creds = load_ed25519_credentials_from_env()
+    if env_creds is not None:
+        print("✅ Ed25519 credentials loaded from environment variables (local override)", file=sys.stderr)
+        return env_creds
+    return load_ed25519_credentials_from_aws(
+        region=region,
+        secret_name=secret_name,
+        public_key_field=public_key_field,
+        private_key_field=private_key_field,
+    )
+
 
 def _validate_ed25519_private_key(pem_str: str) -> None:
     """
@@ -415,12 +482,11 @@ def main():
         print(f"🔴 TRADING_MODE={trading_mode} — orders WILL be sent to Binance "
               f"({'testnet' if trading_mode == 'TESTNET' else 'mainnet'}).", file=sys.stderr)
 
-    # Load credentials
+    # Load credentials (env vars first for local runs, AWS Secrets Manager otherwise)
     try:
-        api_key, api_secret = load_credentials_from_aws(region=aws_region, sandbox=sandbox)
-        print("✅ Credentials loaded from AWS Secrets Manager", file=sys.stderr)
+        api_key, api_secret = load_credentials(region=aws_region, sandbox=sandbox)
     except Exception as e:
-        print(f"❌ Failed to load credentials from AWS: {e}", file=sys.stderr)
+        print(f"❌ Failed to load credentials (env vars and AWS both failed): {e}", file=sys.stderr)
         sys.exit(1)
 
     # --- Load Ed25519 keys and use them for the EXEC client ---
@@ -432,8 +498,7 @@ def main():
     exec_api_key = exec_api_secret = None
     if trading_mode != "VIRTUAL":
         try:
-            ed25519_public_key, ed25519_private_key = load_ed25519_credentials_from_aws(region=aws_region)
-            print("✅ Ed25519 credentials also loaded from AWS Secrets Manager", file=sys.stderr)
+            ed25519_public_key, ed25519_private_key = load_ed25519_credentials(region=aws_region)
 
             _validate_ed25519_private_key(ed25519_private_key)
             _warn_if_api_key_looks_like_raw_pem(ed25519_public_key)
