@@ -38,7 +38,7 @@
   - [X] ~~*On trade close (SM reaches terminal `Idle`): append closing event to `trade_events`, then `stop_strategy` + `remove_strategy`*~~ [2026-08-05]
 - [ ] Document the claim-then-crash gap (claimed but never started) as a known limitation; note deterministic `client_order_id` as the backstop
 - [ ] Validate against test SQS queue + `VIRTUAL` `TRADING_MODE` node, off to the side (manual script): strategy add/remove + duplicate-delivery skip
-- [ ] Do not call this coroutine from `main()` yet
+- [X] ~~*Do not call this coroutine from `main()` yet*~~ [2026-08-05]
 
 ### Step 5 – Telegram Notifier Lambda (Additive, Independent Subscriber)
 

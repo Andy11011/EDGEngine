@@ -695,17 +695,68 @@ def main():
         log_level=log_level,
     )
 
-    # Instantiate the dummy blueprint strategy
-    strategy = BlueprintStrategy(
-        BlueprintConfig(
-            instrument_id=instrument_id,
-            bar_type=bar_type,
-        )
-    )
+    # ----------------------------------------------------------------------
+    # Feature Flag: TRADE_SOURCE_MODE
+    # ----------------------------------------------------------------------
+    trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "SINGLE").upper()
+    if trade_source_mode not in {"SINGLE", "EVENT_DRIVEN"}:
+        print(f"❌ Unsupported TRADE_SOURCE_MODE: {trade_source_mode}. Use SINGLE or EVENT_DRIVEN.", file=sys.stderr)
+        sys.exit(1)
 
-    # Run
-    register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
-    run_node(node, strategy, register_binance_data, register_exec)
+    if trade_source_mode == "SINGLE":
+        # -------------------- Legacy single‑strategy path --------------------
+        # Instantiate the dummy blueprint strategy
+        strategy = BlueprintStrategy(
+            BlueprintConfig(
+                instrument_id=instrument_id,
+                bar_type=bar_type,
+            )
+        )
+
+        # Run
+        register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
+        run_node(node, strategy, register_binance_data, register_exec)
+
+    else:  # EVENT_DRIVEN
+        # -------------------- New event‑driven path --------------------
+        # 1. Register data and execution factories (same as before)
+        register_binance_data(node)
+        register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
+        register_exec(node)
+
+        # 2. Build the node (now that factories are registered)
+        node.build()
+
+        # 3. Get SQS queue URL (required)
+        queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")
+        if not queue_url:
+            print("❌ SQS_TRADE_EVENTS_QUEUE_URL environment variable not set.", file=sys.stderr)
+            sys.exit(1)
+
+        sqs_client = get_sqs_client()
+
+        # 4. Define the async entry point that runs both coroutines concurrently
+        async def run_event_driven():
+            try:
+                await asyncio.gather(
+                    node.run_async(),
+                    listen_trade_events(node, sqs_client, queue_url, bar_type),
+                )
+            except asyncio.CancelledError:
+                # Normal shutdown
+                pass
+            finally:
+                # Ensure clean teardown
+                try:
+                    node.stop()
+                finally:
+                    node.dispose()
+
+        # 5. Run the async main loop
+        try:
+            asyncio.run(run_event_driven())
+        except KeyboardInterrupt:
+            print("\n🛑 Shutdown requested (Ctrl+C)", file=sys.stderr)
 
 
 if __name__ == "__main__":

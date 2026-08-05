@@ -241,6 +241,21 @@ This is useful for quick checks or scripting.
 - Build host: **Intel/AMD64** (the Nautilus wheel is x86_64-only, `manylinux_2_39`).
 - Base image must be `python:3.12-slim-trixie` (glibc 2.39+) — plain `python:3.12-slim` defaults to bookworm (glibc 2.36) and the wheel install will fail.
 
+### SQS Queue Setup (for `EVENT_DRIVEN` mode)
+
+If you plan to run with `TRADE_SOURCE_MODE=EVENT_DRIVEN`, you need an **Amazon SQS queue** (Standard) to receive trade events.  
+You do **not** need to create the SNS topic yet – that’s Step 2 of the integration plan. The queue URL is what the trader uses to poll for messages.
+
+**Quick creation via AWS Console:**
+
+1. Go to [Amazon SQS](https://console.aws.amazon.com/sqs/).
+2. Click **“Create queue”**.
+3. Under **Type**, select **Standard** (the default).
+4. Enter a **Name**, e.g. `trade-events-queue`.
+5. Leave all other settings as default (Visibility timeout 30s, retention 4 days, etc.).
+6. Click **“Create queue”**.
+7. After creation, click the queue name to open its details. Copy the **URL** shown at the top – that’s your `SQS_TRADE_EVENTS_QUEUE_URL`.
+
 ### Build
 
 ```powershell
