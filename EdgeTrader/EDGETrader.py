@@ -469,7 +469,14 @@ async def listen_trade_events(
 
     This is additive and not yet wired into `main()` (Step 7).
     """
-    db = await TradeEventsDB.get_instance()
+    while True:
+        try:
+            db = await TradeEventsDB.get_instance()
+            break
+        except Exception as e:
+            print(f"⚠️ Postgres connection failed: {e}, retrying in 5s...", file=sys.stderr)
+            await asyncio.sleep(5)
+
     active_strategies: Dict[str, TradeStrategy] = {}  # trade_id -> strategy
 
     def on_strategy_closed(trade_id: str) -> None:
@@ -746,9 +753,9 @@ def main():
                 # Normal shutdown
                 pass
             finally:
-                # Ensure clean teardown
+                # Ensure clean teardown using async stop
                 try:
-                    node.stop()
+                    await node.stop_async()
                 finally:
                     node.dispose()
 
