@@ -21,11 +21,11 @@
 - [X] ~~*Implement `OrderManagementSM` with states `Validating, PlacingEntry, AwaitingFill, Protecting, InPosition, Canceling,Closing` + transitions*~~ [2026-08-04]
 - [ ] Unit-test `OrderManagementSM` transitions in isolation (no Nautilus dependency needed)
 - [X] ~~*Add `TradeStrategyConfig(StrategyConfig, frozen=True)` with `instrument_id`, `bar_type`, `order_id_tag`, deterministic `client_order_id` (derived from `trade_id`)*~~ [2026-08-05]
-- [ ] Add `TradeStrategy(Strategy)`:
-  - [ ] `__init__` creates `self.sm = OrderManagementSM()`
-  - [ ] `on_start()` feeds initial "OpenTradeEvent" into SM, submits entry order using the deterministic `client_order_id`
-  - [ ] `on_order_filled` / `on_order_rejected` / `on_order_canceled` feed SM, drive `AwaitingFill → Protecting → InPosition → Closing → Idle`
-- [ ] Do not instantiate `TradeStrategy` from `main()` yet — `BlueprintStrategy` remains the only strategy actually run
+- [X] ~~*Add `TradeStrategy(Strategy)`:*~~ [2026-08-05]
+  - [X] ~~*`__init__` creates `self.sm = OrderManagementSM()`*~~ [2026-08-05]
+  - [X] ~~*`on_start()` feeds initial "OpenTradeEvent" into SM, submits entry order using the deterministic `client_order_id`*~~ [2026-08-05]
+  - [X] ~~*`on_order_filled` / `on_order_rejected` / `on_order_canceled` feed SM, drive `AwaitingFill → Protecting → InPosition → Closing → Idle`*~~ [2026-08-05]
+- [X] ~~*Do not instantiate `TradeStrategy` from `main()` yet — `BlueprintStrategy` remains the only strategy actually run*~~ [2026-08-05]
 
 ### Step 4 – Standalone SQS Trade-Event Listener Coroutine (Additive, Unused)
 

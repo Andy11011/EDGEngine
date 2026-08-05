@@ -319,9 +319,7 @@ class TradeStrategy(Strategy):
 
         elif self._is_protection_order(event) and self.sm.state == TradeState.IN_POSITION:
             self.sm.protection_filled()
-            # TODO: cancel the sibling protection order (SL vs TP) here —
-            # only one of the two should ever actually fill; the other is
-            # now stale and should be cancelled rather than left resting.
+            self._cancel_sibling_protection_order(event)
             self._finalize_and_stop()
 
         elif self._is_close_order(event) and self.sm.state == TradeState.CLOSING:
@@ -403,6 +401,41 @@ class TradeStrategy(Strategy):
         self._pending_protection_ids = set(pending.keys())
         for order in pending.values():
             self.submit_order(order)
+
+    def _cancel_sibling_protection_order(self, filled_event: OrderFilled) -> None:
+        """Cancel whichever SL/TP order did NOT just fill.
+
+        Binance's execution client denies any Nautilus order list containing
+        linked orders (UNSUPPORTED_OCO_CONDITIONAL_ORDERS) — true exchange-side
+        OCO isn't reachable through the standard submit path in this adapter
+        version. SL and TP are therefore two independent orders, and we have
+        to emulate one-cancels-other by hand here rather than relying on the
+        venue to do it.
+        """
+        filled_coid = str(filled_event.client_order_id)
+        sibling_coid = (
+            self._tp_client_order_id
+            if filled_coid == self._sl_client_order_id
+            else self._sl_client_order_id
+        )
+
+        sibling_order = self.cache.order(ClientOrderId(sibling_coid))
+        if sibling_order is None:
+            # Sibling was never placed — e.g. only sl_price OR tp_price was
+            # configured for this trade, not both.
+            return
+
+        if sibling_order.is_open:
+            self.log.info(
+                f"Cancelling sibling protection order {sibling_coid} "
+                f"(filled: {filled_coid})"
+            )
+            self.cancel_order(sibling_order)
+        else:
+            self.log.debug(
+                f"Sibling protection order {sibling_coid} already inactive "
+                f"(status={sibling_order.status})"
+            )
 
     def request_close(self) -> None:
         """User‑initiated close of an open position (e.g. manual override
