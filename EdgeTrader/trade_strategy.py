@@ -173,8 +173,7 @@ class TradeStrategyConfig(StrategyConfig, frozen=True):
     """Configuration for a single‑trade strategy instance."""
     instrument_id: InstrumentId
     bar_type: BarType
-    trade_id: str                     # same as order_id_tag
-    order_id_tag: str                 # deterministic prefix for client_order_id
+    trade_id: str                     # unique per trade; also used as Nautilus order_id_tag
     size: float = 0.001               # default position size
     entry_price: Optional[float] = None
     sl_price: Optional[float] = None
@@ -196,9 +195,11 @@ class TradeStrategy(Strategy):
         super().__init__(config)
         self.sm = OrderManagementSM()
         self._db = None  # will be lazily initialised
-        # deterministic client_order_id: "{tag}-{trade_id}"
+        # deterministic client_order_id, derived straight from trade_id.
+        # A short constant prefix keeps it visually recognizable as coming
+        # from this system (vs. manual orders) when inspected on Binance.
         # This helps Binance dedupe and makes traceability easier.
-        self._client_order_id = f"{config.order_id_tag}-{config.trade_id}"
+        self._client_order_id = f"edge-{config.trade_id}"
 
     async def _get_db(self):
         """Lazy load the DB instance (avoids early import issues)."""

@@ -20,7 +20,7 @@
 
 - [X] ~~*Implement `OrderManagementSM` with states `Validating, PlacingEntry, AwaitingFill, Protecting, InPosition, Canceling,Closing` + transitions*~~ [2026-08-04]
 - [ ] Unit-test `OrderManagementSM` transitions in isolation (no Nautilus dependency needed)
-- [ ] Add `TradeStrategyConfig(StrategyConfig, frozen=True)` with `instrument_id`, `bar_type`, `order_id_tag`, deterministic `client_order_id` (derived from `trade_id`)
+- [X] ~~*Add `TradeStrategyConfig(StrategyConfig, frozen=True)` with `instrument_id`, `bar_type`, `order_id_tag`, deterministic `client_order_id` (derived from `trade_id`)*~~ [2026-08-05]
 - [ ] Add `TradeStrategy(Strategy)`:
   - [ ] `__init__` creates `self.sm = OrderManagementSM()`
   - [ ] `on_start()` feeds initial "OpenTradeEvent" into SM, submits entry order using the deterministic `client_order_id`
