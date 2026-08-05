@@ -50,10 +50,10 @@
 
 ### Step 6 – Feature Flag Wiring in `main()` (Dual-Path)
 
-- [ ] Add `trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "SINGLE").upper()` (`SINGLE` | `EVENT_DRIVEN`), validated like `TRADING_MODE`
-- [ ] `SINGLE` branch: unchanged — instantiate `BlueprintStrategy`, call existing `run_node(...)`
-- [ ] `EVENT_DRIVEN` branch: create SQS client (Step 3), run `node.run_async()` and `listen_trade_events(node, sqs_client, queue_url)` concurrently (`asyncio.gather`) inside async teardown (Step 1)
-- [ ] Confirm default stays `SINGLE` — no behavior change for existing deployments
+- [X] ~~*Add `trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "SINGLE").upper()` (`SINGLE` | `EVENT_DRIVEN`), validated like `TRADING_MODE`*~~ [2026-08-05]
+- [X] ~~*`SINGLE` branch: unchanged — instantiate `BlueprintStrategy`, call existing `run_node(...)`*~~ [2026-08-05]
+- [X] ~~*`EVENT_DRIVEN` branch: create SQS client (Step 3), run `node.run_async()` and `listen_trade_events(node, sqs_client, queue_url)` concurrently (`asyncio.gather`) inside async teardown (Step 1)*~~ [2026-08-05]
+- [X] ~~*Confirm default stays `SINGLE` — no behavior change for existing deployments*~~ [2026-08-05]
 
 ### Step 7 – Validate `EVENT_DRIVEN` Mode End-to-End (Staging)
 

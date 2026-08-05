@@ -274,22 +274,47 @@ docker run --rm --env-file .env.local edgetrader
 
 ### Environment variables reference
 
-| Variable | Default | Purpose |
+Only variables you are **likely to change** are listed below – all others have sensible defaults.
+
+| Variable | Default | Purpose / Notes |
 | --- | --- | --- |
 | `BINANCE_SYMBOL` | `BTCUSDT` | Trading symbol |
-| `TRADER_ID` | `EDGETRADER-001` | Nautilus trader ID |
-| `BINANCE_ENV` | `LIVE` | `LIVE` or `TESTNET` — must match the environment the API key was issued for |
-| `BINANCE_BAR_INTERVAL` | `15-MINUTE` | Bar aggregation interval |
-| `LOG_LEVEL` | `INFO` | Nautilus log level |
-| `BINANCE_SANDBOX` | `0` | `1` to use sandbox credential names |
-| `AWS_REGION` | `ap-southeast-1` | Region for AWS Secrets Manager and SQS |
-| `TRADING_MODE` | `VIRTUAL` | `VIRTUAL` (simulated exec), `TESTNET`, or `LIVE` |
-| `SANDBOX_STARTING_BALANCES` | `10000 USDT,1 BTC` | Starting balances for `VIRTUAL` mode |
-| `SANDBOX_ACCOUNT_TYPE` | `CASH` | Account type for `VIRTUAL` mode |
-| `DB_HOST` | `productiondb` | Postgres host; won't resolve locally unless overridden |
-| `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_PORT` | `postgres` / `user` / `pass` / `5432` | Postgres connection details |
+| `TRADER_ID` | `EDGETRADER-001` | Nautilus trader ID (change if running multiple instances) |
+| `BINANCE_ENV` | `LIVE` | `LIVE` or `TESTNET` – must match the API key environment |
+| `BINANCE_SANDBOX` | `0` | `1` to use sandbox credential names (e.g., for testnet) |
+| `AWS_REGION` | `ap-southeast-1` | AWS region – used for Secrets Manager, SQS, and credentials |
+| `TRADING_MODE` | `VIRTUAL` | `VIRTUAL` (simulated execution), `TESTNET`, or `LIVE` |
+| `DB_HOST` | `productiondb` | Postgres host. **Inside Docker, use `host.docker.internal`** to reach a local Postgres on your host. |
+| `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_PORT` | `postgres` / `user` / `pass` / `5432` | Postgres connection details (change to match your local setup) |
+| `TRADE_SOURCE_MODE` | `SINGLE` | `SINGLE` (legacy, one strategy) or `EVENT_DRIVEN` (new event‑sourced mode) |
+| `SQS_TRADE_EVENTS_QUEUE_URL` | *(not set)* | **Required** when `TRADE_SOURCE_MODE=EVENT_DRIVEN`. The full URL of your SQS queue (from AWS Console). |
 
-**Credential variables:**
+**Optional performance tuning** (defaults are usually fine):  
+`SQS_POLL_WAIT_SECONDS` (default `20`), `SQS_MAX_MESSAGES` (default `10`).
+
+---
+
+### AWS credentials for SQS
+
+When running in `EVENT_DRIVEN` mode, the trader needs credentials to poll the queue.  
+You can provide them via environment variables (recommended):
+
+```bash
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+```
+
+**IAM permissions required:**  
+
+- `sqs:ReceiveMessage`  
+- `sqs:DeleteMessage`  
+- `sqs:GetQueueAttributes` (optional, for monitoring)
+
+For testing, you can attach the **`AmazonSQSFullAccess`** managed policy to your IAM user.
+
+---
+
+### Credential variables (Binance)
 
 | Variable | Used when |
 | --- | --- |
