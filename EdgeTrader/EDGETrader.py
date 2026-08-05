@@ -14,7 +14,7 @@ import json
 import re
 import base64
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from nautilus_trader.adapters.binance import (
     BINANCE,
@@ -39,6 +39,8 @@ from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
+from trade_strategy import TradeStrategy, TradeStrategyConfig
+from trades_db_async import TradeEventsDB
 
 # -----------------------------------------------------------------------------
 # AWS Secrets Manager credential loader (copied from EDGEngine)
@@ -449,6 +451,137 @@ async def delete_message(sqs_client, queue_url: str, receipt_handle: str) -> boo
     except Exception as e:
         print(f"❌ SQS delete error: {e}", file=sys.stderr)
         return False
+
+
+# -----------------------------------------------------------------------------
+# Standalone SQS Trade-Event Listener Coroutine
+# -----------------------------------------------------------------------------
+
+async def listen_trade_events(
+    node: TradingNode,
+    sqs_client,
+    queue_url: str,
+    bar_type: BarType,
+) -> None:
+    """
+    Long‑poll SQS for trade‑event messages, claim them via Postgres,
+    and spin up a TradeStrategy for each new 'Created' event.
+
+    This is additive and not yet wired into `main()` (Step 7).
+    """
+    db = await TradeEventsDB.get_instance()
+    active_strategies: Dict[str, TradeStrategy] = {}  # trade_id -> strategy
+
+    def on_strategy_closed(trade_id: str) -> None:
+        """Callback invoked by the strategy when it reaches a terminal state."""
+        strategy = active_strategies.pop(trade_id, None)
+        if strategy is not None:
+            try:
+                node.trader.remove_strategy(strategy)
+                node.trader.stop_strategy(strategy)
+                print(f"🧹 Removed strategy for trade {trade_id}")
+            except Exception as e:
+                print(f"⚠️ Error removing strategy for {trade_id}: {e}")
+
+    while True:
+        try:
+            messages = await receive_trade_events(
+                sqs_client,
+                queue_url,
+                max_messages=int(os.getenv("SQS_MAX_MESSAGES", "10")),
+                wait_seconds=int(os.getenv("SQS_POLL_WAIT_SECONDS", "20")),
+            )
+        except Exception as e:
+            print(f"❌ SQS receive error: {e}", file=sys.stderr)
+            await asyncio.sleep(1)
+            continue
+
+        for msg in messages:
+            receipt_handle = msg["ReceiptHandle"]
+
+            # ---------- Parse SNS notification ----------
+            try:
+                body = json.loads(msg["Body"])
+                if body.get("Type") == "Notification":
+                    event_data = json.loads(body["Message"])
+                else:
+                    # Fallback for direct SQS messages (e.g. test)
+                    event_data = body
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"⚠️ Failed to parse message: {e}", file=sys.stderr)
+                # Delete malformed message to avoid loop
+                await delete_message(sqs_client, queue_url, receipt_handle)
+                continue
+
+            # ---------- Extract event_id ----------
+            event_id = event_data.get("event_id")
+            if event_id is None:
+                # Try MessageAttributes (if sent)
+                attrs = msg.get("MessageAttributes", {})
+                if "event_id" in attrs:
+                    try:
+                        event_id = int(attrs["event_id"]["StringValue"])
+                    except (ValueError, KeyError):
+                        pass
+            if event_id is None:
+                print("⚠️ No event_id found; deleting message", file=sys.stderr)
+                await delete_message(sqs_client, queue_url, receipt_handle)
+                continue
+
+            # ---------- Claim (idempotency) ----------
+            try:
+                claimed_event = await db.claim_event(event_id)
+            except Exception as e:
+                print(f"❌ DB claim error: {e}", file=sys.stderr)
+                # Do not delete – retry later
+                continue
+
+            # ---------- Process only if newly claimed ----------
+            if claimed_event is None:
+                # Already processed -> ack
+                await delete_message(sqs_client, queue_url, receipt_handle)
+                continue
+
+            # Claim succeeded – we are responsible for this event
+            trade_id = claimed_event["trade_id"]
+            event_type = claimed_event["event_type"]
+
+            # ---------- Start a new strategy only for 'Created' events ----------
+            if event_type == "Created":
+                # Avoid double‑start if a duplicate event slips through
+                if trade_id in active_strategies:
+                    print(f"⚠️ Strategy for {trade_id} already active; ignoring duplicate Created", file=sys.stderr)
+                    await delete_message(sqs_client, queue_url, receipt_handle)
+                    continue
+
+                # Build config
+                instrument_id = InstrumentId.from_str(claimed_event["instrument"])
+                config = TradeStrategyConfig(
+                    instrument_id=instrument_id,
+                    bar_type=bar_type,
+                    trade_id=trade_id,
+                    side=claimed_event["side"],
+                    size=float(claimed_event["size"]),
+                    entry_price=claimed_event.get("ep"),
+                    sl_price=claimed_event.get("sl"),
+                    tp_price=claimed_event.get("tp"),
+                )
+
+                try:
+                    strategy = TradeStrategy(config, close_callback=on_strategy_closed)
+                    active_strategies[trade_id] = strategy
+                    node.trader.add_strategy(strategy)
+                    node.trader.start_strategy(strategy)
+                    print(f"🚀 Started TradeStrategy for trade {trade_id}")
+                except Exception as e:
+                    print(f"❌ Failed to start strategy for {trade_id}: {e}", file=sys.stderr)
+                    # Do NOT delete the message – will retry; claim is already done,
+                    # but we accept the gap (client_order_id dedup backs us up).
+                    continue
+
+            # ---------- Acknowledge the message ----------
+            await delete_message(sqs_client, queue_url, receipt_handle)
+
 
 # -----------------------------------------------------------------------------
 # Main

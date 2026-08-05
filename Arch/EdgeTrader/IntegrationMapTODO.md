@@ -29,13 +29,13 @@
 
 ### Step 4 – Standalone SQS Trade-Event Listener Coroutine (Additive, Unused)
 
-- [ ] Implement `async def listen_trade_events(node, sqs_client, queue_url) -> None`:
-  - [ ] Long-poll loop via `receive_trade_events`
-  - [ ] For each message: parse `event_id`, call existing `TradeEventsDB.claim_event(event_id)` (unchanged Postgres claim)
-  - [ ] If claimed: build `TradeStrategyConfig` (`order_id_tag=trade_id`), instantiate `TradeStrategy`, `add_strategy` + `start_strategy`
-  - [ ] If not claimed (duplicate): no-op
-  - [ ] Delete the SQS message once claimed-and-handed-off (or recognized as duplicate) — not held open until trade close
-  - [ ] On trade close (SM reaches terminal `Idle`): append closing event to `trade_events`, then `stop_strategy` + `remove_strategy`
+- [X] ~~*Implement `async def listen_trade_events(node, sqs_client, queue_url) -> None`:*~~ [2026-08-05]
+  - [X] ~~*Long-poll loop via `receive_trade_events`*~~ [2026-08-05]
+  - [X] ~~*For each message: parse `event_id`, call existing `TradeEventsDB.claim_event(event_id)` (unchanged Postgres claim)*~~ [2026-08-05]
+  - [X] ~~*If claimed: build `TradeStrategyConfig` (`order_id_tag=trade_id`), instantiate `TradeStrategy`, `add_strategy` + `start_strategy`*~~ [2026-08-05]
+  - [X] ~~*If not claimed (duplicate): no-op*~~ [2026-08-05]
+  - [X] ~~*Delete the SQS message once claimed-and-handed-off (or recognized as duplicate) — not held open until trade close*~~ [2026-08-05]
+  - [X] ~~*On trade close (SM reaches terminal `Idle`): append closing event to `trade_events`, then `stop_strategy` + `remove_strategy`*~~ [2026-08-05]
 - [ ] Document the claim-then-crash gap (claimed but never started) as a known limitation; note deterministic `client_order_id` as the backstop
 - [ ] Validate against test SQS queue + `VIRTUAL` `TRADING_MODE` node, off to the side (manual script): strategy add/remove + duplicate-delivery skip
 - [ ] Do not call this coroutine from `main()` yet

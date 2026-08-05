@@ -10,8 +10,10 @@ All classes are additive and not yet wired into `EDGETrader.py`.
 
 from __future__ import annotations
 
+import asyncio
+import json
 from enum import Enum, auto
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 
 from nautilus_trader.config import StrategyConfig
 from nautilus_trader.model.data import Bar, BarType
@@ -199,10 +201,15 @@ class TradeStrategy(Strategy):
     Owns an OrderManagementSM and reacts to order events.
     """
 
-    def __init__(self, config: TradeStrategyConfig):
+    def __init__(
+        self,
+        config: TradeStrategyConfig,
+        close_callback: Optional[Callable[[str], None]] = None
+    ):
         super().__init__(config)
         self.sm = OrderManagementSM()
         self._db = None  # will be lazily initialised
+        self._close_callback = close_callback
 
         # Deterministic client_order_ids, one per purpose, all derived from
         # trade_id. Deterministic (not random) so that if the strategy
@@ -227,6 +234,51 @@ class TradeStrategy(Strategy):
             from trades_db_async import TradeEventsDB
             self._db = await TradeEventsDB.get_instance()
         return self._db
+
+    # -------- Async helper to append closing event --------
+    async def _append_closing_event(self) -> None:
+        """Insert the final 'Closed' or 'Cancelled' event into trade_events."""
+        db = await self._get_db()
+        if self.sm.state == TradeState.CLOSING:
+            event_type = "Closed"
+            close_reason = self.sm.extra_data.get("close_reason", "protection_filled")
+        elif self.sm.state == TradeState.CANCELING:
+            event_type = "Cancelled"
+            close_reason = self.sm.extra_data.get("cancel_reason", "forced")
+        else:
+            # Should never be called from a non‑terminal state
+            self.log.warning(f"Attempted to append closing event while in {self.sm.state}")
+            return
+
+        fill_price = self.sm.extra_data.get("fill_price")  # may be None
+
+        await db.insert_trade_event(
+            trade_id=self.config.trade_id,
+            event_type=event_type,
+            instrument=str(self.config.instrument_id),
+            side=self.config.side,
+            size=self.config.size,
+            fill_price=fill_price,
+            close_reason=close_reason,
+            # other optional fields can be added as needed
+        )
+        self.log.info(f"📝 Logged {event_type} event for {self.config.trade_id}")
+
+    # -------- Modified _finalize_and_stop --------
+    def _finalize_and_stop(self) -> None:
+        """Terminal state reached: log event, notify listener, then stop."""
+        # Fire‑and‑forget the DB insert (we don't wait for it)
+        asyncio.create_task(self._append_closing_event())
+
+        # Notify the listener so it can remove this strategy
+        if self._close_callback is not None:
+            self._close_callback(self.config.trade_id)
+
+        self.log.info(
+            f"Trade {self.config.trade_id} reached terminal state "
+            f"{self.sm.state}; stopping strategy"
+        )
+        self.stop()
 
     def on_start(self) -> None:
         """Start the strategy: open the trade and submit the entry order."""
@@ -312,6 +364,9 @@ class TradeStrategy(Strategy):
     def on_order_filled(self, event: OrderFilled) -> None:
         """Called when any order fills."""
         self.log.info(f"📊 Order filled: {event.client_order_id} @ {event.last_px}")
+
+        # Store fill price for the closing event
+        self.sm.extra_data["fill_price"] = float(event.last_px)
 
         if self._is_entry_order(event) and self.sm.state == TradeState.AWAITING_FILL:
             self.sm.entry_filled()
@@ -477,19 +532,6 @@ class TradeStrategy(Strategy):
 
     def _is_close_order(self, event) -> bool:
         return str(event.client_order_id) == self._close_client_order_id
-
-    def _finalize_and_stop(self) -> None:
-        """Trade has reached a terminal SM state (CLOSING or CANCELING).
-
-        TODO: append the final trade_event to the DB here (via
-        self._get_db()) before stopping, once the DB-write step is wired in.
-        For now this just stops the strategy instance.
-        """
-        self.log.info(
-            f"Trade {self.config.trade_id} reached terminal state "
-            f"{self.sm.state}; stopping strategy"
-        )
-        self.stop()
 
     # ---------- Bar handler (optional) ----------
     def on_bar(self, bar: Bar) -> None:
