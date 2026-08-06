@@ -389,13 +389,14 @@ async def listen_trade_events(
     node: TradingNode,
     sqs_client,
     queue_url: str,
-    bar_type: BarType,
+    bar_interval: str,  # changed from bar_type to interval string
 ) -> None:
     """
     Long‑poll SQS for trade‑event messages, claim them via Postgres,
     and spin up a TradeStrategy for each new 'Created' event.
 
-    This is additive and not yet wired into `main()` (Step 7).
+    Uses the SQS payload directly to build the strategy; bar_type is
+    constructed per event using the global bar_interval.
     """
     while True:
         try:
@@ -471,14 +472,22 @@ async def listen_trade_events(
                 continue
 
             # --- Step 2: Process the event directly from SQS payload ---
-            # (No DB lookup needed – we already have all data in event_data)
-            instrument_id = InstrumentId.from_str(event_data.get("instrument"))
+            instrument_str = event_data.get("instrument")
+            if not instrument_str:
+                print(f"⚠️ Missing 'instrument' in event {event_id}; deleting message", file=sys.stderr)
+                await delete_message(sqs_client, queue_url, receipt_handle)
+                continue
+
+            # Build the BarType for this specific instrument using the global interval
+            bar_type = BarType.from_str(f"{instrument_str}-{bar_interval}-LAST-EXTERNAL")
+            instrument_id = InstrumentId.from_str(instrument_str)
+
             config = TradeStrategyConfig(
                 instrument_id=instrument_id,
                 bar_type=bar_type,
                 trade_id=event_data.get("trade_id"),
                 side=event_data.get("side"),
-                size=float(event_data.get("size")),
+                size=float(event_data.get("size", 0.0)),
                 entry_price=event_data.get("ep"),
                 sl_price=event_data.get("sl"),
                 tp_price=event_data.get("tp"),
@@ -489,7 +498,7 @@ async def listen_trade_events(
                 active_strategies[config.trade_id] = strategy
                 node.trader.add_strategy(strategy)
                 node.trader.start_strategy(strategy)
-                print(f"🚀 Started TradeStrategy for trade {config.trade_id}")
+                print(f"🚀 Started TradeStrategy for trade {config.trade_id} on {instrument_str}")
             except Exception as e:
                 print(f"❌ Failed to start strategy: {e}", file=sys.stderr)
                 # DO NOT delete the SQS message – it will go to DLQ after maxReceiveCount
@@ -509,10 +518,9 @@ async def listen_trade_events(
 # Main
 # -----------------------------------------------------------------------------
 def main():
-    symbol = os.getenv("BINANCE_SYMBOL", "BTCUSDT")
     trader_id = os.getenv("TRADER_ID", "EDGETRADER-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
-    bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
+    bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")  # global interval for all strategies
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
@@ -565,13 +573,11 @@ def main():
             print(f"⚠️ Ed25519 credentials not loaded: {e}", file=sys.stderr)
 
     account_type = BinanceAccountType.SPOT
-    instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")
-    bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST-EXTERNAL")
 
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
 
-    # Shared instrument provider config
-    instrument_provider_config = InstrumentProviderConfig(load_ids=frozenset([instrument_id]))
+    # Shared instrument provider config – now WITHOUT load_ids to allow dynamic loading
+    instrument_provider_config = InstrumentProviderConfig()  # loads instruments on demand
 
     # Data client config
     data_config = BinanceDataClientConfig(
@@ -611,23 +617,6 @@ def main():
 
     # ----------------------------------------------------------------------
     # Own the event loop explicitly rather than using asyncio.run().
-    #
-    # TradingNode.__init__ stores whatever loop is current *at construction
-    # time* as self.kernel.loop, and later checks self.kernel.loop.is_running()
-    # before scheduling client connect() tasks. asyncio.run() always builds a
-    # brand-new loop internally — it does not adopt whatever loop is "current"
-    # — so if the node were constructed before asyncio.run() starts (or even
-    # inside a coroutine that asyncio.run() drives, if the node itself doesn't
-    # know about that specific loop object), self.kernel.loop and the loop
-    # actually running would be two different objects. Client connect() tasks
-    # then get scheduled on a loop that never runs and are silently dropped
-    # ("Async task '_connect' created but event loop is not running" /
-    # "coroutine ... was never awaited") — the data client never connects.
-    #
-    # Creating the loop here and passing it explicitly into build_trading_node()
-    # (which forwards it to TradingNode(..., loop=loop)) guarantees there is
-    # only ever one loop object in play, and that it matches the one we run
-    # everything on below via loop.run_until_complete().
     # ----------------------------------------------------------------------
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -665,7 +654,7 @@ def main():
         try:
             await asyncio.gather(
                 node.run_async(),
-                listen_trade_events(node, sqs_client, queue_url, bar_type),
+                listen_trade_events(node, sqs_client, queue_url, bar_interval),
             )
         except asyncio.CancelledError:
             # Normal shutdown
