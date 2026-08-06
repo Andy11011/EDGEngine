@@ -289,28 +289,36 @@ class TradeEventsDB:
             )
             return [r["trade_id"] for r in rows]
 
-    async def claim_event(self, event_id: int) -> Optional[Dict[str, Any]]:
+    async def claim_event_id(self, event_id: int) -> bool:
         """
-        Atomically mark an event as processed by inserting into processed_events.
-        Returns the event data if the claim succeeded (i.e. event was not already processed),
-        else None.
+        Try to claim an event_id for processing.
+        Returns True if claimed (first time), False if already processed.
         """
         async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                WITH claimed AS (
-                    INSERT INTO processed_events (event_id)
-                    VALUES ($1)
-                    ON CONFLICT (event_id) DO NOTHING
-                    RETURNING event_id
-                )
-                SELECT e.*
-                FROM trade_events e
-                JOIN claimed c ON e.event_id = c.event_id
-                """,
-                event_id,
+            result = await conn.fetchrow(
+                "INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT DO NOTHING RETURNING event_id",
+                event_id
             )
-            return dict(row) if row else None
+            return result is not None
+
+    async def append_event_audit(self, event_id: int, payload: dict) -> None:
+        """Insert the full event payload into trade_events for auditing."""
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO trade_events (
+                    event_id, trade_id, instrument, side, size, ep, sl, tp, event_type
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (event_id) DO NOTHING   -- safety net
+            """, event_id,
+                payload.get("trade_id"),
+                payload.get("instrument"),
+                payload.get("side"),
+                payload.get("size"),
+                payload.get("ep"),
+                payload.get("sl"),
+                payload.get("tp"),
+                payload.get("event_type", "Created")
+            )
 
     # ------------------------------------------------------------------
     # Convenience queries

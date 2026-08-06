@@ -463,60 +463,47 @@ async def listen_trade_events(
                 await delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
-            # ---------- Claim (idempotency) ----------
-            try:
-                claimed_event = await db.claim_event(event_id)
-            except Exception as e:
-                print(f"❌ DB claim error: {e}", file=sys.stderr)
-                # Do not delete – retry later
-                continue
-
-            # ---------- Process only if newly claimed ----------
-            if claimed_event is None:
-                # Already processed -> ack
+            # --- Step 1: Claim (dedup) ---
+            claimed = await db.claim_event_id(event_id)
+            if not claimed:
+                # Duplicate message – ack it and move on
                 await delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
-            # Claim succeeded – we are responsible for this event
-            trade_id = claimed_event["trade_id"]
-            event_type = claimed_event["event_type"]
+            # --- Step 2: Process the event directly from SQS payload ---
+            # (No DB lookup needed – we already have all data in event_data)
+            instrument_id = InstrumentId.from_str(event_data.get("instrument"))
+            config = TradeStrategyConfig(
+                instrument_id=instrument_id,
+                bar_type=bar_type,
+                trade_id=event_data.get("trade_id"),
+                side=event_data.get("side"),
+                size=float(event_data.get("size")),
+                entry_price=event_data.get("ep"),
+                sl_price=event_data.get("sl"),
+                tp_price=event_data.get("tp"),
+            )
 
-            # ---------- Start a new strategy only for 'Created' events ----------
-            if event_type == "Created":
-                # Avoid double‑start if a duplicate event slips through
-                if trade_id in active_strategies:
-                    print(f"⚠️ Strategy for {trade_id} already active; ignoring duplicate Created", file=sys.stderr)
-                    await delete_message(sqs_client, queue_url, receipt_handle)
-                    continue
+            try:
+                strategy = TradeStrategy(config, close_callback=on_strategy_closed)
+                active_strategies[config.trade_id] = strategy
+                node.trader.add_strategy(strategy)
+                node.trader.start_strategy(strategy)
+                print(f"🚀 Started TradeStrategy for trade {config.trade_id}")
+            except Exception as e:
+                print(f"❌ Failed to start strategy: {e}", file=sys.stderr)
+                # DO NOT delete the SQS message – it will go to DLQ after maxReceiveCount
+                continue
 
-                # Build config
-                instrument_id = InstrumentId.from_str(claimed_event["instrument"])
-                config = TradeStrategyConfig(
-                    instrument_id=instrument_id,
-                    bar_type=bar_type,
-                    trade_id=trade_id,
-                    side=claimed_event["side"],
-                    size=float(claimed_event["size"]),
-                    entry_price=claimed_event.get("ep"),
-                    sl_price=claimed_event.get("sl"),
-                    tp_price=claimed_event.get("tp"),
-                )
+            # --- Step 3: Audit – append to trade_events (event sourcing) ---
+            try:
+                await db.append_event_audit(event_id, event_data)
+            except Exception as e:
+                # Audit failure is not critical – log it but don't block
+                print(f"⚠️ Failed to append audit log for event {event_id}: {e}", file=sys.stderr)
 
-                try:
-                    strategy = TradeStrategy(config, close_callback=on_strategy_closed)
-                    active_strategies[trade_id] = strategy
-                    node.trader.add_strategy(strategy)
-                    node.trader.start_strategy(strategy)
-                    print(f"🚀 Started TradeStrategy for trade {trade_id}")
-                except Exception as e:
-                    print(f"❌ Failed to start strategy for {trade_id}: {e}", file=sys.stderr)
-                    # Do NOT delete the message – will retry; claim is already done,
-                    # but we accept the gap (client_order_id dedup backs us up).
-                    continue
-
-            # ---------- Acknowledge the message ----------
+            # --- Step 4: Acknowledge SQS ---
             await delete_message(sqs_client, queue_url, receipt_handle)
-
 
 # -----------------------------------------------------------------------------
 # Main

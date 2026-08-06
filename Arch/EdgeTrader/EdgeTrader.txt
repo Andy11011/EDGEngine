@@ -192,3 +192,66 @@ different loop to actually run everything. The data client is still holding the 
 reference from build-time, so when it tries to create_task() its _connect() coroutine, it
 schedules onto a loop that isn't running — hence "event loop is not running" and the 
 coroutine is silently dropped.
+
+//********************************//
+
+aws sqs send-message \
+  --queue-url "https://sqs.<region>.amazonaws.com/<account-id>/<your-queue-name>" \
+  --message-body '{
+    "event_id": 123,
+    "trade_id": "test_trade_001",
+    "instrument": "BTCUSDT.BINANCE",
+    "side": "BUY",
+    "size": 0.001,
+    "ep": 60000.0,
+    "sl": 59000.0,
+    "tp": 62000.0
+  }'
+
+
+  SELECT * FROM processed_events WHERE event_id = 123;
+
+  DELETE FROM processed_events WHERE event_id = 123;
+
+
+  BINANCE_SYMBOL and BINANCE_BAR_INTERVAL are set correctly
+
+
+//********************************//
+
+listen_trade_events receives an SQS message.
+
+It extracts event_id and calls db.claim_event(event_id).
+
+claim_event performs an INSERT INTO processed_events ... ON CONFLICT DO NOTHING (idempotency) and JOINs with the trade_events table to return the full row.
+
+If the row isn't in trade_events, it returns None – and the message is deleted without any action.
+
+//********************************//
+
+BEGIN TRANSACTION;
+  -- 1. Try to insert the event_id into the dedup log
+  INSERT INTO processed_events (event_id) VALUES ($1);
+  -- If this fails (UNIQUE violation), the event is a duplicate → ROLLBACK & return None
+
+  -- 2. If insert succeeded, fetch the full payload from trade_events
+  SELECT * FROM trade_events WHERE event_id = $1;
+COMMIT;
+
+
+//********************************//
+
+The Redesigned Flow (exactly what you said)
+1. Claim the event – insert event_id into processed_events (dedup).
+
+  If the insert fails (duplicate) → duplicate message → delete SQS message → skip.
+
+2. Process the event – create the TradeStrategy from the SQS payload (not from the DB).
+
+  Add it to node.trader and start it.
+
+3. Audit the event – after successful processing, insert the full payload into trade_events as a permanent record (event sourcing).
+
+(If you want, this can be done asynchronously so it doesn't block the strategy launch, but it's fine to do it inline).
+
+4. Acknowledge – delete the SQS message.
