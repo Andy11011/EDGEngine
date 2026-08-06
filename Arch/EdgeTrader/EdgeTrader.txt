@@ -172,3 +172,23 @@ with the event listener) needs exactly this entry point regardless of whether th
 listen_trade_events(node, conn) against Postgres or listen_trade_events(node, sqs_client, queue_url)
 against SQS. The transport swap changed the listener; it didn't touch why you need an async-safe way
 to run the node itself. So its own body — as written in EDGETrader.py — is still correct:
+
+//********************************//
+
+[INFO] DataEngine: RUNNING
+[WARN] RiskEngine: Started when loop is not running
+[WARN] ExecEngine: Started when loop is not running
+...
+[ERROR] DataClient-BINANCE: Async task '_connect' created but event loop is not running
+RuntimeWarning: coroutine 'BinanceCommonDataClient._connect' was never awaited
+
+
+The Binance data client never actually connected. That warning is a classic asyncio pitfall: 
+node.build() is being called before asyncio.run(run_event_driven()) starts — i.e. outside
+any running event loop. When Nautilus builds the clients at that point, it captures a reference 
+to "the event loop" via asyncio.get_event_loop(). Since no loop is running yet, that call
+creates a throwaway loop object. Then asyncio.run(run_event_driven()) spins up a brand new, 
+different loop to actually run everything. The data client is still holding the stale loop
+reference from build-time, so when it tries to create_task() its _connect() coroutine, it
+schedules onto a loop that isn't running — hence "event loop is not running" and the 
+coroutine is silently dropped.

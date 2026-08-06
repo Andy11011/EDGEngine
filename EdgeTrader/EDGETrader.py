@@ -26,19 +26,16 @@ from nautilus_trader.adapters.binance import (
 )
 from nautilus_trader.adapters.sandbox.config import SandboxExecutionClientConfig
 from nautilus_trader.adapters.sandbox.factory import SandboxLiveExecClientFactory
-from nautilus_trader.common.enums import LogColor
 from nautilus_trader.config import (
     InstrumentProviderConfig,
     LiveDataEngineConfig,
     LiveExecEngineConfig,
     LoggingConfig,
-    StrategyConfig,
     TradingNodeConfig,
 )
 from nautilus_trader.live.node import TradingNode
-from nautilus_trader.model.data import Bar, BarType
+from nautilus_trader.model.data import BarType
 from nautilus_trader.model.identifiers import InstrumentId
-from nautilus_trader.trading.strategy import Strategy
 from trade_strategy import TradeStrategy, TradeStrategyConfig
 from trades_db_async import TradeEventsDB
 
@@ -236,46 +233,6 @@ def _warn_if_api_key_looks_like_raw_pem(api_key: str) -> None:
 
 
 # -----------------------------------------------------------------------------
-# Dummy Blueprint Strategy (No indicators, no scanning)
-# -----------------------------------------------------------------------------
-class BlueprintConfig(StrategyConfig, frozen=True):
-    instrument_id: InstrumentId
-    bar_type: BarType
-
-
-class BlueprintStrategy(Strategy):
-    """
-    A minimal strategy that subscribes to bars and logs them.
-    This is the blank canvas for your future execution logic.
-    """
-
-    def __init__(self, config: BlueprintConfig):
-        super().__init__(config)
-        self._bar_count = 0
-
-    def on_start(self) -> None:
-        self.log.info(
-            f"🚀 BlueprintStrategy started for {self.config.instrument_id}",
-            color=LogColor.GREEN,
-        )
-        # Subscribe to live bars (the bare minimum to get data)
-        self.subscribe_bars(self.config.bar_type)
-
-    def on_bar(self, bar: Bar) -> None:
-        self._bar_count += 1
-        # Log every 10th bar so we know it's alive
-        if self._bar_count % 10 == 0:
-            self.log.info(
-                f"📊 Bar #{self._bar_count}: {self.config.instrument_id} "
-                f"Close = {bar.close:.2f} | Volume = {bar.volume:.2f}",
-                color=LogColor.BLUE,
-            )
-
-    def on_stop(self) -> None:
-        self.log.info("🛑 BlueprintStrategy stopped", color=LogColor.YELLOW)
-
-
-# -----------------------------------------------------------------------------
 # Node construction (includes EXECUTION client this time!)
 # -----------------------------------------------------------------------------
 def _resolve_binance_config_kwargs(environment_name: str) -> dict[str, object]:
@@ -311,8 +268,25 @@ def build_trading_node(
     data_clients: dict,
     exec_clients: dict,
     log_level: str = "INFO",
+    loop: asyncio.AbstractEventLoop,
 ) -> TradingNode:
-    """Build a full trading node with both data and execution clients."""
+    """
+    Build a full trading node with both data and execution clients.
+
+    `loop` must be explicitly passed and must be the SAME loop object that
+    will later be used to run the node (e.g. via `loop.run_until_complete(...)`).
+    TradingNode.__init__ stores whatever loop is current *at construction time*
+    (self.kernel.loop) and later checks `self.kernel.loop.is_running()` to
+    decide whether it's safe to create client-connect tasks. If we let it fall
+    back to `asyncio.get_event_loop()` here (i.e. before any loop is actually
+    running) and then hand execution to a *different* loop later — which is
+    exactly what `asyncio.run()` does, since it always creates a brand-new
+    loop internally — the two loop objects never match. The result: client
+    connect() tasks get scheduled on a loop that's never running, and are
+    silently dropped ("Async task '_connect' created but event loop is not
+    running" / "coroutine ... was never awaited"), so live data never
+    connects. Passing `loop` explicitly removes the ambiguity.
+    """
     config = TradingNodeConfig(
         trader_id=trader_id,
         logging=LoggingConfig(log_level=log_level, use_pyo3=True),
@@ -334,53 +308,7 @@ def build_trading_node(
         timeout_disconnection=10.0,
         timeout_post_stop=5.0,
     )
-    return TradingNode(config=config)
-
-
-def run_node(
-    node: TradingNode,
-    strategy: Strategy,
-    register_data_factory: callable,
-    register_exec_factory: callable,
-) -> None:
-    node.trader.add_strategy(strategy)
-    register_data_factory(node)
-    register_exec_factory(node)
-    node.build()
-    try:
-        node.run()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        try:
-            node.stop()
-        finally:
-            node.dispose()
-
-
-async def run_node_async(node: TradingNode) -> None:
-    """
-    Async counterpart to `run_node()`.
-
-    NOTE (Integration Map / Step 1): this is additive and not yet wired into
-    `main()`. It exists so future steps (Postgres listener running
-    concurrently with the node) have an `await`-able entry point that mirrors
-    the teardown semantics of the sync `run_node()` below. Unlike `run_node()`,
-    this does NOT add/start a strategy or register client factories itself —
-    callers are expected to have done that already (matching how MainSD2's
-    `main()` builds the node, registers factories, and calls `node.build()`
-    *before* running it, since strategies are added dynamically per trade
-    rather than once at startup).
-    """
-    try:
-        await node.run_async()
-    except asyncio.CancelledError:
-        pass
-    finally:
-        try:
-            node.stop()
-        finally:
-            node.dispose()
+    return TradingNode(config=config, loop=loop)
 
 
 def register_binance_data(node: TradingNode) -> None:
@@ -694,76 +622,81 @@ def main():
             **binance_config_kwargs,
         )
 
+    # ----------------------------------------------------------------------
+    # Own the event loop explicitly rather than using asyncio.run().
+    #
+    # TradingNode.__init__ stores whatever loop is current *at construction
+    # time* as self.kernel.loop, and later checks self.kernel.loop.is_running()
+    # before scheduling client connect() tasks. asyncio.run() always builds a
+    # brand-new loop internally — it does not adopt whatever loop is "current"
+    # — so if the node were constructed before asyncio.run() starts (or even
+    # inside a coroutine that asyncio.run() drives, if the node itself doesn't
+    # know about that specific loop object), self.kernel.loop and the loop
+    # actually running would be two different objects. Client connect() tasks
+    # then get scheduled on a loop that never runs and are silently dropped
+    # ("Async task '_connect' created but event loop is not running" /
+    # "coroutine ... was never awaited") — the data client never connects.
+    #
+    # Creating the loop here and passing it explicitly into build_trading_node()
+    # (which forwards it to TradingNode(..., loop=loop)) guarantees there is
+    # only ever one loop object in play, and that it matches the one we run
+    # everything on below via loop.run_until_complete().
+    # ----------------------------------------------------------------------
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     # Build the full trading node
     node = build_trading_node(
         trader_id=trader_id,
         data_clients={BINANCE: data_config},
         exec_clients={BINANCE: exec_config},
         log_level=log_level,
+        loop=loop,
     )
 
     # ----------------------------------------------------------------------
-    # Feature Flag: TRADE_SOURCE_MODE
+    # Event‑driven trade execution
     # ----------------------------------------------------------------------
-    trade_source_mode = os.getenv("TRADE_SOURCE_MODE", "SINGLE").upper()
-    if trade_source_mode not in {"SINGLE", "EVENT_DRIVEN"}:
-        print(f"❌ Unsupported TRADE_SOURCE_MODE: {trade_source_mode}. Use SINGLE or EVENT_DRIVEN.", file=sys.stderr)
+    # 1. Register data and execution factories
+    register_binance_data(node)
+    register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
+    register_exec(node)
+
+    # 2. Build the node's clients (now that factories are registered)
+    node.build()
+
+    # 3. Get SQS queue URL (required)
+    queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")
+    if not queue_url:
+        print("❌ SQS_TRADE_EVENTS_QUEUE_URL environment variable not set.", file=sys.stderr)
         sys.exit(1)
 
-    if trade_source_mode == "SINGLE":
-        # -------------------- Legacy single‑strategy path --------------------
-        # Instantiate the dummy blueprint strategy
-        strategy = BlueprintStrategy(
-            BlueprintConfig(
-                instrument_id=instrument_id,
-                bar_type=bar_type,
-            )
-        )
+    sqs_client = get_sqs_client()
 
-        # Run
-        register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
-        run_node(node, strategy, register_binance_data, register_exec)
-
-    else:  # EVENT_DRIVEN
-        # -------------------- New event‑driven path --------------------
-        # 1. Register data and execution factories (same as before)
-        register_binance_data(node)
-        register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
-        register_exec(node)
-
-        # 2. Build the node (now that factories are registered)
-        node.build()
-
-        # 3. Get SQS queue URL (required)
-        queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")
-        if not queue_url:
-            print("❌ SQS_TRADE_EVENTS_QUEUE_URL environment variable not set.", file=sys.stderr)
-            sys.exit(1)
-
-        sqs_client = get_sqs_client()
-
-        # 4. Define the async entry point that runs both coroutines concurrently
-        async def run_event_driven():
-            try:
-                await asyncio.gather(
-                    node.run_async(),
-                    listen_trade_events(node, sqs_client, queue_url, bar_type),
-                )
-            except asyncio.CancelledError:
-                # Normal shutdown
-                pass
-            finally:
-                # Ensure clean teardown using async stop
-                try:
-                    await node.stop_async()
-                finally:
-                    node.dispose()
-
-        # 5. Run the async main loop
+    # 4. Define the async entry point that runs both coroutines concurrently
+    async def run_event_driven():
         try:
-            asyncio.run(run_event_driven())
-        except KeyboardInterrupt:
-            print("\n🛑 Shutdown requested (Ctrl+C)", file=sys.stderr)
+            await asyncio.gather(
+                node.run_async(),
+                listen_trade_events(node, sqs_client, queue_url, bar_type),
+            )
+        except asyncio.CancelledError:
+            # Normal shutdown
+            pass
+        finally:
+            # Ensure clean teardown using async stop
+            try:
+                await node.stop_async()
+            finally:
+                node.dispose()
+
+    # 5. Run the main loop we created and handed to the node above
+    try:
+        loop.run_until_complete(run_event_driven())
+    except KeyboardInterrupt:
+        print("\n🛑 Shutdown requested (Ctrl+C)", file=sys.stderr)
+    finally:
+        loop.close()
 
 
 if __name__ == "__main__":
