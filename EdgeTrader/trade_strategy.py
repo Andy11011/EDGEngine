@@ -235,16 +235,35 @@ class TradeStrategy(Strategy):
             self._db = await TradeEventsDB.get_instance()
         return self._db
 
-    # -------- Async helper to append closing event --------
+    # ---------- DB helpers ----------
+    async def _append_opened_event(self) -> None:
+        """Insert the 'Opened' event after entry fill."""
+        db = await self._get_db()
+        await db.insert_trade_event(
+            trade_id=self.config.trade_id,
+            event_type="Opened",
+            instrument=str(self.config.instrument_id),
+            side=self.config.side,
+            size=self.config.size,
+            occurred_at=None,  # use now()
+            ep=self.config.entry_price,
+            sl=self.config.sl_price,
+            tp=self.config.tp_price,
+            fill_price=self.sm.extra_data.get("fill_price"),
+        )
+        self.log.info(f"📝 Logged Opened event for {self.config.trade_id}")
+
     async def _append_closing_event(self) -> None:
         """Insert the final 'Closed' or 'Cancelled' event into trade_events."""
         db = await self._get_db()
         if self.sm.state == TradeState.CLOSING:
             event_type = "Closed"
             close_reason = self.sm.extra_data.get("close_reason", "protection_filled")
+            cancel_reason = None
         elif self.sm.state == TradeState.CANCELING:
             event_type = "Cancelled"
-            close_reason = self.sm.extra_data.get("cancel_reason", "forced")
+            close_reason = None
+            cancel_reason = self.sm.extra_data.get("cancel_reason", "forced")
         else:
             # Should never be called from a non‑terminal state
             self.log.warning(f"Attempted to append closing event while in {self.sm.state}")
@@ -260,7 +279,7 @@ class TradeStrategy(Strategy):
             size=self.config.size,
             fill_price=fill_price,
             close_reason=close_reason,
-            # other optional fields can be added as needed
+            cancel_reason=cancel_reason,
         )
         self.log.info(f"📝 Logged {event_type} event for {self.config.trade_id}")
 
@@ -275,11 +294,11 @@ class TradeStrategy(Strategy):
             self._close_callback(self.config.trade_id)
 
         self.log.info(
-            f"Trade {self.config.trade_id} reached terminal state "
-            f"{self.sm.state}; stopping strategy"
+            f"Trade {self.config.trade_id} reached terminal state {self.sm.state}; stopping"
         )
         self.stop()
 
+    # ---------- Lifecycle ----------
     def on_start(self) -> None:
         """Start the strategy: open the trade and submit the entry order."""
         self.log.info(
@@ -370,6 +389,8 @@ class TradeStrategy(Strategy):
 
         if self._is_entry_order(event) and self.sm.state == TradeState.AWAITING_FILL:
             self.sm.entry_filled()
+            # Record the opened event
+            asyncio.create_task(self._append_opened_event())
             self._submit_protection_orders()
 
         elif self._is_protection_order(event) and self.sm.state == TradeState.IN_POSITION:
@@ -420,8 +441,7 @@ class TradeStrategy(Strategy):
         exit_side = OrderSide.SELL if self.config.side.upper() == "BUY" else OrderSide.BUY
         quantity = instrument.make_qty(self.config.size)
 
-        pending: Dict[str, Any] = {}
-
+        pending = {}
         if self.config.sl_price is not None:
             sl_order = self.order_factory.stop_market(
                 instrument_id=self.config.instrument_id,
@@ -521,7 +541,22 @@ class TradeStrategy(Strategy):
         self.sm.close_order_submitted(str(close_order.client_order_id))
         self.submit_order(close_order)
 
-    # ---------- Order identity helpers ----------
+    def request_cancel(self) -> None:
+        """
+        Cancel the trade: if entry order is open, cancel it;
+        if position is open, close it; otherwise do nothing.
+        """
+        if self.sm.state == TradeState.AWAITING_FILL:
+            entry_order = self.cache.order(ClientOrderId(self._entry_client_order_id))
+            if entry_order and entry_order.is_open:
+                self.cancel_order(entry_order)
+                self.log.info(f"Cancelling entry order for {self.config.trade_id}")
+            else:
+                self.log.warning(f"Entry order not open; state {self.sm.state}")
+        elif self.sm.state == TradeState.IN_POSITION:
+            self.request_close()
+        else:
+            self.log.warning(f"Cannot cancel trade in state {self.sm.state}")
 
     def _is_entry_order(self, event) -> bool:
         return str(event.client_order_id) == self._entry_client_order_id

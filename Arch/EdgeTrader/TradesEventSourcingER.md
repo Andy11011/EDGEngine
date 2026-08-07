@@ -40,10 +40,10 @@ erDiagram
         timestamp filled_at
     }
 
-    TRADE_EVENTS ||--o| PROCESSED_EVENTS : "claimed_by"
-
-    PROCESSED_EVENTS {
-        bigint event_id PK "FK to trade_events.event_id — atomic claim, dedupes SQS/consumer redelivery"
-        timestamp processed_at
+    CLAIMED_EVENTS {
+        varchar ticker PK "from SQS message, part of derived claim key"
+        varchar event_type PK "open|close, from SQS message, part of derived claim key"
+        timestamp occurred_at PK "event timestamp from SQS message, completes derived claim key"
+        timestamp processed_at "when the consumer claimed/processed this event"
     }
 ```

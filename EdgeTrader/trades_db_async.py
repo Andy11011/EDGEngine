@@ -1,10 +1,10 @@
 """
 trade_events_db.py — Postgres connectivity for the event‑sourced trade log.
 
-Updated to match the corrected ER diagram (no separate TRADES table):
-- trade_events (immutable event log, self‑referencing for chaining)
+Updated to match the final ER:
+- trade_events (immutable event log, self‑referencing)
 - order_fills (fill details)
-- processed_events (infrastructure for consumer offset)
+- claimed_events (dedup ledger keyed by ticker+event_type+occurred_at)
 
 All methods are async and use asyncpg.
 """
@@ -15,18 +15,14 @@ import asyncio
 import json
 import os
 import sys
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 import asyncpg
 
 
-TRADE_EVENTS_POLL_SECONDS = int(os.getenv("TRADE_EVENTS_POLL_SECONDS", "60"))
-
-
 class TradeEventsDB:
-    """
-    Async singleton wrapper around an asyncpg connection pool.
-    """
+    """Async singleton wrapper around an asyncpg connection pool."""
 
     _instance: Optional["TradeEventsDB"] = None
     _init_lock = asyncio.Lock()
@@ -56,7 +52,7 @@ class TradeEventsDB:
         return cls._instance
 
     async def _init_schema(self) -> None:
-        """Create tables according to the corrected ER diagram."""
+        """Create tables according to the final ER diagram."""
         async with self.pool.acquire() as conn:
             # 1. trade_events – immutable event log with self‑reference
             await conn.execute("""
@@ -102,11 +98,15 @@ class TradeEventsDB:
                 )
             """)
 
-            # 3. processed_events – infrastructure for idempotent consumption
+            # 3. claimed_events – infrastructure for idempotent consumption
+            #    Keyed by the exact SQS message identity: ticker + event_type + occurred_at
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS processed_events (
-                    event_id BIGINT PRIMARY KEY REFERENCES trade_events(event_id),
-                    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                CREATE TABLE IF NOT EXISTS claimed_events (
+                    ticker VARCHAR(64) NOT NULL,
+                    event_type VARCHAR(20) NOT NULL,   -- 'open' or 'cancel'
+                    occurred_at TIMESTAMP NOT NULL,
+                    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (ticker, event_type, occurred_at)
                 )
             """)
 
@@ -118,7 +118,23 @@ class TradeEventsDB:
         print("✅ Event‑sourcing tables ready", file=sys.stderr)
 
     # ------------------------------------------------------------------
-    # Insert a new event
+    # Claim an SQS message (dedup)
+    # ------------------------------------------------------------------
+    async def claim_event(self, ticker: str, event_type: str, occurred_at: str) -> bool:
+        # Parse ISO string with Z (UTC) and then discard timezone info
+        dt = datetime.fromisoformat(occurred_at.replace('Z', '+00:00')).replace(tzinfo=None)
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchrow(
+                """INSERT INTO claimed_events (ticker, event_type, occurred_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT DO NOTHING
+                RETURNING ticker""",
+                ticker, event_type, dt
+            )
+            return result is not None
+
+    # ------------------------------------------------------------------
+    # Insert a new trade event (used by the strategy)
     # ------------------------------------------------------------------
     async def insert_trade_event(
         self,
@@ -147,7 +163,7 @@ class TradeEventsDB:
         """
         Insert a new event into trade_events.
         If previous_event_id is omitted, it automatically links to the latest event
-        for the same trade_id (except for 'Created' events, which start a new chain).
+        for the same trade_id (except for 'Opened' events, which start a new chain).
         Returns the inserted row as a dict (including the generated event_id).
         """
         if metadata is None:
@@ -156,8 +172,8 @@ class TradeEventsDB:
             occurred_at = "CURRENT_TIMESTAMP"
 
         async with self.pool.acquire() as conn:
-            # Auto‑link previous event unless it's a Created event
-            if previous_event_id is None and event_type != "Created":
+            # Auto‑link previous event unless it's an Opened event (new chain)
+            if previous_event_id is None and event_type != "Opened":
                 prev = await conn.fetchval(
                     """SELECT event_id FROM trade_events
                        WHERE trade_id = $1
@@ -249,76 +265,35 @@ class TradeEventsDB:
             return dict(row) if row else None
 
     # ------------------------------------------------------------------
-    # Consumer offset / polling helpers
+    # Query: find the active (open) trade for a given ticker
     # ------------------------------------------------------------------
-    async def get_unprocessed_events(self, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_active_trade_for_ticker(self, ticker: str) -> Optional[str]:
         """
-        Fetch events that have not yet been processed, ordered by occurred_at.
-        Used by the poll‑fallback loop.
+        Returns the trade_id of the most recent 'Opened' event for this ticker
+        that does not have a subsequent terminal event (Closed or Cancelled)
+        for the same trade_id.
         """
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
+            row = await conn.fetchrow(
                 """
-                SELECT e.*
-                FROM trade_events e
-                LEFT JOIN processed_events p ON e.event_id = p.event_id
-                WHERE p.event_id IS NULL
-                ORDER BY e.occurred_at ASC, e.event_id ASC
-                LIMIT $1
+                WITH latest_open AS (
+                    SELECT trade_id, occurred_at
+                    FROM trade_events
+                    WHERE instrument = $1 AND event_type = 'Opened'
+                    ORDER BY occurred_at DESC, event_id DESC
+                    LIMIT 1
+                )
+                SELECT lo.trade_id
+                FROM latest_open lo
+                LEFT JOIN trade_events terminal
+                    ON terminal.trade_id = lo.trade_id
+                    AND terminal.event_type IN ('Closed', 'Cancelled')
+                    AND terminal.occurred_at > lo.occurred_at
+                WHERE terminal.event_id IS NULL
                 """,
-                limit,
+                ticker
             )
-            return [dict(r) for r in rows]
-
-    async def get_pending_trade_ids(self, limit: int = 10) -> List[str]:
-        """
-        Returns trade_ids that have at least one unprocessed event.
-        Useful for prioritising trades.
-        """
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT DISTINCT e.trade_id
-                FROM trade_events e
-                LEFT JOIN processed_events p ON e.event_id = p.event_id
-                WHERE p.event_id IS NULL
-                ORDER BY MIN(e.occurred_at) ASC
-                LIMIT $1
-                """,
-                limit,
-            )
-            return [r["trade_id"] for r in rows]
-
-    async def claim_event_id(self, event_id: int) -> bool:
-        """
-        Try to claim an event_id for processing.
-        Returns True if claimed (first time), False if already processed.
-        """
-        async with self.pool.acquire() as conn:
-            result = await conn.fetchrow(
-                "INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT DO NOTHING RETURNING event_id",
-                event_id
-            )
-            return result is not None
-
-    async def append_event_audit(self, event_id: int, payload: dict) -> None:
-        """Insert the full event payload into trade_events for auditing."""
-        async with self.pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO trade_events (
-                    event_id, trade_id, instrument, side, size, ep, sl, tp, event_type
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                ON CONFLICT (event_id) DO NOTHING   -- safety net
-            """, event_id,
-                payload.get("trade_id"),
-                payload.get("instrument"),
-                payload.get("side"),
-                payload.get("size"),
-                payload.get("ep"),
-                payload.get("sl"),
-                payload.get("tp"),
-                payload.get("event_type", "Created")
-            )
+            return row["trade_id"] if row else None
 
     # ------------------------------------------------------------------
     # Convenience queries
@@ -366,15 +341,3 @@ class TradeEventsDB:
     # ------------------------------------------------------------------
     async def close(self) -> None:
         await self.pool.close()
-
-    # ------------------------------------------------------------------
-    # LISTEN/NOTIFY stub (unchanged)
-    # ------------------------------------------------------------------
-    async def add_notify_listener(self, channel: str, callback) -> asyncpg.Connection:
-        """
-        Registers a callback on a channel via asyncpg's native listener API.
-        IMPORTANT: the returned connection must be kept alive for the listener to work.
-        """
-        conn = await self.pool.acquire()
-        await conn.add_listener(channel, callback)
-        return conn

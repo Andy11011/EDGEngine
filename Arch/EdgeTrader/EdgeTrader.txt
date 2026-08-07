@@ -239,6 +239,78 @@ BEGIN TRANSACTION;
 COMMIT;
 
 
+
+//********************************//
+
+
+aws sqs send-message \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" \
+  --message-body '{
+    "event_id": 123,
+    "trade_id": "test_trade_001",
+    "instrument": "ATMUSDT.BINANCE",
+    "side": "BUY",
+    "size": 45.455,
+    "ep": 1.598,
+    "sl": 1.587,
+    "tp": 1.618
+  }'
+
+
+
+aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --message-body '{ "event_id": 123, "trade_id": "test_trade_001", "instrument": "ATMUSDT.BINANCE", "side": "BUY", "size": 45.455, "ep": 1.598, "sl": 1.587, "tp": 1.618}'
+aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body '{ "event_id": 123, "trade_id": "test_trade_001", "instrument": "ATMUSDT.BINANCE", "side": "BUY", "size": 45.455, "ep": 1.598, "sl": 1.587, "tp": 1.618}'
+
+//********************************//
+
+PS C:\Users\andy9> aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body '{ "event_id": 123, "trade_id": "test_trade_001", "instrument": "ATMUSDT.BINANCE", "side": "BUY", "size": 45.455, "ep": 1.598, "sl": 1.587, "tp": 1.618}'
+{
+    "MD5OfMessageBody": "619ba8738ecf558387ddf72fc654cfa3",
+    "MessageId": "ec0e619e-e061-4999-8481-7fa55f9c6757"
+}
+
+
+aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body "{\"event_id\": 123, \"trade_id\": \"test_trade_001\", \"instrument\": \"ATMUSDT.BINANCE\", \"side\": \"BUY\", \"size\": 45.455, \"ep\": 1.598, \"sl\": 1.587, \"tp\": 1.618}"
+
+//********************************//
+
+PS C:\Users\andy9> cat .\message.json
+{
+  "event_id": 123,
+  "trade_id": "test_trade_001",
+  "instrument": "ATMUSDT.BINANCE",
+  "side": "BUY",
+  "size": 45.455,
+  "ep": 1.598,
+  "sl": 1.587,
+  "tp": 1.618
+}
+
+@'
+{
+  "event_id": 123,
+  "trade_id": "test_trade_001",
+  "instrument": "ATMUSDT.BINANCE",
+  "side": "BUY",
+  "size": 45.455,
+  "ep": 1.598,
+  "sl": 1.587,
+  "tp": 1.618
+}
+'@ | Set-Content -Path message.json -Encoding utf8
+
+aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body file://message.
+
+aws sqs purge-queue --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1
+
+//********************************//
+
+db.claim_event_id(123) tries to insert a row into processed_events with event_id=123, 
+but processed_events.event_id has a foreign key pointing at trade_events.event_id — and
+no row for event_id=123 exists there yet.
+
+
+
 //********************************//
 
 The Redesigned Flow (exactly what you said)

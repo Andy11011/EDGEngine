@@ -389,14 +389,12 @@ async def listen_trade_events(
     node: TradingNode,
     sqs_client,
     queue_url: str,
-    bar_interval: str,  # changed from bar_type to interval string
+    bar_interval: str,
 ) -> None:
     """
     Long‑poll SQS for trade‑event messages, claim them via Postgres,
-    and spin up a TradeStrategy for each new 'Created' event.
-
-    Uses the SQS payload directly to build the strategy; bar_type is
-    constructed per event using the global bar_interval.
+    and spin up a TradeStrategy for each new 'open' event.
+    'cancel' events are handled by calling request_cancel on the active strategy.
     """
     while True:
         try:
@@ -419,101 +417,137 @@ async def listen_trade_events(
             except Exception as e:
                 print(f"⚠️ Error removing strategy for {trade_id}: {e}")
 
+    poll_wait_seconds = int(os.getenv("SQS_POLL_WAIT_SECONDS", "20"))
+    poll_count = 0
+
     while True:
+        poll_count += 1
+        print(f"📡 [poll #{poll_count}] Long-polling SQS (wait={poll_wait_seconds}s)...", file=sys.stderr)
         try:
             messages = await receive_trade_events(
                 sqs_client,
                 queue_url,
                 max_messages=int(os.getenv("SQS_MAX_MESSAGES", "10")),
-                wait_seconds=int(os.getenv("SQS_POLL_WAIT_SECONDS", "20")),
+                wait_seconds=poll_wait_seconds,
             )
         except Exception as e:
             print(f"❌ SQS receive error: {e}", file=sys.stderr)
             await asyncio.sleep(1)
             continue
 
+        if not messages:
+            print(f"💤 [poll #{poll_count}] No messages received", file=sys.stderr)
+            continue
+
+        print(f"📥 [poll #{poll_count}] Received {len(messages)} message(s)", file=sys.stderr)
+
         for msg in messages:
             receipt_handle = msg["ReceiptHandle"]
+            msg_id = msg.get("MessageId", "?")
+            raw_body_preview = msg.get("Body", "")[:500]
+            print(f"📨 [msg {msg_id}] Raw body: {raw_body_preview}", file=sys.stderr)
 
             # ---------- Parse SNS notification ----------
             try:
                 body = json.loads(msg["Body"])
                 if body.get("Type") == "Notification":
                     event_data = json.loads(body["Message"])
+                    print(f"📨 [msg {msg_id}] Unwrapped SNS notification envelope", file=sys.stderr)
                 else:
-                    # Fallback for direct SQS messages (e.g. test)
                     event_data = body
             except (json.JSONDecodeError, KeyError) as e:
-                print(f"⚠️ Failed to parse message: {e}", file=sys.stderr)
-                # Delete malformed message to avoid loop
+                print(f"⚠️ [msg {msg_id}] Failed to parse message: {e}", file=sys.stderr)
+                await delete_message(sqs_client, queue_url, receipt_handle)
+                print(f"🗑️ [msg {msg_id}] Deleted (unparseable)", file=sys.stderr)
+                continue
+
+            # ---------- Extract required fields ----------
+            ticker = event_data.get("ticker")
+            event_type = event_data.get("event_type")   # "open" or "cancel"
+            occurred_at = event_data.get("occurred_at")
+
+            if not ticker or not event_type or not occurred_at:
+                print(f"⚠️ [msg {msg_id}] Missing ticker/event_type/occurred_at; deleting", file=sys.stderr)
                 await delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
-            # ---------- Extract event_id ----------
-            event_id = event_data.get("event_id")
-            if event_id is None:
-                # Try MessageAttributes (if sent)
-                attrs = msg.get("MessageAttributes", {})
-                if "event_id" in attrs:
-                    try:
-                        event_id = int(attrs["event_id"]["StringValue"])
-                    except (ValueError, KeyError):
-                        pass
-            if event_id is None:
-                print("⚠️ No event_id found; deleting message", file=sys.stderr)
-                await delete_message(sqs_client, queue_url, receipt_handle)
-                continue
-
-            # --- Step 1: Claim (dedup) ---
-            claimed = await db.claim_event_id(event_id)
+            # ---------- Claim (dedup) ----------
+            claimed = await db.claim_event(ticker, event_type, occurred_at)
             if not claimed:
-                # Duplicate message – ack it and move on
+                print(f"♻️ [msg {msg_id}] Already claimed (duplicate) — acking and skipping", file=sys.stderr)
+                await delete_message(sqs_client, queue_url, receipt_handle)
+                continue
+            print(f"✅ [msg {msg_id}] Claimed for processing", file=sys.stderr)
+
+            # ---------- Process based on event_type ----------
+            if event_type.lower() == "open":
+                # Required fields for an open trade
+                side = event_data.get("side")
+                size = event_data.get("size")
+                ep = event_data.get("ep")
+                sl = event_data.get("sl")
+                tp = event_data.get("tp")
+
+                if not side or size is None or ep is None:
+                    print(f"⚠️ [msg {msg_id}] Missing required open fields (side, size, ep); deleting", file=sys.stderr)
+                    await delete_message(sqs_client, queue_url, receipt_handle)
+                    continue
+
+                # Generate a trade_id (deterministic from ticker + occurred_at)
+                trade_id = f"{ticker}_{occurred_at.replace(':', '').replace('.', '').replace('-', '').replace('Z', '')}"
+
+                instrument_id = InstrumentId.from_str(ticker)
+                bar_type_str = f"{ticker}-{bar_interval}-LAST-EXTERNAL"
+                bar_type = BarType.from_str(bar_type_str)
+
+                config = TradeStrategyConfig(
+                    instrument_id=instrument_id,
+                    bar_type=bar_type,
+                    trade_id=trade_id,
+                    side=side,
+                    size=float(size),
+                    entry_price=float(ep),
+                    sl_price=float(sl) if sl is not None else None,
+                    tp_price=float(tp) if tp is not None else None,
+                )
+
+                try:
+                    strategy = TradeStrategy(config, close_callback=on_strategy_closed)
+                    active_strategies[trade_id] = strategy
+                    node.trader.add_strategy(strategy)
+                    node.trader.start_strategy(strategy)
+                    print(f"🚀 [msg {msg_id}] Started TradeStrategy for trade {trade_id} on {ticker}")
+                except Exception as e:
+                    print(f"❌ [msg {msg_id}] Failed to start strategy: {e}", file=sys.stderr)
+                    # Do not delete SQS – will go to DLQ
+                    continue
+
+            elif event_type.lower() == "cancel":
+                # Cancel the active trade for this ticker
+                active_trade_id = await db.get_active_trade_for_ticker(ticker)
+                if active_trade_id is None:
+                    print(f"⚠️ [msg {msg_id}] No active open trade found for {ticker}; acking and skipping", file=sys.stderr)
+                    await delete_message(sqs_client, queue_url, receipt_handle)
+                    continue
+
+                strategy = active_strategies.get(active_trade_id)
+                if strategy is None:
+                    print(f"⚠️ [msg {msg_id}] Active trade {active_trade_id} not in memory; acking", file=sys.stderr)
+                    await delete_message(sqs_client, queue_url, receipt_handle)
+                    continue
+
+                # Ask the strategy to cancel/close the trade
+                strategy.request_cancel()
+                print(f"🛑 [msg {msg_id}] Sent cancel request to trade {active_trade_id}")
+
+            else:
+                print(f"⚠️ [msg {msg_id}] Unknown event_type '{event_type}'; deleting", file=sys.stderr)
                 await delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
-            # --- Step 2: Process the event directly from SQS payload ---
-            instrument_str = event_data.get("instrument")
-            if not instrument_str:
-                print(f"⚠️ Missing 'instrument' in event {event_id}; deleting message", file=sys.stderr)
-                await delete_message(sqs_client, queue_url, receipt_handle)
-                continue
-
-            # Build the BarType for this specific instrument using the global interval
-            bar_type = BarType.from_str(f"{instrument_str}-{bar_interval}-LAST-EXTERNAL")
-            instrument_id = InstrumentId.from_str(instrument_str)
-
-            config = TradeStrategyConfig(
-                instrument_id=instrument_id,
-                bar_type=bar_type,
-                trade_id=event_data.get("trade_id"),
-                side=event_data.get("side"),
-                size=float(event_data.get("size", 0.0)),
-                entry_price=event_data.get("ep"),
-                sl_price=event_data.get("sl"),
-                tp_price=event_data.get("tp"),
-            )
-
-            try:
-                strategy = TradeStrategy(config, close_callback=on_strategy_closed)
-                active_strategies[config.trade_id] = strategy
-                node.trader.add_strategy(strategy)
-                node.trader.start_strategy(strategy)
-                print(f"🚀 Started TradeStrategy for trade {config.trade_id} on {instrument_str}")
-            except Exception as e:
-                print(f"❌ Failed to start strategy: {e}", file=sys.stderr)
-                # DO NOT delete the SQS message – it will go to DLQ after maxReceiveCount
-                continue
-
-            # --- Step 3: Audit – append to trade_events (event sourcing) ---
-            try:
-                await db.append_event_audit(event_id, event_data)
-            except Exception as e:
-                # Audit failure is not critical – log it but don't block
-                print(f"⚠️ Failed to append audit log for event {event_id}: {e}", file=sys.stderr)
-
-            # --- Step 4: Acknowledge SQS ---
-            await delete_message(sqs_client, queue_url, receipt_handle)
-
+            # ---------- Acknowledge SQS ----------
+            acked = await delete_message(sqs_client, queue_url, receipt_handle)
+            print(f"{'🗑️' if acked else '⚠️'} [msg {msg_id}] SQS message {'acked' if acked else 'ack FAILED'}", file=sys.stderr)
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
