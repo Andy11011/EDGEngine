@@ -519,31 +519,48 @@ async def listen_trade_events(
 # -----------------------------------------------------------------------------
 def main():
     trader_id = os.getenv("TRADER_ID", "EDGETRADER-001")
-    environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")  # global interval for all strategies
     log_level = os.getenv("LOG_LEVEL", "INFO")
-    sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
 
-    # TRADING_MODE controls how the *execution* client behaves:
-    #   VIRTUAL  (default) - live market data, but orders are simulated locally
-    #                        by Nautilus's own SandboxExecutionClient. Nothing is
-    #                        ever sent to Binance. No exec credentials are needed.
-    #   TESTNET  - orders go to Binance's real Spot/Futures Testnet (requires
-    #              separate testnet API keys; set BINANCE_ENV=TESTNET and
-    #              BINANCE_SANDBOX=1).
+    # TRADING_MODE is the single source of truth for how this node behaves.
+    # BINANCE_ENV and BINANCE_SANDBOX are *derived* from it below rather than
+    # being independently settable, so it's impossible for them to drift out
+    # of sync with each other (e.g. TRADING_MODE=TESTNET while BINANCE_ENV
+    # silently defaults to LIVE, which would have sent real orders to mainnet
+    # with live credentials while believing you were on testnet).
+    #
+    #   VIRTUAL  (default) - live market data from Binance MAINNET, but orders
+    #                        are simulated locally by Nautilus's own
+    #                        SandboxExecutionClient. Nothing is ever sent to
+    #                        Binance. No exec credentials are needed.
+    #   TESTNET  - orders go to Binance's real Spot/Futures Testnet, using
+    #              sandbox credentials (BINANCE_SANDBOX_API_KEY/SECRET, or the
+    #              sandbox AWS secret).
     #   LIVE     - real trading on Binance mainnet (current default behaviour).
     trading_mode = os.getenv("TRADING_MODE", "VIRTUAL").upper()
     if trading_mode not in {"VIRTUAL", "TESTNET", "LIVE"}:
         print(f"❌ Unsupported TRADING_MODE: {trading_mode}. Use VIRTUAL, TESTNET, or LIVE.", file=sys.stderr)
         sys.exit(1)
 
-    if trading_mode == "VIRTUAL":
-        print("🧪 TRADING_MODE=VIRTUAL — execution is simulated locally (Nautilus Sandbox). "
-              "No real orders will be sent to Binance.", file=sys.stderr)
-    else:
-        print(f"🔴 TRADING_MODE={trading_mode} — orders WILL be sent to Binance "
-              f"({'testnet' if trading_mode == 'TESTNET' else 'mainnet'}).", file=sys.stderr)
+    # Derived from TRADING_MODE — not independently configurable.
+    sandbox = trading_mode == "TESTNET"
+    environment = "TESTNET" if trading_mode == "TESTNET" else "LIVE"
+
+    _MODE_DESCRIPTIONS = {
+        "VIRTUAL": "🧪 Doing Nautilus-simulated trades locally, fed by live market data from Binance MAINNET. "
+                   "No real orders will be sent to Binance.",
+        "TESTNET": "🟡 Doing live trades on Binance TESTNET. Real orders are placed, but on the testnet — no real funds at risk.",
+        "LIVE":    "🔴 Doing LIVE trades on Binance MAINNET. Real orders with real funds.",
+    }
+    print("=" * 78, file=sys.stderr)
+    print(
+        f"MODE  TRADING_MODE={trading_mode}  |  BINANCE_ENV={environment}  |  "
+        f"BINANCE_SANDBOX={'1' if sandbox else '0'}",
+        file=sys.stderr,
+    )
+    print(_MODE_DESCRIPTIONS[trading_mode], file=sys.stderr)
+    print("=" * 78, file=sys.stderr)
 
     # Load credentials (env vars first for local runs, AWS Secrets Manager otherwise)
     try:
