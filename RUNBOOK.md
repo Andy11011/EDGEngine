@@ -7,6 +7,7 @@
 - [Reset Docker Images on Reboot](#reset-docker-images-on-reboot)
 - [Query PostgreSQL Database](#query-postgresql-database)
 - [Local Deploy](#local-deploy)
+- [Testing with AWS SQS](#testing-with-aws-sqs)
 
 ---
 
@@ -351,3 +352,79 @@ $env:BINANCE_ED25519_PRIVATE_KEY = Get-Content -Raw C:\path\to\ed25519_private_k
 ```
 
 Preferred for Docker runs: put these in `.env.local` (add to `.gitignore`) and use `docker run --rm --env-file .env.local edgetrader`.
+
+## Testing with AWS SQS
+
+This section covers the commands to send test trade-event messages, verify queue depth, purge the queue, and reset the deduplication state – all useful for integration testing.
+
+**Sending a test Open message:**  
+Use the AWS CLI to send an **Open** event. The consumer expects the new schema with `ticker`, `event_type` (open/cancel), and `occurred_at` as the deduplication key.
+
+```bash
+aws sqs send-message \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" \
+  --region ap-southeast-1 \
+  --message-body file://open_message.json
+```
+
+Sample `open_message.json`:
+
+```json
+{
+  "ticker": "ATMUSDT.BINANCE",
+  "event_type": "open",
+  "occurred_at": "2026-08-07T10:00:00.123Z",
+  "side": "BUY",
+  "size": 45.455,
+  "ep": 1.598,
+  "sl": 1.587,
+  "tp": 1.618
+}
+```
+
+For a **Cancel** message (no extra parameters):
+
+```json
+{
+  "ticker": "ATMUSDT.BINANCE",
+  "event_type": "cancel",
+  "occurred_at": "2026-08-07T10:15:00.456Z"
+}
+```
+
+**Checking queue depth** – to see how many messages are waiting:
+
+```bash
+aws sqs get-queue-attributes \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible \
+  --region ap-southeast-1
+```
+
+**Pruning the SQS queue (delete all messages):**  
+To completely empty the queue, including in-flight messages, use `purge-queue`. This is irreversible and takes up to 60 seconds.
+
+```bash
+aws sqs purge-queue \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" \
+  --region ap-southeast-1
+```
+
+**Resetting the deduplication ledger (`claimed_events`):**  
+Even after purging the queue, the consumer will skip messages whose `(ticker, event_type, occurred_at)` keys are already stored in the `claimed_events` table. To allow reprocessing (e.g., after a bug fix or for repeated tests), truncate or conditionally delete from that table:
+
+```bash
+# Truncate the entire table (clears all claimed keys)
+docker exec -it postgres psql -U user -d postgres -c "TRUNCATE TABLE claimed_events;"
+
+# Or delete only for a specific ticker
+docker exec -it postgres psql -U user -d postgres -c "DELETE FROM claimed_events WHERE ticker = 'ATMUSDT.BINANCE';"
+```
+
+⚠️ **Caution**: Truncating or deleting from `claimed_events` will cause **all** messages still in the queue (or redelivered from DLQ) to be processed again – safe for testing but not for production.
+
+**Viewing messages in the AWS Console:**  
+Navigate to the SQS queue in the console, click **“Send and receive messages”**, then **“Poll for messages”** to inspect up to 10 visible messages. Expand a message to see its full body and attributes.
+
+**Message retry and Dead‑Letter Queue:**  
+If the consumer fails to process a message (e.g., throws an exception), the message is **not deleted** and becomes visible again after the visibility timeout (default 30 seconds). After `maxReceiveCount` failures, it moves to the configured Dead‑Letter Queue (DLQ). You can manually move messages from the DLQ back to the main queue via the console or CLI for re‑testing.

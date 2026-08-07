@@ -179,17 +179,16 @@ class OrderManagementSM:
 # Strategy Config
 # ----------------------------------------------------------------------
 
-class TradeStrategyConfig(StrategyConfig, frozen=True):
-    """Configuration for a single‑trade strategy instance."""
+class TradeStrategyConfig(StrategyConfig, frozen=True, kw_only=True):
     instrument_id: InstrumentId
     bar_type: BarType
-    trade_id: str                     # unique per trade; also used as Nautilus order_id_tag
-    side: str                         # "BUY" or "SELL" — matches trade_events.side in the DB
-    size: float = 0.001               # default position size
-    entry_price: Optional[float] = None  # None → market entry; set → limit entry
+    trade_id: str
+    side: str
+    size: float = 0.001
+    entry_price: Optional[float] = None
     sl_price: Optional[float] = None
     tp_price: Optional[float] = None
-
+    strategy_id: Optional[str] = None
 
 # ----------------------------------------------------------------------
 # Per‑Trade Strategy

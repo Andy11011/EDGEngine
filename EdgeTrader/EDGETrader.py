@@ -509,17 +509,18 @@ async def listen_trade_events(
                     entry_price=float(ep),
                     sl_price=float(sl) if sl is not None else None,
                     tp_price=float(tp) if tp is not None else None,
+                    strategy_id=trade_id,   # use your trade_id as the strategy ID
                 )
 
                 async def add_strategy_to_trader(trader, strategy):
-                    """Stop the trader (synchronously), add strategy, then restart it."""
+                    """Stop the trader, add the strategy, then restart it."""
                     try:
                         if trader.is_running:
-                            trader.stop()          # synchronous – no await
-                        trader.add_strategy(strategy)
-                        trader.start_strategy(strategy)
+                            trader.stop()                     # synchronous
+                        trader.add_strategy(strategy)         # add the strategy
+                        trader.start_strategy(strategy.id)    # pass its ID, not the object
                         if not trader.is_running:
-                            trader.start()         # synchronous – no await
+                            trader.start()                    # synchronous
                         print(f"✅ Strategy {strategy.config.trade_id} added and started")
                     except Exception as e:
                         print(f"❌ Failed to add strategy: {e}")
