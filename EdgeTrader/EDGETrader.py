@@ -511,11 +511,24 @@ async def listen_trade_events(
                     tp_price=float(tp) if tp is not None else None,
                 )
 
+                async def add_strategy_to_trader(trader, strategy):
+                    """Stop the trader (synchronously), add strategy, then restart it."""
+                    try:
+                        if trader.is_running:
+                            trader.stop()          # synchronous – no await
+                        trader.add_strategy(strategy)
+                        trader.start_strategy(strategy)
+                        if not trader.is_running:
+                            trader.start()         # synchronous – no await
+                        print(f"✅ Strategy {strategy.config.trade_id} added and started")
+                    except Exception as e:
+                        print(f"❌ Failed to add strategy: {e}")
+                        raise
+
                 try:
                     strategy = TradeStrategy(config, close_callback=on_strategy_closed)
                     active_strategies[trade_id] = strategy
-                    node.trader.add_strategy(strategy)
-                    node.trader.start_strategy(strategy)
+                    await add_strategy_to_trader(node.trader, strategy)
                     print(f"🚀 [msg {msg_id}] Started TradeStrategy for trade {trade_id} on {ticker}")
                 except Exception as e:
                     print(f"❌ [msg {msg_id}] Failed to start strategy: {e}", file=sys.stderr)
@@ -548,6 +561,7 @@ async def listen_trade_events(
             # ---------- Acknowledge SQS ----------
             acked = await delete_message(sqs_client, queue_url, receipt_handle)
             print(f"{'🗑️' if acked else '⚠️'} [msg {msg_id}] SQS message {'acked' if acked else 'ack FAILED'}", file=sys.stderr)
+
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------

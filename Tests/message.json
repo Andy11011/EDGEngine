@@ -1,10 +1,10 @@
 {
   "ticker": "ATMUSDT.BINANCE",
   "event_type": "open",
-  "occurred_at": "2026-08-07T09:00:00.123Z",
+  "occurred_at": "2026-06-02:00:11.123Z",
   "side": "BUY",
-  "size": 45.455,
-  "ep": 1.598,
+  "size": 45.466,
+  "ep": 1.591,
   "sl": 1.587,
   "tp": 1.618
 }
