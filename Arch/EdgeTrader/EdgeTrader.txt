@@ -363,3 +363,18 @@ starts long-polling and processing messages immediately, racing the node's own s
 fetching every Spot instrument from Binance. The message arrived and got processed a fraction of a second
 before the node finished starting, so the cache was still empty. Let's gate the listener on the node actually
 being ready:
+
+//********************************//
+
+Good question — and yes, what's left is genuinely a state-machine (FSM) issue now, distinct from the original bug.
+The trade itself worked this time: the entry order got submitted, the strategy is RUNNING, and the SQS message
+was correctly acked. But look at this new pair of errors:
+
+▶️ Restarting trader
+[ERROR] EDGETRADER-001.EDGETRADER-001: InvalidStateTrigger('STOPPED -> START') state STOPPED
+[ERROR] EDGETRADER-001.EDGETRADER-001: InvalidStateTrigger('STOPPED -> START_COMPLETED') state STOPPED
+
+This is the trader's own FSM refusing to go from STOPPED back to START a second time — and this happens on every
+trade now, not just failed ones. Let me check whether Nautilus's Trader component actually supports this stop/
+cycle at all, since the strategy clearly started fine (RUNNING, order submitted) before this trader.start() 
+call ever ran — which is a strong hint the restart is unnecessary.

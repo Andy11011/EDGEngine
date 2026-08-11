@@ -427,6 +427,19 @@ async def listen_trade_events(
     poll_wait_seconds = int(os.getenv("SQS_POLL_WAIT_SECONDS", "20"))
     poll_count = 0
 
+    # Wait for the TradingNode to actually finish starting (this includes
+    # instrument loading from load_all=True, which can take several seconds)
+    # before pulling anything off SQS. Without this gate, listen_trade_events()
+    # and node.run_async() race each other (they're launched together via
+    # asyncio.gather in main()), and the first message(s) can get processed
+    # before any instrument is in the cache — the exact "No instrument found
+    # in cache" failure this was hitting, even with load_all=True configured
+    # correctly, because it just hadn't finished loading yet.
+    print("⏳ Waiting for TradingNode to finish starting before polling SQS...", file=sys.stderr)
+    while not node.trader.is_running:
+        await asyncio.sleep(0.5)
+    print("✅ TradingNode is RUNNING; starting to process trade events", file=sys.stderr)
+
     while True:
         poll_count += 1
         print(f"📡 [poll #{poll_count}] Long-polling SQS (wait={poll_wait_seconds}s)...", file=sys.stderr)
