@@ -325,7 +325,13 @@ class TradeStrategy(Strategy):
                 f"cannot submit entry order for {self.config.trade_id}"
             )
             self.sm.force_cancel(reason="instrument_not_found")
-            self.stop()
+            # Use the normal terminal-state path (not a bare self.stop()) so this
+            # failure gets: (1) a Cancelled event logged to trade_events for the
+            # audit trail, and (2) the strategy properly deregistered from the
+            # trader via the close_callback. Skipping this previously left a dead
+            # strategy permanently registered with the trader, which then caused
+            # InvalidStateTrigger errors the next time the trader tried to restart.
+            self._finalize_and_stop()
             return
 
         side = OrderSide.BUY if self.config.side.upper() == "BUY" else OrderSide.SELL

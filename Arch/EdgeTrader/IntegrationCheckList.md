@@ -4,7 +4,7 @@
 - [X] ~~*BINANCE_SYMBOL and BINANCE_BAR_INTERVAL*~~ [2026-08-06]
 - [X] ~~*Check other env and add debug message about the current mode*~~ [2026-08-07]
 - [X] ~~*Learn how to check manually*~~ [2026-08-07]
-- [X] ~~*Solve missing SQS messages*~~ [2026-08-11]
+- [ ] Solve missing SQS messages
 - [ ] Successfully process open message
 - [ ] Think about multiple simultanious trades
 - [ ] Check what the trader will do if the price is below or equal EP

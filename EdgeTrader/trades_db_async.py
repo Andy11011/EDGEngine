@@ -134,6 +134,27 @@ class TradeEventsDB:
             return result is not None
 
     # ------------------------------------------------------------------
+    # Undo a claim (used when processing fails after claiming, so the same
+    # SQS message can be legitimately retried instead of being silently
+    # treated as a duplicate on redelivery)
+    # ------------------------------------------------------------------
+    async def unclaim_event(self, ticker: str, event_type: str, occurred_at: str) -> bool:
+        """
+        Delete a previously-inserted claim row for (ticker, event_type, occurred_at).
+        Returns True if a row was actually deleted, False if there was nothing to delete.
+        """
+        dt = datetime.fromisoformat(occurred_at.replace('Z', '+00:00')).replace(tzinfo=None)
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                """DELETE FROM claimed_events
+                   WHERE ticker = $1 AND event_type = $2 AND occurred_at = $3""",
+                ticker, event_type, dt
+            )
+            # asyncpg's execute() returns a status string like "DELETE 1"
+            deleted_count = int(result.split()[-1])
+            return deleted_count > 0
+
+    # ------------------------------------------------------------------
     # Insert a new trade event (used by the strategy)
     # ------------------------------------------------------------------
     async def insert_trade_event(

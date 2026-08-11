@@ -522,8 +522,16 @@ async def listen_trade_events(
                 )
                 print(f"🧩 [msg {msg_id}] TradeStrategyConfig built for trade_id={trade_id}", file=sys.stderr)
 
-                async def add_strategy_to_trader(trader, strategy):
-                    """Stop the trader, add the strategy, then restart it."""
+                async def add_strategy_to_trader(trader, strategy) -> bool:
+                    """Stop the trader, add the strategy, then restart it.
+
+                    Returns True only if the strategy is actually RUNNING once this
+                    returns. `trader.add_strategy()`/`start_strategy()` returning
+                    without raising does NOT mean the strategy is healthy — on_start()
+                    can hit an internal error (e.g. missing instrument), log it, and
+                    quietly stop itself. We have to check strategy.is_running
+                    explicitly rather than trust that "no exception" == "success".
+                    """
                     try:
                         if trader.is_running:
                             print(f"⏸️ [msg {msg_id}] Trader running; stopping before adding strategy", file=sys.stderr)
@@ -539,6 +547,19 @@ async def listen_trade_events(
                         print(f"❌ Failed to add strategy: {e}")
                         raise
 
+                    if strategy.is_running:
+                        print(f"✅ Strategy {strategy.config.trade_id} added and started")
+                        return True
+                    else:
+                        # on_start() ran, hit an internal problem (e.g. instrument not
+                        # in cache yet), logged it, and stopped itself. No exception was
+                        # raised, so we only catch this by checking state explicitly.
+                        print(
+                            f"❌ Strategy {strategy.config.trade_id} did not stay running "
+                            f"after start (see strategy log above for the cause)"
+                        )
+                        return False
+
                 try:
                     strategy = TradeStrategy(config, close_callback=on_strategy_closed)
                     active_strategies[trade_id] = strategy
@@ -547,12 +568,32 @@ async def listen_trade_events(
                         f"(now tracking {len(active_strategies)} active)",
                         file=sys.stderr,
                     )
-                    await add_strategy_to_trader(node.trader, strategy)
-                    print(f"🚀 [msg {msg_id}] Started TradeStrategy for trade {trade_id} on {ticker}")
+                    started_ok = await add_strategy_to_trader(node.trader, strategy)
                 except Exception as e:
                     print(f"❌ [msg {msg_id}] Failed to start strategy: {e}", file=sys.stderr)
-                    # Do not delete SQS – will go to DLQ
+                    active_strategies.pop(trade_id, None)
+                    # Do not delete SQS – will go to DLQ. But undo the claim too,
+                    # otherwise a redelivery will be treated as a duplicate and
+                    # silently dropped instead of actually retrying.
+                    await db.unclaim_event(ticker, event_type, occurred_at)
                     continue
+
+                if not started_ok:
+                    # Belt-and-braces: on_strategy_closed should already have popped
+                    # this via the close_callback, but pop defensively in case that
+                    # path didn't fire for some reason.
+                    active_strategies.pop(trade_id, None)
+                    unclaimed = await db.unclaim_event(ticker, event_type, occurred_at)
+                    print(
+                        f"⚠️ [msg {msg_id}] Strategy failed to start for trade {trade_id}; "
+                        f"NOT acking SQS message so it can be retried "
+                        f"(unclaimed={unclaimed})",
+                        file=sys.stderr,
+                    )
+                    # Do not ack — leave the message for SQS to redeliver/DLQ.
+                    continue
+
+                print(f"🚀 [msg {msg_id}] Started TradeStrategy for trade {trade_id} on {ticker}")
 
             elif event_type.lower() == "cancel":
                 print(f"🔍 [msg {msg_id}] Looking up active trade for ticker={ticker}", file=sys.stderr)
@@ -571,8 +612,17 @@ async def listen_trade_events(
                     continue
 
                 # Ask the strategy to cancel/close the trade
-                strategy.request_cancel()
-                print(f"🛑 [msg {msg_id}] Sent cancel request to trade {active_trade_id}")
+                try:
+                    strategy.request_cancel()
+                    print(f"🛑 [msg {msg_id}] Sent cancel request to trade {active_trade_id}")
+                except Exception as e:
+                    # request_cancel() isn't wrapped anywhere upstream — an uncaught
+                    # exception here would previously crash the whole listener
+                    # coroutine, not just this one message.
+                    print(f"❌ [msg {msg_id}] request_cancel() failed for trade {active_trade_id}: {e}", file=sys.stderr)
+                    await db.unclaim_event(ticker, event_type, occurred_at)
+                    print(f"⚠️ [msg {msg_id}] NOT acking SQS message so the cancel can be retried", file=sys.stderr)
+                    continue
 
             else:
                 print(f"⚠️ [msg {msg_id}] Unknown event_type '{event_type}'; deleting", file=sys.stderr)
