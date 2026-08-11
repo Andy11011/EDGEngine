@@ -299,10 +299,11 @@ PS C:\Users\andy9> cat .\message.json
 }
 '@ | Set-Content -Path message.json -Encoding utf8
 
-aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body file://message.
+aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body file://open_message.json
 
 aws sqs purge-queue --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1
 
+aws sqs get-queue-attributes --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible --region ap-southeast-1
 //********************************//
 
 db.claim_event_id(123) tries to insert a row into processed_events with event_id=123, 
@@ -327,3 +328,38 @@ The Redesigned Flow (exactly what you said)
 (If you want, this can be done asynchronously so it doesn't block the strategy launch, but it's fine to do it inline).
 
 4. Acknowledge – delete the SQS message.
+
+//********************************//
+
+[WARN] EDGETRADER-001.BinanceSpotInstrumentProvider: No loading configured: ensure either
+ `load_all=True` or there are `load_ids`
+
+
+Before Nautilus can build or size an order for a symbol, it needs an Instrument object for that symbol
+— this holds things like price tick size, quantity precision, minimum notional, etc. That object doesn't
+come from nowhere; it has to be fetched from the venue (Binance) via an InstrumentProvider and placed
+into the shared Cache. Only once it's in the Cache can self.cache.instrument(instrument_id) return something.
+
+
+instrument_provider_config = InstrumentProviderConfig()  # comment says "loads instruments on demand"
+
+
+That comment is the bug. In this Nautilus version, an InstrumentProviderConfig() with neither 
+load_all=True nor load_ids=[...] set doesn't load anything, ever — and it says so explicitly 
+at startup (the WARN line above). There's no lazy/on-demand fallback that kicks in later when
+a strategy asks for an instrument it doesn't recognize. The cache for instruments will stay 
+permanently empty.
+
+//********************************//
+
+load_all=True is working correctly — but it takes several seconds to fetch every Binance Spot instrument,
+ and your SQS listener doesn't wait for that. In main():
+
+Confirm the gather call structure
+Confirm the gather call structure
+
+node.run_async() and listen_trade_events(...) run concurrently with no coordination. Your SQS listener 
+starts long-polling and processing messages immediately, racing the node's own startup — which now includes 
+fetching every Spot instrument from Binance. The message arrived and got processed a fraction of a second
+before the node finished starting, so the cache was still empty. Let's gate the listener on the node actually
+being ready:

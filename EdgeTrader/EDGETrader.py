@@ -411,8 +411,15 @@ async def listen_trade_events(
         strategy = active_strategies.pop(trade_id, None)
         if strategy is not None:
             try:
-                node.trader.remove_strategy(strategy)
-                node.trader.stop_strategy(strategy)
+                # remove_strategy()/stop_strategy() take a StrategyId, not the
+                # Strategy object — passing the object raised a TypeError that
+                # was being swallowed here, so strategies never actually got
+                # deregistered from the trader (zombie strategies piling up).
+                # remove_strategy() already stops the strategy first if it's
+                # still RUNNING, so a separate stop_strategy() call afterwards
+                # is both redundant and would raise ValueError (strategy_id no
+                # longer registered once removed).
+                node.trader.remove_strategy(strategy.id)
                 print(f"🧹 Removed strategy for trade {trade_id}")
             except Exception as e:
                 print(f"⚠️ Error removing strategy for {trade_id}: {e}")
@@ -713,8 +720,16 @@ def main():
 
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
 
-    # Shared instrument provider config – now WITHOUT load_ids to allow dynamic loading
-    instrument_provider_config = InstrumentProviderConfig()  # loads instruments on demand
+    # Shared instrument provider config. load_all=True fetches every instrument
+    # for the account type (SPOT) at startup and keeps the cache populated —
+    # without this (or load_ids), the instrument cache stays permanently empty
+    # and every strategy fails at on_start() with "No instrument found in
+    # cache", as confirmed by Nautilus's own startup warning:
+    #   "No loading configured: ensure either `load_all=True` or there are `load_ids`"
+    # Trade-off: loads thousands of Binance Spot instruments at startup, which
+    # adds some latency before the node is ready to trade, but tickers arrive
+    # dynamically via SQS so we can't know load_ids in advance.
+    instrument_provider_config = InstrumentProviderConfig(load_all=True)
 
     # Data client config
     data_config = BinanceDataClientConfig(
