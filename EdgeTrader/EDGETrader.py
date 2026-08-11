@@ -480,6 +480,8 @@ async def listen_trade_events(
             print(f"✅ [msg {msg_id}] Claimed for processing", file=sys.stderr)
 
             # ---------- Process based on event_type ----------
+            print(f"🔎 [msg {msg_id}] Processing event_type='{event_type}' for ticker={ticker}", file=sys.stderr)
+
             if event_type.lower() == "open":
                 # Required fields for an open trade
                 side = event_data.get("side")
@@ -488,6 +490,11 @@ async def listen_trade_events(
                 sl = event_data.get("sl")
                 tp = event_data.get("tp")
 
+                print(
+                    f"📥 [msg {msg_id}] OPEN payload: side={side} size={size} ep={ep} sl={sl} tp={tp}",
+                    file=sys.stderr,
+                )
+
                 if not side or size is None or ep is None:
                     print(f"⚠️ [msg {msg_id}] Missing required open fields (side, size, ep); deleting", file=sys.stderr)
                     await delete_message(sqs_client, queue_url, receipt_handle)
@@ -495,10 +502,12 @@ async def listen_trade_events(
 
                 # Generate a trade_id (deterministic from ticker + occurred_at)
                 trade_id = f"{ticker}_{occurred_at.replace(':', '').replace('.', '').replace('-', '').replace('Z', '')}"
+                print(f"🆔 [msg {msg_id}] Generated trade_id={trade_id}", file=sys.stderr)
 
                 instrument_id = InstrumentId.from_str(ticker)
                 bar_type_str = f"{ticker}-{bar_interval}-LAST-EXTERNAL"
                 bar_type = BarType.from_str(bar_type_str)
+                print(f"📊 [msg {msg_id}] instrument_id={instrument_id} bar_type={bar_type_str}", file=sys.stderr)
 
                 config = TradeStrategyConfig(
                     instrument_id=instrument_id,
@@ -511,15 +520,19 @@ async def listen_trade_events(
                     tp_price=float(tp) if tp is not None else None,
                     strategy_id=trade_id,   # use your trade_id as the strategy ID
                 )
+                print(f"🧩 [msg {msg_id}] TradeStrategyConfig built for trade_id={trade_id}", file=sys.stderr)
 
                 async def add_strategy_to_trader(trader, strategy):
                     """Stop the trader, add the strategy, then restart it."""
                     try:
                         if trader.is_running:
+                            print(f"⏸️ [msg {msg_id}] Trader running; stopping before adding strategy", file=sys.stderr)
                             trader.stop()                     # synchronous
                         trader.add_strategy(strategy)         # add the strategy
+                        print(f"➕ [msg {msg_id}] Strategy {strategy.config.trade_id} added to trader", file=sys.stderr)
                         trader.start_strategy(strategy.id)    # pass its ID, not the object
                         if not trader.is_running:
+                            print(f"▶️ [msg {msg_id}] Restarting trader", file=sys.stderr)
                             trader.start()                    # synchronous
                         print(f"✅ Strategy {strategy.config.trade_id} added and started")
                     except Exception as e:
@@ -529,6 +542,11 @@ async def listen_trade_events(
                 try:
                     strategy = TradeStrategy(config, close_callback=on_strategy_closed)
                     active_strategies[trade_id] = strategy
+                    print(
+                        f"🗂️ [msg {msg_id}] Registered strategy in active_strategies "
+                        f"(now tracking {len(active_strategies)} active)",
+                        file=sys.stderr,
+                    )
                     await add_strategy_to_trader(node.trader, strategy)
                     print(f"🚀 [msg {msg_id}] Started TradeStrategy for trade {trade_id} on {ticker}")
                 except Exception as e:
@@ -537,12 +555,14 @@ async def listen_trade_events(
                     continue
 
             elif event_type.lower() == "cancel":
+                print(f"🔍 [msg {msg_id}] Looking up active trade for ticker={ticker}", file=sys.stderr)
                 # Cancel the active trade for this ticker
                 active_trade_id = await db.get_active_trade_for_ticker(ticker)
                 if active_trade_id is None:
                     print(f"⚠️ [msg {msg_id}] No active open trade found for {ticker}; acking and skipping", file=sys.stderr)
                     await delete_message(sqs_client, queue_url, receipt_handle)
                     continue
+                print(f"🔗 [msg {msg_id}] Found active_trade_id={active_trade_id} for ticker={ticker}", file=sys.stderr)
 
                 strategy = active_strategies.get(active_trade_id)
                 if strategy is None:
@@ -560,6 +580,7 @@ async def listen_trade_events(
                 continue
 
             # ---------- Acknowledge SQS ----------
+            print(f"📨 [msg {msg_id}] Acknowledging SQS message", file=sys.stderr)
             acked = await delete_message(sqs_client, queue_url, receipt_handle)
             print(f"{'🗑️' if acked else '⚠️'} [msg {msg_id}] SQS message {'acked' if acked else 'ack FAILED'}", file=sys.stderr)
 
