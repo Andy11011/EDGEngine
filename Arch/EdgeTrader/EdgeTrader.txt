@@ -437,3 +437,29 @@ PS C:\Users\andy9\EDGEngine\Tests> docker exec dca2493af1d9a1df9d167af4d9771a46b
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:--  0:01:00 --:--:--     0
 PS C:\Users\andy9\EDGEngine\Tests>
+
+//********************************//
+
+If you want to keep everything in one loop, you can try to find out why node.run_async() blocks and fix it 
+(maybe it uses loop.run_forever()). But given the time, the thread approach is a robust, production‑ready 
+solution that separates concerns and is easy to implement.
+
+//********************************//
+
+Why node.run_async() is not truly asynchronous
+The TradingNode in Nautilus is designed as the main entry point of a trading application. 
+Its run_async() method typically does something like:
+
+python
+async def run_async(self):
+    # ... setup ...
+    await self.kernel.run()   # or loop.run_forever()
+However, the underlying Kernel.run() (or the internal event loop handling) often uses
+ loop.run_forever() or a blocking while‑loop that does not yield. Even if it's wrapped
+  in an async function, if it calls loop.run_forever(), that call takes over the thread
+   and never returns until the loop stops – it doesn't give other coroutines a chance to run,
+    because it is running the event loop itself, not awaiting something that yields.
+
+In other words, when you await node.run_async(), you are effectively handing over the entire 
+event loop to the node’s internal runner. That runner consumes all available CPU time for its 
+own scheduling, starving your server.serve() and listen_trade_events coroutines.
