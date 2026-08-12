@@ -1,6 +1,7 @@
+import sys
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, List, Optional   # added List
+from typing import Dict, Any, List, Optional
 
 app = FastAPI()
 
@@ -30,24 +31,42 @@ async def health_check():
 
 @app.get("/active_trades", response_model=List[TradeStatus])
 async def get_active_trades():
+    """List all currently active trades (strategies) with their state."""
+    print(f"📊 /active_trades called, active_strategies length: {len(active_strategies)}", file=sys.stderr)
+    if active_strategies:
+        print(f"   Keys: {list(active_strategies.keys())}", file=sys.stderr)
+
     result = []
     for trade_id, strategy in active_strategies.items():
-        result.append(TradeStatus(
-            trade_id=trade_id,
-            state=strategy.sm.state.name,
-            instrument=str(strategy.config.instrument_id),
-            side=strategy.config.side,
-            size=strategy.config.size,
-            entry_price=strategy.config.entry_price,
-            sl_price=strategy.config.sl_price,
-            tp_price=strategy.config.tp_price,
-        ))
+        try:
+            result.append(TradeStatus(
+                trade_id=trade_id,
+                state=strategy.sm.state.name,
+                instrument=str(strategy.config.instrument_id),
+                side=strategy.config.side,
+                size=strategy.config.size,
+                entry_price=strategy.config.entry_price,
+                sl_price=strategy.config.sl_price,
+                tp_price=strategy.config.tp_price,
+            ))
+        except Exception as e:
+            print(f"⚠️ Error building TradeStatus for {trade_id}: {e}", file=sys.stderr)
+
+    print(f"   Returning {len(result)} trade(s)", file=sys.stderr)
     return result
 
 @app.post("/cancel/{trade_id}")
 async def cancel_trade(trade_id: str):
+    """Manually cancel/close an active trade."""
+    print(f"🛑 /cancel/{trade_id} called", file=sys.stderr)
     strategy = active_strategies.get(trade_id)
     if not strategy:
+        print(f"   Trade {trade_id} not active", file=sys.stderr)
         raise HTTPException(404, f"Trade {trade_id} not active")
-    strategy.request_cancel()
+    try:
+        strategy.request_cancel()
+        print(f"   Cancel request sent for {trade_id}", file=sys.stderr)
+    except Exception as e:
+        print(f"   Cancel failed: {e}", file=sys.stderr)
+        raise HTTPException(500, f"Cancel failed: {e}")
     return {"status": "cancel_requested"}

@@ -428,3 +428,12 @@ Same event loop – start Uvicorn with loop=asyncio.get_event_loop() and run it 
 Separate thread – run Uvicorn in a background thread; this keeps the main thread for your trading logic.
 
 I recommend option 1 because it keeps everything in one loop and avoids threading pitfalls.
+
+
+//********************************//
+
+PS C:\Users\andy9\EDGEngine\Tests> docker exec dca2493af1d9a1df9d167af4d9771a46b90cdd1b1b921ceeec76f628484f9d2a curl http://localhost:8000/health
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:--  0:01:00 --:--:--     0
+PS C:\Users\andy9\EDGEngine\Tests>
