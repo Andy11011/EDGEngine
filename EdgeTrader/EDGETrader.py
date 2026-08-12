@@ -36,6 +36,7 @@ from nautilus_trader.config import (
 from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.data import BarType
 from nautilus_trader.model.identifiers import InstrumentId
+from nautilus_trader.trading.config import ImportableControllerConfig
 from trade_strategy import TradeStrategy, TradeStrategyConfig
 from trades_db_async import TradeEventsDB
 
@@ -289,6 +290,11 @@ def build_trading_node(
     """
     config = TradingNodeConfig(
         trader_id=trader_id,
+        controller=ImportableControllerConfig(
+            controller_path="nautilus_trader.trading.controller:Controller",
+            config_path="nautilus_trader.common.config:ActorConfig",
+            config={},
+        ),
         logging=LoggingConfig(log_level=log_level, use_pyo3=True),
         data_engine=LiveDataEngineConfig(
             validate_data_sequence=True,
@@ -543,25 +549,9 @@ async def listen_trade_events(
                 print(f"🧩 [msg {msg_id}] TradeStrategyConfig built for trade_id={trade_id}", file=sys.stderr)
 
                 async def add_strategy_to_trader(trader, strategy) -> bool:
-                    """Stop the trader, add the strategy, then restart it.
-
-                    Returns True only if the strategy is actually RUNNING once this
-                    returns. `trader.add_strategy()`/`start_strategy()` returning
-                    without raising does NOT mean the strategy is healthy — on_start()
-                    can hit an internal error (e.g. missing instrument), log it, and
-                    quietly stop itself. We have to check strategy.is_running
-                    explicitly rather than trust that "no exception" == "success".
-                    """
+                    controller = node.kernel._controller  # registered above
                     try:
-                        if trader.is_running:
-                            print(f"⏸️ [msg {msg_id}] Trader running; stopping before adding strategy", file=sys.stderr)
-                            trader.stop()                     # synchronous
-                        trader.add_strategy(strategy)         # add the strategy
-                        print(f"➕ [msg {msg_id}] Strategy {strategy.config.trade_id} added to trader", file=sys.stderr)
-                        trader.start_strategy(strategy.id)    # pass its ID, not the object
-                        if not trader.is_running:
-                            print(f"▶️ [msg {msg_id}] Restarting trader", file=sys.stderr)
-                            trader.start()                    # synchronous
+                        controller.create_strategy(strategy, start=True)  # add_strategy() + start(), controller-bypassed
                         print(f"✅ Strategy {strategy.config.trade_id} added and started")
                     except Exception as e:
                         print(f"❌ Failed to add strategy: {e}")

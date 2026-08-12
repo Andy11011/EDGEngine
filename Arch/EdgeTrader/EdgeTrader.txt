@@ -378,3 +378,16 @@ This is the trader's own FSM refusing to go from STOPPED back to START a second 
 trade now, not just failed ones. Let me check whether Nautilus's Trader component actually supports this stop/
 cycle at all, since the strategy clearly started fine (RUNNING, order submitted) before this trader.start() 
 call ever ran — which is a strong hint the restart is unnecessary.
+
+//********************************//
+
+Yes — that's a clean run. Walking through what the log confirms:
+
+Controller wired in correctly: EDGETRADER-001.Controller: RUNNING appears right after EDGETRADER-001: RUNNING, so has_controller=True took effect.
+The core fix worked: no more "Cannot add a strategy to a running trader" errors, and no more FSM crashes from the old stop/start dance.
+The -None ID bug also resolved itself, exactly as predicted: the strategy registered as ATMUSDT.BINANCE_202606020111123-000 (auto-assigned order_id_tag)
+ instead of the broken ...-None. That confirms add_strategy() ran to completion this time, including its auto-fixup logic.
+End-to-end trade flow succeeded: strategy went READY → RUNNING, subscribed to bars, and submitted the entry limit order (edge-ATMUSDT.BINANCE_202606020111123-entry) — 
+all in one poll cycle, no retries needed.
+The message was correctly claimed, processed once, then acked and deleted from SQS — the earlier duplicate-processing symptom is gone too, since the strategy 
+no longer fails immediately after being "added."

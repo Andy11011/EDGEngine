@@ -6,8 +6,10 @@
 - [X] ~~*Learn how to check manually*~~ [2026-08-07]
 - [ ] Solve missing SQS messages
 - [ ] Successfully process open message
-- [ ] Think about multiple simultanious trades
-- [ ] Check what the trader will do if the price is below or equal EP
+- [ ] Add open check in CI/CD
+- [ ] Make sure we can open multiple simultanious trades
+- [ ] Successfully process cancel message
+- [ ] Add cancel check in CI/CD
 - [ ] All the state machine stransitions do there job
 - [ ] I want another postgres table the same as google sheet for closed trades
 - [ ] Separate insert function for each event
