@@ -268,7 +268,7 @@ Run from the directory containing `EdgeTrader/`, since `COPY EdgeTrader/...` pat
 ### Run
 
 ```powershell
-docker run --rm --env-file .env.local edgetrader
+docker run --rm --env-file .env.local -p 8000:8000 edgetrader
 ```
 
 `--env-file` is required — host-shell env vars (`export`/`$env:`) are **not** automatically passed into the container.

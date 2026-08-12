@@ -8,13 +8,17 @@ without any indicator or scanning logic.
 from __future__ import annotations
 
 import asyncio
+from logging import config
 import os
 import sys
 import json
 import re
 import base64
+import uvicorn
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
+from api import app
+from api import active_strategies as api_active_strategies
 
 from nautilus_trader.adapters.binance import (
     BINANCE,
@@ -396,6 +400,7 @@ async def listen_trade_events(
     sqs_client,
     queue_url: str,
     bar_interval: str,
+    active_strategies: Dict[str, TradeStrategy],
 ) -> None:
     """
     Long‑poll SQS for trade‑event messages, claim them via Postgres,
@@ -409,8 +414,6 @@ async def listen_trade_events(
         except Exception as e:
             print(f"⚠️ Postgres connection failed: {e}, retrying in 5s...", file=sys.stderr)
             await asyncio.sleep(5)
-
-    active_strategies: Dict[str, TradeStrategy] = {}  # trade_id -> strategy
 
     def on_strategy_closed(trade_id: str) -> None:
         """Callback invoked by the strategy when it reaches a terminal state."""
@@ -806,10 +809,14 @@ def main():
 
     # 4. Define the async entry point that runs both coroutines concurrently
     async def run_event_driven():
+        config = uvicorn.Config(app, host="0.0.0.0", port=8000, loop="asyncio")
+        server = uvicorn.Server(config)
+
         try:
             await asyncio.gather(
                 node.run_async(),
-                listen_trade_events(node, sqs_client, queue_url, bar_interval),
+                listen_trade_events(node, sqs_client, queue_url, bar_interval, api_active_strategies),
+                server.serve(),
             )
         except asyncio.CancelledError:
             # Normal shutdown

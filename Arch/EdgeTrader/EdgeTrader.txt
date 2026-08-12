@@ -391,3 +391,40 @@ End-to-end trade flow succeeded: strategy went READY → RUNNING, subscribed to 
 all in one poll cycle, no retries needed.
 The message was correctly claimed, processed once, then acked and deleted from SQS — the earlier duplicate-processing symptom is gone too, since the strategy 
 no longer fails immediately after being "added."
+
+//********************************//
+
+
+My recommendation: FastAPI
+Why FastAPI?
+
+Native async support – all route handlers can be async def, perfectly matching your current coroutine-based architecture.
+
+Automatic OpenAPI docs – /docs gives you instant testing and discovery.
+
+Data validation – Pydantic models ensure request/response schemas are clean and type-safe.
+
+Easy integration – you can run Uvicorn inside the same event loop (or in a separate thread) without major refactoring.
+
+Widely used – minimal learning curve, large ecosystem.
+
+//********************************//
+
+
+Alternatives considered:
+
+Flask – synchronous; would require threading or asyncio.to_thread for every DB call, which adds complexity and overhead.
+
+aiohttp – async and lightweight, but you have to build routing, validation, and docs manually. FastAPI gives you all that out‑of‑the‑box.
+
+Starlette – the foundation of FastAPI; if you want minimal overhead, you could use it directly, but FastAPI’s extras are worth the dependency.
+
+//********************************//
+
+You have two main options for running the API alongside the existing TradingNode and SQS listener:
+
+Same event loop – start Uvicorn with loop=asyncio.get_event_loop() and run it via asyncio.gather alongside your other tasks.
+
+Separate thread – run Uvicorn in a background thread; this keeps the main thread for your trading logic.
+
+I recommend option 1 because it keeps everything in one loop and avoids threading pitfalls.

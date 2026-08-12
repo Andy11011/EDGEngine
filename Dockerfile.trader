@@ -16,4 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY EdgeTrader/EDGETrader.py ./
 COPY EdgeTrader/trades_db_async.py ./
 COPY EdgeTrader/trade_strategy.py ./
+COPY EdgeTrader/api.py ./
 CMD ["python", "EDGETrader.py"]
