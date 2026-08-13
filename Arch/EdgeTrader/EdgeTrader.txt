@@ -523,3 +523,70 @@ So the blocking call still happens synchronously — it hasn't magically become 
     }
   }
 }
+
+//********************************//
+
+Good moment to think about this — you've got a system with a nasty mix of testability profiles: 
+some parts are pure logic (easy), some need real infra (Postgres, SQS), 
+and one part (Nautilus's TradingNode + live Binance connectivity) is genuinely hard/risky to exercise in CI. 
+Here's how I'd break it down.
+
+
+Pure logic — unit tests, no infra, run on every push
+
+SQS message parsing/validation (SNS envelope unwrapping, missing-field handling, trade_id generation) — 
+currently inline in listen_trade_events. Worth pulling into a standalone function purely so it's testable
+ without touching Nautilus or boto3 at all. The TradeStrategy state machine in trade_strategy.py — this 
+ is your actual business logic (entry/SL/TP/cancel transitions) and probably deserves the most unit-test
+  coverage of anything in the repo, since it's what decides whether real money moves correctly.
+api.py — very testable as-is: active_strategies, service_state are plain module-level dicts, so you can 
+just import and mutate them in a test, then hit the endpoints with FastAPI's TestClient/httpx.AsyncClient. 
+No mocking needed.
+
+
+Needs real (or realistic) infra — integration tests, gated in CI
+
+trades_db_async.py — the event-sourcing logic (auto-linking previous_event_id, the "find active trade for ticker" 
+query with the LEFT JOIN ... IS NULL pattern) lives in SQL. Mocking asyncpg gives you almost no confidence here —
+ you need a real Postgres. GitHub Actions makes this easy via the services: key (spins up a postgres:16 container 
+ for the job, reachable at localhost). testcontainers-python is the alternative if you want the same experience 
+ locally without extra YAML — it manages the container lifecycle from inside the test run itself, works identically
+  on your laptop and in CI.
+SQS consumption end-to-end (claim → dedup → process → ack, including the unclaim_event retry path) — moto is the right 
+tool here. It fakes AWS in-process (no Docker, no real AWS creds), so you can spin up a queue, push a message, and run
+ listen_trade_events against it for real. This is where the extracted parsing function from above pays off — you can
+  test the full consumer loop without needing a live Nautilus node, by handing it a lightweight fake/stub node object.
+
+//********************************//
+
+Tests/
+  unit/
+    test_sqs_event_parsing.py
+    test_trade_strategy_state_machine.py
+    test_api_endpoints.py
+    test_health_no_regression_blocking.py
+  integration/
+    test_db_postgres.py          # needs services: postgres
+    test_sqs_consumer_moto.py    # moto, no Docker needed
+  conftest.py
+  fixtures/
+    sample_sqs_events.json
+
+
+//********************************//
+
+We'll implement a CI pipeline that spins up the full EDGETrader stack (as a Docker container) and 
+confirms /health returns ok – proving Postgres, SQS, and Binance data connectivity are all working. 
+We'll use a real SQS queue (dedicated for CI) and an ephemeral Postgres via GitHub Actions’ service container.
+
+//********************************//
+
+Docker container matches production closer than running EDGETrader.py directly, and avoids
+ the subprocess.PIPE blocking trap we just debugged (we'll run detached with docker run -d and not capture stdout).
+Real SQS tests the actual AWS integration – no fake/mocked SQS, no surprises when deployed.
+Postgres service container gives a fresh, isolated database per run, zero risk to production data.
+Health endpoint is the ideal first test: it validates Postgres, SQS, and Nautilus (Binance data) all in one call.
+
+//********************************//
+
+https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue-test
