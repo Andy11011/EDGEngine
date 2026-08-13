@@ -463,3 +463,63 @@ However, the underlying Kernel.run() (or the internal event loop handling) often
 In other words, when you await node.run_async(), you are effectively handing over the entire 
 event loop to the node’s internal runner. That runner consumes all available CPU time for its 
 own scheduling, starving your server.serve() and listen_trade_events coroutines.
+
+//********************************//
+
+boto3 is a synchronous library. Wrapping the call in async def receive_trade_events(...) does not make 
+sqs_client.receive_message() non-blocking — it's still a plain blocking network call under the hood. 
+With WaitTimeSeconds=20, this single line blocks the entire event loop for up to 20 seconds, every 
+single poll cycle, forever. Same for delete_message(). During those 20-second windows, uvicorn literally
+ cannot process any incoming HTTP connection — the loop is busy sitting inside boto3's socket read.
+
+
+With run_async() commented out: the node never starts, so is_running never becomes True. listen_trade_events() 
+gets stuck forever in that harmless sleep(0.5) loop and never reaches receive_trade_events() → never calls 
+sqs_client.receive_message(..., WaitTimeSeconds=20). The blocking boto3 call simply never executes. That's why
+the API "works" — not because run_async() was the thing freezing the loop, but because removing it prevents
+the real blocking call (the sync boto3 SQS poll) from ever being reached.
+
+//********************************//
+
+So the blocking call still happens synchronously — it hasn't magically become non-blocking — but it's now
+ happening on a separate OS thread, so it no longer occupies the single thread that the event loop itself 
+ runs on. That's the entire trick: you can't make boto3 async, but you can move it off the thread that matters.
+
+//********************************//
+
+ [
+  {
+    "trade_id": "ATMUSDT.BINANCE_202606020111123",
+    "state": "AWAITING_FILL",
+    "instrument": "ATMUSDT.BINANCE",
+    "side": "BUY",
+    "size": 45.367,
+    "entry_price": 1.592,
+    "sl_price": 1.577,
+    "tp_price": 1.618
+  }
+]
+
+//********************************//
+
+
+{
+  "status": "ok",
+  "active_trades_count": 0,
+  "dependencies": {
+    "postgres": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-08-13T03:58:02.875469+00:00"
+    },
+    "sqs": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-08-13T03:58:31.491123+00:00"
+    },
+    "nautilus": {
+      "status": "running",
+      "trader_running": true
+    }
+  }
+}

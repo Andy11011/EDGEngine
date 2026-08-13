@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from api import app
 from api import active_strategies as api_active_strategies
+from api import set_status, node_ref
 
 from nautilus_trader.adapters.binance import (
     BINANCE,
@@ -355,35 +356,29 @@ async def receive_trade_events(
     max_messages: int = 10,
     wait_seconds: int = 20,
 ) -> list[dict]:
-    """
-    Long‑poll SQS for trade event messages.
-
-    Returns a list of messages, each containing:
-        - 'Body' (JSON string with event data)
-        - 'ReceiptHandle'
-        - 'MessageAttributes' (event_id, trade_id, event_type)
-    """
+    loop = asyncio.get_running_loop()
     try:
-        response = sqs_client.receive_message(
-            QueueUrl=queue_url,
-            MaxNumberOfMessages=max_messages,
-            WaitTimeSeconds=wait_seconds,
-            MessageAttributeNames=["All"],
+        response = await loop.run_in_executor(
+            None,
+            lambda: sqs_client.receive_message(
+                QueueUrl=queue_url,
+                MaxNumberOfMessages=max_messages,
+                WaitTimeSeconds=wait_seconds,
+                MessageAttributeNames=["All"],
+            ),
         )
     except Exception as e:
-        # Log error but don't crash; return empty list
         print(f"❌ SQS receive error: {e}", file=sys.stderr)
         return []
-
     return response.get("Messages", [])
 
 
 async def delete_message(sqs_client, queue_url: str, receipt_handle: str) -> bool:
-    """Delete a processed SQS message. Returns True on success."""
+    loop = asyncio.get_running_loop()
     try:
-        sqs_client.delete_message(
-            QueueUrl=queue_url,
-            ReceiptHandle=receipt_handle,
+        await loop.run_in_executor(
+            None,
+            lambda: sqs_client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle),
         )
         return True
     except Exception as e:
@@ -407,13 +402,16 @@ async def listen_trade_events(
     and spin up a TradeStrategy for each new 'open' event.
     'cancel' events are handled by calling request_cancel on the active strategy.
     """
+    set_status("postgres", "connecting")
     while True:
         try:
             db = await TradeEventsDB.get_instance()
             break
         except Exception as e:
             print(f"⚠️ Postgres connection failed: {e}, retrying in 5s...", file=sys.stderr)
+            set_status("postgres", "failed", detail=str(e))
             await asyncio.sleep(5)
+    set_status("postgres", "connected")
 
     def on_strategy_closed(trade_id: str) -> None:
         """Callback invoked by the strategy when it reaches a terminal state."""
@@ -459,8 +457,11 @@ async def listen_trade_events(
                 max_messages=int(os.getenv("SQS_MAX_MESSAGES", "10")),
                 wait_seconds=poll_wait_seconds,
             )
+            # A successful call (even with 0 messages) proves connectivity.
+            set_status("sqs", "connected")
         except Exception as e:
             print(f"❌ SQS receive error: {e}", file=sys.stderr)
+            set_status("sqs", "failed", detail=str(e))
             await asyncio.sleep(1)
             continue
 
@@ -799,6 +800,10 @@ def main():
     # 2. Build the node's clients (now that factories are registered)
     node.build()
 
+    # Expose the node to the API layer so /health can read node.trader.is_running
+    # live (a cheap attribute lookup, no I/O) instead of relying on push updates.
+    node_ref["node"] = node
+
     # 3. Get SQS queue URL (required)
     queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")
     if not queue_url:
@@ -806,6 +811,7 @@ def main():
         sys.exit(1)
 
     sqs_client = get_sqs_client()
+    set_status("sqs", "connecting")
 
     # 4. Define the async entry point that runs both coroutines concurrently
     async def run_event_driven():
