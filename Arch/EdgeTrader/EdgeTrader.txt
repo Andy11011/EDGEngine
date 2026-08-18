@@ -590,3 +590,17 @@ Health endpoint is the ideal first test: it validates Postgres, SQS, and Nautilu
 //********************************//
 
 https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue-test
+
+
+Run pytest -v tests/test_health.py
+
+//********************************//
+
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/runner/work/EDGEngine/EDGEngine
+ERROR: file or directory not found: tests/test_health.py
+collecting ... collected 0 items
+============================ no tests ran in 0.00s =============================
+Error: Process completed with exit code 4.
