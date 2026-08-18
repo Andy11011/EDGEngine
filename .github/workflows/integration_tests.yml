@@ -8,9 +8,9 @@ on:
 
 env:
   DB_NAME: postgres
-  DB_USER: testuser
-  DB_PASSWORD: testpass
-  DB_HOST: postgres
+  DB_USER: user
+  DB_PASSWORD: pass
+  DB_HOST: localhost
   DB_PORT: 5432
 
 jobs:
@@ -21,8 +21,8 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: pass
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
@@ -46,7 +46,7 @@ jobs:
         run: |
           docker run -d \
             --name edgetrader-ci \
-            --network ${{ job.container.network }} \
+            --network host \
             -e TRADING_MODE=VIRTUAL \
             -e BINANCE_API_KEY=${{ secrets.BINANCE_API_KEY }} \
             -e BINANCE_API_SECRET=${{ secrets.BINANCE_API_SECRET }} \
@@ -57,9 +57,8 @@ jobs:
             -e DB_NAME=${{ env.DB_NAME }} \
             -e DB_USER=${{ env.DB_USER }} \
             -e DB_PASSWORD=${{ env.DB_PASSWORD }} \
-            -e DB_HOST=${{ env.DB_HOST }} \
+            -e DB_HOST=localhost \
             -e DB_PORT=${{ env.DB_PORT }} \
-            -p 8000:8000 \
             edgetrader:ci
 
       - name: Install test dependencies
@@ -67,3 +66,13 @@ jobs:
 
       - name: Run health test
         run: pytest -v tests/test_health.py
+
+      - name: Dump container state on failure
+        if: always()
+        run: |
+          echo "--- docker ps -a ---"
+          docker ps -a
+          echo "--- edgetrader-ci logs ---"
+          docker logs edgetrader-ci || true
+          echo "--- edgetrader-ci inspect (network) ---"
+          docker inspect edgetrader-ci --format '{{json .NetworkSettings.Networks}}' || true
