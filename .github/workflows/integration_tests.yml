@@ -52,13 +52,13 @@ jobs:
             -e BINANCE_API_SECRET=${{ secrets.BINANCE_API_SECRET }} \
             -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
             -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-            -e AWS_REGION=${{ secrets.AWS_REGION }} \
-            -e SQS_TRADE_EVENTS_QUEUE_URL=${{ secrets.SQS_TRADE_EVENTS_QUEUE_URL }} \
-            -e DB_NAME=${{ env.DB_NAME }} \
-            -e DB_USER=${{ env.DB_USER }} \
-            -e DB_PASSWORD=${{ env.DB_PASSWORD }} \
+            -e AWS_REGION=${{ vars.AWS_REGION }} \
+            -e SQS_TRADE_EVENTS_QUEUE_URL=${{ vars.SQS_TRADE_EVENTS_QUEUE_URL }} \
+            -e DB_NAME=${{ vars.DB_NAME }} \
+            -e DB_USER=${{ vars.DB_USER }} \
+            -e DB_PASSWORD=${{ vars.DB_PASSWORD }} \
             -e DB_HOST=localhost \
-            -e DB_PORT=${{ env.DB_PORT }} \
+            -e DB_PORT=${{ vars.DB_PORT }} \
             edgetrader:ci
 
       - name: Install test dependencies
