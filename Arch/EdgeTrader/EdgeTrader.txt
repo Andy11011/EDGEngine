@@ -606,20 +606,30 @@ collecting ... collected 0 items
 Error: Process completed with exit code 4.
 
 //********************************//
+Variables:
+DB_HOST
+DB_NAME
+DB_PASSWORD
+DB_PORT
+DB_USER
+SQS_TRADE_EVENTS_QUEUE_URL
 
+Secrets:
 AWS_ACCESS_KEY_ID
-5 days ago
 AWS_SECRET_ACCESS_KEY
-5 days ago
 BINANCE_API_KEY
-5 days ago
 BINANCE_API_SECRET
-5 days ago
 BINANCE_ED25519_PRIVATE_KEY
-5 days ago
 BINANCE_ED25519_PUBLIC_KEY
-5 days ago
 BINANCE_SANDBOX_API_KEY
-5 days ago
 BINANCE_SANDBOX_API_SECRET
-5 days ago
+
+//********************************//
+
+Binance is rejecting the API key/location combo (likely because GitHub-hosted runners' IPs are geofenced or 
+flagged by Binance's terms). The app tolerates this gracefully and still starts and serves /health, so it's
+not breaking CI — but if any future tests exercise actual trading logic against real instruments, this is 
+worth knowing about now rather than discovering later. If it matters, you'd probably want the CI health-check
+job running against Binance's testnet/sandbox credentials (you already have BINANCE_SANDBOX_API_KEY/BINANCE_SANDBOX_API_SECRET
+as secrets) rather than the live mainnet keys, which would sidestep both the eligibility restriction and any risk
+of the CI job doing anything near live markets.

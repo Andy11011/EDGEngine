@@ -59,6 +59,9 @@ jobs:
             -e DB_PASSWORD=${{ vars.DB_PASSWORD }} \
             -e DB_HOST=localhost \
             -e DB_PORT=${{ vars.DB_PORT }} \
+            -e TRADING_MODE=TESTNET \
+            -e BINANCE_SANDBOX_API_KEY=${{ secrets.BINANCE_SANDBOX_API_KEY }} \
+            -e BINANCE_SANDBOX_API_SECRET=${{ secrets.BINANCE_SANDBOX_API_SECRET }} \
             edgetrader:ci
 
       - name: Install test dependencies

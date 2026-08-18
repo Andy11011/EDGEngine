@@ -7,13 +7,12 @@
 - [X] ~~*Successfully process open message*~~ [2026-08-12]
 - [X] ~~*REST API for getting active stratagies (orders)*~~ [2026-08-13]
 - [X] ~~*Investigate REST API with message broker design*~~ [2026-08-13]
-- [ ] /health api should check nautilus state
-- [ ] Add health check in CI/CD
-- [ ] active_trades should return mode
-- [ ] Add open check in CI/CD
-- [ ] Successfully process cancel message manually
-- [ ] Add cancel check in CI/CD
-- [ ] Make sure we can open multiple simultanious trades
+- [X] ~~*/health api should check nautilus state*~~ [2026-08-18]
+- [X] ~~*Add health check in CI/CD*~~ [2026-08-18]
+- [ ] Check open and close locally
+- [ ] Add open and close in CI/CD
+- [ ] Check open and close locally for multiple trades
+- [ ] Add open and close for multiple trades in CI/CD
 - [ ] All the state machine stransitions do there job
 - [ ] I want another postgres table the same as google sheet for closed trades
 - [ ] Separate insert function for each event
