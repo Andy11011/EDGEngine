@@ -633,3 +633,34 @@ worth knowing about now rather than discovering later. If it matters, you'd prob
 job running against Binance's testnet/sandbox credentials (you already have BINANCE_SANDBOX_API_KEY/BINANCE_SANDBOX_API_SECRET
 as secrets) rather than the live mainnet keys, which would sidestep both the eligibility restriction and any risk
 of the CI job doing anything near live markets.
+
+//********************************//
+
+"Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms."
+
+
+That message is the same for mainnet and testnet, which tells us this isn't an auth/credential problem 
+or a config bug — it's a geographic restriction Binance applies at the network/IP level, before your 
+API keys are even evaluated. Binance blocks connections from certain jurisdictions outright (most 
+notably the US, due to regulatory reasons — Binance.com doesn't serve US-based traffic at all, 
+that's what Binance.US exists for separately), and this applies to testnet.binance.vision too,
+ not just the mainnet API.
+
+Why this hits your CI specifically: GitHub-hosted runners (ubuntu-latest) run on Microsoft Azure infrastructure,
+and their outbound IP addresses land in Azure datacenter ranges that are commonly US-based (you can see it in 
+your own logs — OS: kernel-6.17.0-1022-azure). Binance's geofencing flags that IP as coming from a restricted 
+location, and rejects the connection regardless of which API keys you send.
+
+
+Self-hosted runner in an eligible region. You'd stand up your own runner (a VM, a small cloud instance, etc.)
+in a country Binance permits, register it with your repo as a self-hosted runner, and point this job at it 
+via runs-on: [self-hosted, ...]. This is the legitimate fix — the runner's real network location determines 
+what Binance sees, no evasion involved.
+
+//********************************//
+
+Binance.com (the global platform) intentionally does not serve US users at all, full stop. It's not 
+"some features are US users, others aren't" — the whole platform blocks US-originating traffic, 
+because Binance.com isn't registered or licensed to operate as an exchange under US securities/commodities law. 
+If a US resident could just use Binance.com directly, Binance would effectively be offering unregistered 
+trading services to US persons, which is exactly what got them into the massive 2023 legal settlement.

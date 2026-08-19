@@ -15,7 +15,7 @@ env:
 
 jobs:
   health-check:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     services:
       postgres:

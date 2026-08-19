@@ -2,8 +2,16 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: write down integration
-
+- [ ] Edge-trader: Fix a location error
+- [ ] Edge-trader: Check open and close locally
+- [ ] Edge-trader: Add open and close in CI/CD
+- [ ] Edge-trader: Check open and close locally for multiple trades
+- [ ] Edge-trader: Add open and close for multiple trades in CI/CD
+- [ ] Edge-trader: All the state machine stransitions do there job
+- [ ] Edge-trader: I want another postgres table the same as google sheet for closed trades
+- [ ] Edge-trader: Separate insert function for each event
+- [ ] Edge-trader: Solve missing SQS messages
+- [ ] Edge-trader: Redesign new main flow and Integration path with message broker
 - [ ] Edge-trader: Implement new main flow
 - [ ] Edge-trader: Push messages when get new signal (in java app)
 - [ ] Show crossovers on the chart
@@ -12,6 +20,9 @@
 - [ ] Add Supertrend
 - [ ] Add Volume
 - [ ] Improve volume for Z-Score
+- [ ] Old outdated sl, ep, tp - price <= sl, price >= tp
+- [ ] Two different orders if price <= ep and price>=ep
+- [X] ~~*Edge-trader: write down integration*~~ [2026-08-03]
 - [X] ~~*Edge-trader: Implement vertual trade switch*~~ [2026-07-31]
 - [X] ~~*Edge-trader: Draw a SM diagramm*~~ [2026-07-31]
 - [X] ~~*Edge-trader: Draw a State diagramm for trades event sourcing*~~ [2026-07-31]
