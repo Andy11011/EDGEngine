@@ -43,10 +43,16 @@ jobs:
         run: docker build -f Dockerfile.trader -t edgetrader:ci .
 
       - name: Run EDGETrader container
+        # NOTE: --network host is dropped because Docker Desktop on Windows does not
+        # reliably support Linux host networking. The container instead talks to your
+        # native Windows Postgres via host.docker.internal, and its app port is published
+        # with -p so pytest (running natively on the runner) can reach it over localhost.
+        # TODO: replace <APP_PORT> below with whatever port Dockerfile.trader actually
+        # exposes (check the Dockerfile's EXPOSE line / your app's listen port).
         run: |
           docker run -d \
             --name edgetrader-ci \
-            --network host \
+            -p 5432:5432 \
             -e TRADING_MODE=VIRTUAL \
             -e BINANCE_API_KEY=${{ secrets.BINANCE_API_KEY }} \
             -e BINANCE_API_SECRET=${{ secrets.BINANCE_API_SECRET }} \
@@ -57,7 +63,7 @@ jobs:
             -e DB_NAME=${{ vars.DB_NAME }} \
             -e DB_USER=${{ vars.DB_USER }} \
             -e DB_PASSWORD=${{ vars.DB_PASSWORD }} \
-            -e DB_HOST=localhost \
+            -e DB_HOST=host.docker.internal \
             -e DB_PORT=${{ vars.DB_PORT }} \
             -e TRADING_MODE=TESTNET \
             -e BINANCE_SANDBOX_API_KEY=${{ secrets.BINANCE_SANDBOX_API_KEY }} \

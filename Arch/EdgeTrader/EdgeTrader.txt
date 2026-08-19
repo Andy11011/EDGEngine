@@ -664,3 +664,10 @@ Binance.com (the global platform) intentionally does not serve US users at all, 
 because Binance.com isn't registered or licensed to operate as an exchange under US securities/commodities law. 
 If a US resident could just use Binance.com directly, Binance would effectively be offering unregistered 
 trading services to US persons, which is exactly what got them into the massive 2023 legal settlement.
+
+//********************************//
+postgresql.conf: set listen_addresses = '*' (or at least not just localhost) so it accepts connections from the Docker Desktop virtual network.
+
+pg_hba.conf: add a line allowing the Docker network to connect — Docker Desktop's internal network can shift, so the pragматic option is 
+host all all 0.0.0.0/0 md5, though that's broad; if you'd rather scope it tighter I can help you find Docker Desktop's actual subnet.
+Restart the Postgres service and add a firewall rule for port 5432, same as before.
