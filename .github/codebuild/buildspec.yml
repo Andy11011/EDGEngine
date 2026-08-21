@@ -1,0 +1,72 @@
+version: 0.2
+
+# Secrets pulled straight from Secrets Manager into env vars — never touch
+# the console or build logs in plaintext.
+env:
+  secrets-manager:
+    GHCR_USERNAME: "edgetrader/ghcr-creds:GHCR_USERNAME"
+    GHCR_TOKEN: "edgetrader/ghcr-creds:GHCR_TOKEN"
+    BINANCE_SANDBOX_API_KEY: "edgetrader/trading-secrets:BINANCE_SANDBOX_API_KEY"
+    BINANCE_SANDBOX_API_SECRET: "edgetrader/trading-secrets:BINANCE_SANDBOX_API_SECRET"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      # Standard images don't run dockerd by default even in privileged mode —
+      # start it ourselves and wait until it's actually ready.
+      - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --storage-driver=overlay2 &
+      - timeout 15 sh -c "until docker info >/dev/null 2>&1; do echo waiting for docker; sleep 1; done"
+      - pip install --quiet requests pytest psycopg2-binary
+
+  pre_build:
+    commands:
+      - echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+      # OWNER_LC and IMAGE_TAG (commit sha) are passed in as environment
+      # variable overrides from the GitHub Actions step that starts this build.
+      - IMAGE="ghcr.io/${OWNER_LC}/edge-trader:${IMAGE_TAG}"
+      - echo "Pulling $IMAGE"
+      - docker pull "$IMAGE"
+      - docker pull postgres:16-alpine
+      - docker network create edgetrader-net
+
+  build:
+    commands:
+      # Real Docker network instead of host.docker.internal — this is the
+      # payoff of being on a Linux runner.
+      - |
+        docker run -d --name postgres-ci --network edgetrader-net \
+          -e POSTGRES_DB="${DB_NAME}" \
+          -e POSTGRES_USER="${DB_USER}" \
+          -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
+          postgres:16-alpine
+      - timeout 30 sh -c 'until docker exec postgres-ci pg_isready -U "${DB_USER}" >/dev/null 2>&1; do sleep 1; done'
+      # TODO: confirm APP_PORT matches whatever Dockerfile.trader EXPOSEs / the
+      # app actually listens on, then pass it as an override too.
+      - |
+        docker run -d --name edgetrader-ci --network edgetrader-net \
+          -p "${APP_PORT}:${APP_PORT}" \
+          -e TRADING_MODE=TESTNET \
+          -e BINANCE_SANDBOX_API_KEY="${BINANCE_SANDBOX_API_KEY}" \
+          -e BINANCE_SANDBOX_API_SECRET="${BINANCE_SANDBOX_API_SECRET}" \
+          -e AWS_REGION="${AWS_REGION}" \
+          -e SQS_TRADE_EVENTS_QUEUE_URL="${SQS_TRADE_EVENTS_QUEUE_URL}" \
+          -e DB_NAME="${DB_NAME}" \
+          -e DB_USER="${DB_USER}" \
+          -e DB_PASSWORD="${DB_PASSWORD}" \
+          -e DB_HOST=postgres-ci \
+          -e DB_PORT=5432 \
+          "${IMAGE}"
+      - sleep 5
+      - pytest -v tests/test_health.py
+
+  post_build:
+    commands:
+      - echo "--- docker ps -a ---"
+      - docker ps -a
+      - echo "--- edgetrader-ci logs ---"
+      - docker logs edgetrader-ci || true
+      - echo "--- postgres-ci logs ---"
+      - docker logs postgres-ci || true
+      - docker rm -f edgetrader-ci postgres-ci || true

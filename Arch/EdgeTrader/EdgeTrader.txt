@@ -666,8 +666,111 @@ If a US resident could just use Binance.com directly, Binance would effectively 
 trading services to US persons, which is exactly what got them into the massive 2023 legal settlement.
 
 //********************************//
+
 postgresql.conf: set listen_addresses = '*' (or at least not just localhost) so it accepts connections from the Docker Desktop virtual network.
 
 pg_hba.conf: add a line allowing the Docker network to connect — Docker Desktop's internal network can shift, so the pragматic option is 
 host all all 0.0.0.0/0 md5, though that's broad; if you'd rather scope it tighter I can help you find Docker Desktop's actual subnet.
 Restart the Postgres service and add a firewall rule for port 5432, same as before.
+
+//********************************//
+
+Error: ERROR: failed to initialize builder builder-516afc94-9d21-457c-855e-d72d19643f25 
+(builder-516afc94-9d21-457c-855e-d72d19643f250): permission denied while trying to connect
+to the docker API at npipe:////./pipe/docker_engine
+
+//********************************//
+
+Single persistent EC2 instance
+One always-on EC2 box in ap-southeast-1 registered as a GitHub self-hosted runner. Simplest to set up, 
+matches your current single-job workload, and lets you drop the Windows-specific workarounds entirely.
+
+Ephemeral EC2 runners (autoscaling)
+A launch template spins up a fresh EC2 instance per job and terminates it after, using something like 
+the philips-labs/terraform-aws-github-runner project. More setup work but no idle cost and no state 
+leaking between runs.
+
+AWS CodeBuild as the runner
+GitHub's official aws-actions/aws-codebuild-run-build action offloads the job to a CodeBuild project 
+you configure in Singapore. No EC2 instance to manage at all — fully managed and billed per build-minute.
+
+ECS/Fargate-based runners
+Ephemeral containerized runners on Fargate in ap-southeast-1. Good middle ground if you're already 
+comfortable with ECS and want container-level isolation without managing EC2 hosts.
+
+//********************************//
+
+
+Your CI needs are simple and infrequent. One job, triggered by push/PR, not constantly running. Paying per build-minute beats paying for an idle EC2 box 24/7.
+It's ephemeral by default. Every build gets a fresh environment, so you don't inherit the exact problem your current runner has — leftover containers (edgetrader-ci already existing), stale state, manual cleanup. No patching a long-lived host either.
+Docker builds are a first-class use case. CodeBuild is built around exactly this (build image → build container → push), so docker build -f Dockerfile.trader and friends aren't fighting the platform.
+Native GitHub Actions integration exists via aws-actions/aws-codebuild-run-build, so your workflow YAML barely changes — you swap the runs-on: self-hosted job for a step that dispatches to CodeBuild.
+
+Your docker.yml build job runs on ubuntu-latest (GitHub-hosted) and isn't affected by the region problem at all — it's not the runner talking to Binance, it's the container talking to Binance. So:
+
+Keep docker.yml exactly as-is on GitHub-hosted runners — it's free (well, whatever your GitHub Actions minutes plan covers) and there's zero reason to move it.
+Only integration_tests.yml's job that actually runs the trader container and talks to Binance needs to be in Singapore. That's a small win too: CodeBuild bills by the minute your build spends running, 
+so you're not paying for anything except the actual test window.
+
+
+Cost for ~15 min/day:
+
+CodeBuild's on-demand Linux pricing (per build-minute, ap-southeast-1 runs a bit higher than us-east-1):
+
+Compute type	vCPU / RAM	Approx. price/min (Singapore)
+BUILD_GENERAL1_SMALL	2 vCPU / 4 GB	~$0.006
+BUILD_GENERAL1_MEDIUM	4 vCPU / 7 GB	~$0.012
+
+Docker-in-Docker (privileged mode) with a full docker build + docker run typically wants at least medium, since small can choke on image builds. At 15 min/day:
+
+15 min × 30 days = 450 build-minutes/month
+450 × $0.012 ≈ ~$5.40/month on medium
+(small, if it's enough: 450 × $0.006 ≈ ~$2.70/month)
+
+So realistically you're looking at $5–10/month total
+
+Got it — CodeBuild just pulls the pre-built image from GHCR rather than rebuilding it.
+
+
+integration_tests.yml — instead of running natively on a self-hosted Windows runner,
+it triggers a CodeBuild project in ap-southeast-1 via aws-actions/aws-codebuild-run-build. The CodeBuild buildspec:
+
+- Logs in to GHCR
+- docker pull ghcr.io/<owner>/edge-trader:<sha> (pin to the commit that triggered the workflow, not :latest, so you're testing exactly what was built)
+- Runs the container with a real services:-equivalent Postgres (CodeBuild's Linux environment supports Docker networking properly, 
+so no more host.docker.internal workaround)
+- Runs pytest against it
+
+workflow_run: make integration_tests.yml trigger on workflow_run of docker.yml completing successfully, instead of on push directly.
+Single workflow: merge both into one workflow file with needs: docker_img_x86_64 so the test job explicitly waits on the build job.
+
+//********************************//
+
+Step 5 ("No source"): this is the piece that makes the GitHub Actions integration clean later — 
+aws-codebuild-run-build pushes the buildspec 
+YAML directly into the build request, so CodeBuild never needs a GitHub App connection or webhook of its own.
+
+
+buildspec.yml
+
+//********************************//
+
+1. GitHub Actions (ci.yml) — builds edge-trader, pushes it to GHCR, then triggers CodeBuild 
+and passes it IMAGE_TAG/OWNER_LC/etc.
+ as env var overrides. GitHub Actions itself never runs pytest anymore.
+
+2. CodeBuild (buildspec.yml, in ap-southeast-1) — pulls that exact image, starts Postgres + the app container 
+on a shared Docker network, waits for Postgres to be ready, then runs pytest -v tests/test_health.py against 
+the running container. This is where the actual test execution — and the Binance calls it triggers — happen 
+from a Singapore IP.
+
+3. post_build dumps docker ps -a and container logs either way, same as your old "Dump container state on failure" 
+step, just running in CodeBuild's log stream instead of the Actions log.
+
+//********************************//
+
+Yes — once it works end-to-end, every GitHub Actions run creates a new entry under CodeBuild → 
+your project (edgetrader-integration-tests) → Build history. Each one shows up as a separate 
+build run with its own ID, phase timeline (DOWNLOAD_SOURCE → INSTALL → PRE_BUILD → BUILD → POST_BUILD), 
+and full logs — same view as the manual test run you did earlier, just triggered externally instead
+ of by clicking "Start build."
