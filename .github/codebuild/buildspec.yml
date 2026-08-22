@@ -52,8 +52,8 @@ phases:
         docker run -d --name edgetrader-ci --network edgetrader-net \
           -p "${APP_PORT}:${APP_PORT}" \
           -e TRADING_MODE=TEST1 \
-          -e BINANCE_SANDBOX_API_KEY="${BINANCE_SANDBOX_API_KEY}" \
-          -e BINANCE_SANDBOX_API_SECRET="${BINANCE_SANDBOX_API_SECRET}" \
+          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
           -e AWS_REGION="${AWS_REGION}" \
           -e SQS_TRADE_EVENTS_QUEUE_URL="${SQS_TRADE_EVENTS_QUEUE_URL}" \
           -e DB_NAME="${DB_NAME}" \
