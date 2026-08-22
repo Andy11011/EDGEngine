@@ -657,43 +657,63 @@ def main():
     log_level = os.getenv("LOG_LEVEL", "INFO")
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
 
-    # TRADING_MODE is the single source of truth for how this node behaves.
-    # BINANCE_ENV and BINANCE_SANDBOX are *derived* from it below rather than
-    # being independently settable, so it's impossible for them to drift out
-    # of sync with each other (e.g. TRADING_MODE=TESTNET while BINANCE_ENV
-    # silently defaults to LIVE, which would have sent real orders to mainnet
-    # with live credentials while believing you were on testnet).
+    # MODE is the single source of truth for how this node behaves. The
+    # Binance data environment, whether execution is simulated, and which
+    # credentials are required are all *derived* from it below rather than
+    # independently settable, so it's impossible for them to drift out of
+    # sync with each other (e.g. believing you're on testnet while the venue
+    # or credentials silently point at mainnet).
     #
-    #   VIRTUAL  (default) - live market data from Binance MAINNET, but orders
-    #                        are simulated locally by Nautilus's own
-    #                        SandboxExecutionClient. Nothing is ever sent to
-    #                        Binance. No exec credentials are needed.
-    #   TESTNET  - orders go to Binance's real Spot/Futures Testnet, using
-    #              sandbox credentials (BINANCE_SANDBOX_API_KEY/SECRET, or the
-    #              sandbox AWS secret).
-    #   LIVE     - real trading on Binance mainnet (current default behaviour).
-    trading_mode = os.getenv("TRADING_MODE", "VIRTUAL").upper()
-    if trading_mode not in {"VIRTUAL", "TESTNET", "LIVE"}:
-        print(f"❌ Unsupported TRADING_MODE: {trading_mode}. Use VIRTUAL, TESTNET, or LIVE.", file=sys.stderr)
+    #   TEST1 (default) - Nautilus-simulated orders (SandboxExecutionClient),
+    #                      fed by live market data from Binance TESTNET. No
+    #                      real orders are ever sent to Binance. Needs only
+    #                      BINANCE_SANDBOX_API_KEY/SECRET (for the testnet
+    #                      data feed) — no Ed25519 exec credentials.
+    #   TEST2           - Nautilus-simulated orders (SandboxExecutionClient),
+    #                      fed by live market data from Binance MAINNET. No
+    #                      real orders are ever sent to Binance. Needs only
+    #                      BINANCE_API_KEY/SECRET (for the mainnet data feed)
+    #                      — no Ed25519 exec credentials.
+    #   TEST3           - Real orders sent to Binance's Spot/Futures TESTNET
+    #                      (not simulated). Needs BINANCE_SANDBOX_API_KEY/SECRET
+    #                      for data, plus BINANCE_ED25519_PUBLIC_KEY/PRIVATE_KEY
+    #                      for order execution.
+    #   LIVE            - Real trading on Binance MAINNET with real funds.
+    #                      Needs BINANCE_API_KEY/SECRET for data, plus
+    #                      BINANCE_ED25519_PUBLIC_KEY/PRIVATE_KEY for order
+    #                      execution.
+    mode = os.getenv("TRADING_MODE", "TEST1").upper()
+
+    # mode -> (Binance environment used for data/exec, use simulated exec?)
+    _MODE_TABLE = {
+        "TEST1": ("TESTNET", True),
+        "TEST2": ("LIVE", True),
+        "TEST3": ("TESTNET", False),
+        "LIVE": ("LIVE", False),
+    }
+    if mode not in _MODE_TABLE:
+        print(f"❌ Unsupported TRADING_MODE: {mode}. Use TEST1, TEST2, TEST3, or LIVE.", file=sys.stderr)
         sys.exit(1)
 
-    # Derived from TRADING_MODE — not independently configurable.
-    sandbox = trading_mode == "TESTNET"
-    environment = "TESTNET" if trading_mode == "TESTNET" else "LIVE"
+    environment, use_sim_exec = _MODE_TABLE[mode]
+    sandbox = environment == "TESTNET"  # drives which data credentials to load
 
     _MODE_DESCRIPTIONS = {
-        "VIRTUAL": "🧪 Doing Nautilus-simulated trades locally, fed by live market data from Binance MAINNET. "
-                   "No real orders will be sent to Binance.",
-        "TESTNET": "🟡 Doing live trades on Binance TESTNET. Real orders are placed, but on the testnet — no real funds at risk.",
-        "LIVE":    "🔴 Doing LIVE trades on Binance MAINNET. Real orders with real funds.",
+        "TEST1": "🧪 Nautilus-simulated trades, fed by live market data from Binance TESTNET. "
+                 "No real orders will be sent to Binance.",
+        "TEST2": "🧪 Nautilus-simulated trades, fed by live market data from Binance MAINNET. "
+                 "No real orders will be sent to Binance.",
+        "TEST3": "🟡 Real orders placed on Binance TESTNET (not simulated) — no real funds at risk.",
+        "LIVE": "🔴 Doing LIVE trades on Binance MAINNET. Real orders with real funds.",
     }
     print("=" * 78, file=sys.stderr)
     print(
-        f"MODE  TRADING_MODE={trading_mode}  |  BINANCE_ENV={environment}  |  "
+        f"MODE={mode}  |  BINANCE_ENV={environment}  |  "
+        f"SIM_EXEC={'1' if use_sim_exec else '0'}  |  "
         f"BINANCE_SANDBOX={'1' if sandbox else '0'}",
         file=sys.stderr,
     )
-    print(_MODE_DESCRIPTIONS[trading_mode], file=sys.stderr)
+    print(_MODE_DESCRIPTIONS[mode], file=sys.stderr)
     print("=" * 78, file=sys.stderr)
 
     # Load credentials (env vars first for local runs, AWS Secrets Manager otherwise)
@@ -704,13 +724,21 @@ def main():
         sys.exit(1)
 
     # --- Load Ed25519 keys and use them for the EXEC client ---
+    # Only needed when real orders are actually sent to Binance (TEST3, LIVE).
     # Binance's WebSocket API session.logon (used by Nautilus exec clients)
     # rejects HMAC-SHA-256 keys, so the exec client must use Ed25519 (or RSA,
     # though RSA is not supported for execution). Nautilus auto-detects the
     # key type from the api_secret format, so no key_type config is needed.
-    # Skipped entirely in VIRTUAL mode since no real exec connection is made.
+    # Skipped entirely when use_sim_exec is True, since no real exec
+    # connection is ever made.
+    #
+    # This now hard-fails (rather than warning and silently continuing) if a
+    # real-exec mode is missing credentials. Continuing with api_key=None
+    # previously caused Nautilus's own internal fallback to look for its own
+    # differently-named env var and raise a confusing, unrelated-looking
+    # error deep inside the library instead of a clear failure here.
     exec_api_key = exec_api_secret = None
-    if trading_mode != "VIRTUAL":
+    if not use_sim_exec:
         try:
             ed25519_public_key, ed25519_private_key = load_ed25519_credentials(region=aws_region)
 
@@ -721,7 +749,8 @@ def main():
             exec_api_secret = ed25519_private_key
             print("🔐 Using Ed25519 credentials for the execution client", file=sys.stderr)
         except Exception as e:
-            print(f"⚠️ Ed25519 credentials not loaded: {e}", file=sys.stderr)
+            print(f"❌ Ed25519 credentials required for MODE={mode} but not loaded: {e}", file=sys.stderr)
+            sys.exit(1)
 
     account_type = BinanceAccountType.SPOT
 
@@ -748,7 +777,7 @@ def main():
     )
 
     # Execution client config
-    if trading_mode == "VIRTUAL":
+    if use_sim_exec:
         # Nautilus's own simulated exec client: fills are computed locally
         # against the live data feed above, no order ever reaches Binance.
         starting_balances = [
@@ -794,7 +823,7 @@ def main():
     # ----------------------------------------------------------------------
     # 1. Register data and execution factories
     register_binance_data(node)
-    register_exec = register_sandbox_exec if trading_mode == "VIRTUAL" else register_binance_exec
+    register_exec = register_sandbox_exec if use_sim_exec else register_binance_exec
     register_exec(node)
 
     # 2. Build the node's clients (now that factories are registered)

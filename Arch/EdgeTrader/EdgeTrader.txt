@@ -807,3 +807,10 @@ invalid reference format
 
 Notice the image reference is ghcr.io//edge-trader: — OWNER_LC and IMAGE_TAG are both empty. 
 Those are environment variables your buildspec expects to already be set, but they aren't populated in this build.
+
+//********************************//
+
+LIVE (real binance trades)
+TEST1 (nautilus sim + TESTNET)
+TEST2 (nautilus sim + MAINNET)
+TEST3 (no nautilus sim + TESTNET)

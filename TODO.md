@@ -3,6 +3,7 @@
 ## Top Priority
 
 - [ ] Edge-trader: Fix a location error
+- [ ] Edge-trader: Do health check in all 4 modes
 - [ ] Edge-trader: Check open and close locally
 - [ ] Edge-trader: Add open and close in CI/CD
 - [ ] Edge-trader: Check open and close locally for multiple trades

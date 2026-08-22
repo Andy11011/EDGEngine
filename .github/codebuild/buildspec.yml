@@ -8,6 +8,8 @@ env:
     GHCR_TOKEN: "edgetrader/ghcr-creds:GHCR_TOKEN"
     BINANCE_SANDBOX_API_KEY: "edgetrader/trading-secrets:BINANCE_SANDBOX_API_KEY"
     BINANCE_SANDBOX_API_SECRET: "edgetrader/trading-secrets:BINANCE_SANDBOX_API_SECRET"
+    BINANCE_ED25519_PUBLIC_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PUBLIC_KEY"
+    BINANCE_ED25519_PRIVATE_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PRIVATE_KEY"
 
 phases:
   install:
@@ -47,7 +49,7 @@ phases:
       - |
         docker run -d --name edgetrader-ci --network edgetrader-net \
           -p "${APP_PORT}:${APP_PORT}" \
-          -e TRADING_MODE=TESTNET \
+          -e TRADING_MODE=TEST1 \
           -e BINANCE_SANDBOX_API_KEY="${BINANCE_SANDBOX_API_KEY}" \
           -e BINANCE_SANDBOX_API_SECRET="${BINANCE_SANDBOX_API_SECRET}" \
           -e AWS_REGION="${AWS_REGION}" \
