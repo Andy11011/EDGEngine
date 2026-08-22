@@ -100,18 +100,19 @@ jobs:
 
       - name: Trigger CodeBuild
         uses: aws-actions/aws-codebuild-run-build@v1
+        env:
+          OWNER_LC: ${{ needs.build_amd64.outputs.owner_lc }}
+          IMAGE_TAG: ${{ github.sha }}
+          APP_PORT: ${{ env.APP_PORT }}
+          DB_NAME: ${{ env.DB_NAME }}
+          DB_USER: ${{ env.DB_USER }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          SQS_TRADE_EVENTS_QUEUE_URL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL }}
         with:
           project-name: edgetrader-integration-tests
           buildspec-override: .github/codebuild/buildspec.yml
-          env-vars-for-codebuild: |
-            OWNER_LC,${{ needs.build_amd64.outputs.owner_lc }}
-            IMAGE_TAG,${{ github.sha }}
-            APP_PORT,${{ env.APP_PORT }}
-            DB_NAME,${{ env.DB_NAME }}
-            DB_USER,${{ env.DB_USER }}
-            DB_PASSWORD,${{ env.DB_PASSWORD }}
-            AWS_REGION,${{ vars.AWS_REGION }}
-            SQS_TRADE_EVENTS_QUEUE_URL,${{ vars.SQS_TRADE_EVENTS_QUEUE_URL }}
+          env-vars-for-codebuild: OWNER_LC,IMAGE_TAG,APP_PORT,DB_NAME,DB_USER,DB_PASSWORD,AWS_REGION,SQS_TRADE_EVENTS_QUEUE_URL
 
   # --------------------------------------------------------------------------
   # Stage 3: Multi-arch images, only on manual workflow_dispatch — unchanged.

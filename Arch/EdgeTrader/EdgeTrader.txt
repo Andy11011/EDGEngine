@@ -795,3 +795,15 @@ runs-on: ubuntu-latest — runs on GitHub's standard Ubuntu runner.
 actions/checkout@v4 — pulls your repo's code onto the runner so the integration tests have access to it.
 aws-actions/configure-aws-credentials@v4 — this is the key step. It uses GitHub's OIDC token to assume an IAM role in AWS without needing static AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY secrets. GitHub presents a signed OIDC token to AWS STS, and if your IAM role trusts that token, AWS hands back temporary credentials scoped to that role.
 aws-region: ap-southeast-1 — the AWS region the credentials/session will target (matches wherever your CodeBuild project lives).
+
+//********************************//
+
+Good news: the IAM/OIDC/logs setup is now fully working — logs streamed correctly, 
+no more permissions errors. That whole problem is solved. 🎉
+
+IMAGE="ghcr.io/${OWNER_LC}/edge-trader:${IMAGE_TAG}"
+Pulling ghcr.io//edge-trader:
+invalid reference format
+
+Notice the image reference is ghcr.io//edge-trader: — OWNER_LC and IMAGE_TAG are both empty. 
+Those are environment variables your buildspec expects to already be set, but they aren't populated in this build.
