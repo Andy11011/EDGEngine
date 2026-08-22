@@ -10,6 +10,8 @@ env:
     BINANCE_SANDBOX_API_SECRET: "edgetrader/trading-secrets:BINANCE_SANDBOX_API_SECRET"
     BINANCE_ED25519_PUBLIC_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PUBLIC_KEY"
     BINANCE_ED25519_PRIVATE_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PRIVATE_KEY"
+    AWS_ACCESS_KEY_ID: "edgetrader/trading-secrets:AWS_ACCESS_KEY_ID"
+    AWS_SECRET_ACCESS_KEY: "edgetrader/trading-secrets:AWS_SECRET_ACCESS_KEY"
 
 phases:
   install:
