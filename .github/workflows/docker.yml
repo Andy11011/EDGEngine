@@ -16,8 +16,7 @@ env:
   DB_NAME: postgres
   DB_USER: user
   DB_PASSWORD: pass
-  # TODO: replace with whatever port Dockerfile.trader actually EXPOSEs.
-  APP_PORT: 8080
+  APP_PORT: 8000
 
 jobs:
   # --------------------------------------------------------------------------

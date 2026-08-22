@@ -814,3 +814,14 @@ LIVE (real binance trades)
 TEST1 (nautilus sim + TESTNET)
 TEST2 (nautilus sim + MAINNET)
 TEST3 (no nautilus sim + TESTNET)
+
+//********************************//
+
+What's working: Yes — both the data client and exec client are registered 
+(Building data client for BINANCE → RUNNING, Building execution client for BINANCE → RUNNING), 
+and SQS is fully working now too — no more "Unable to locate credentials" errors. 
+You can see clean polling: 📡 [poll #1] Long-polling SQS... through #7, no errors. That AWS creds fix worked.
+
+
+requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8000):
+Failed to establish a new connection: [Errno 111] Connection refused
