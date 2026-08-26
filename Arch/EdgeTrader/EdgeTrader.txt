@@ -825,3 +825,194 @@ You can see clean polling: 📡 [poll #1] Long-polling SQS... through #7, no err
 
 requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8000):
 Failed to establish a new connection: [Errno 111] Connection refused
+
+//********************************//
+
+rootdir: /codebuild/output/src101179283/src/github.com/***/EDGEngine
+collecting ... collected 2 items
+tests/test_health.py::test_health_ok PASSED                              [ 50%]
+tests/test_health.py::test_health_structure PASSED                       [100%]
+
+//********************************//
+
+
+PS C:\Users\andy9\EDGEngine\tests> aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body file://open_message.json
+{
+    "MD5OfMessageBody": "c254631d4750796ef049a0c1b8b2fbcc",
+    "MessageId": "cd80f960-483d-43d9-9756-15754b9ad165"
+}
+
+
+
+
+
+
+
+📥 [poll #6] Received 1 message(s)
+📨 [msg cd80f960-483d-43d9-9756-15754b9ad165] Raw body: {
+  "ticker": "ATMUSDT.BINANCE",
+  "event_type": "open",
+  "occurred_at": "2026-08-07T10:00:00.123Z",
+  "side": "BUY",
+  "size": 45.455,
+  "ep": 1.598,
+  "sl": 1.587,
+  "tp": 1.618
+}
+✅ [msg cd80f960-483d-43d9-9756-15754b9ad165] Claimed for processing
+🔎 [msg cd80f960-483d-43d9-9756-15754b9ad165] Processing event_type='open' for ticker=ATMUSDT.BINANCE
+📥 [msg cd80f960-483d-43d9-9756-15754b9ad165] OPEN payload: side=BUY size=45.455 ep=1.598 sl=1.587 tp=1.618
+🆔 [msg cd80f960-483d-43d9-9756-15754b9ad165] Generated trade_id=ATMUSDT.BINANCE_20260807T100000123
+📊 [msg cd80f960-483d-43d9-9756-15754b9ad165] instrument_id=ATMUSDT.BINANCE bar_type=ATMUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL
+🧩 [msg cd80f960-483d-43d9-9756-15754b9ad165] TradeStrategyConfig built for trade_id=ATMUSDT.BINANCE_20260807T100000123
+🗂️ [msg cd80f960-483d-43d9-9756-15754b9ad165] Registered strategy in active_strategies (now tracking 1 active)
+2026-08-26T06:28:44.370283584Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: READY
+2026-08-26T06:28:44.371408838Z [INFO] EDGETRADER-001.ExecEngine: Registered OMS.UNSPECIFIED for Strategy ATMUSDT.BINANCE_20260807T100000123-000
+2026-08-26T06:28:44.371466473Z [INFO] EDGETRADER-001.EDGETRADER-001: Registered Strategy ATMUSDT.BINANCE_20260807T100000123-000
+2026-08-26T06:28:44.371487638Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: self.config.oms_type=None
+2026-08-26T06:28:44.371490455Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: self.config.external_order_claims=None
+2026-08-26T06:28:44.371492826Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: self.config.manage_gtd_expiry=False
+2026-08-26T06:28:44.371520156Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: Set ClientOrderIdGenerator client_order_id count to 0
+2026-08-26T06:28:44.371522759Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: Set ClientOrderIdGenerator order_list_id count to 0
+2026-08-26T06:28:44.371573279Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: 🚀 TradeStrategy started for ATMUSDT.BINANCE_20260807T100000123 (instrument=ATMUSDT.BINANCE)
+2026-08-26T06:28:44.372887572Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: [CMD]--> SubscribeBars(bar_type=ATMUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL, client_id=None, venue=BINANCE)
+2026-08-26T06:28:44.374041116Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: <--[EVT] OrderInitialized(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry, side=BUY, type=LIMIT, quantity=45.45000000, time_in_force=GTC, post_only=False, reduce_only=False, quote_quantity=False, options={'price': '1.59800000', 'display_qty': None, 'expire_time_ns': 0}, emulation_trigger=NO_TRIGGER, trigger_instrument_id=None, contingency_type=NO_CONTINGENCY, order_list_id=None, linked_order_ids=None, parent_order_id=None, exec_algorithm_id=None, exec_algorithm_params=None, exec_spawn_id=None, tags=None)
+📨 [msg cd80f960-483d-43d9-9756-15754b9ad165] Acknowledging SQS message
+2026-08-26T06:28:44.374347335Z [INFO] EDGETRADER-001.TradeStrategy: [CMD]--> [Risk] SubmitOrder(order=LimitOrder(BUY 45.45000000 ATMUSDT.BINANCE LIMIT @ 1.59800000 GTC, status=INITIALIZED, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry, venue_order_id=None, position_id=None, tags=None), position_id=None)
+2026-08-26T06:28:44.374389394Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: 📈 Entry order submitted for ATMUSDT.BINANCE_20260807T100000123 side=BUY client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry
+2026-08-26T06:28:44.374414115Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: RUNNING
+✅ Strategy ATMUSDT.BINANCE_20260807T100000123 added and started
+✅ Strategy ATMUSDT.BINANCE_20260807T100000123 added and started
+🚀 [msg cd80f960-483d-43d9-9756-15754b9ad165] Started TradeStrategy for trade ATMUSDT.BINANCE_20260807T100000123 on ATMUSDT.BINANCE
+2026-08-26T06:28:44.378907511Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: <--[EVT] OrderSubmitted(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry, account_id=BINANCE-001, ts_event=1787725608356647295)
+2026-08-26T06:28:44.379182953Z [INFO] EDGETRADER-001.Portfolio: Updated AccountState(account_id=BINANCE-001, account_type=CASH, base_currency=None, is_reported=False, balances=[AccountBalance(total=10_000.00000000 USDT, locked=72.62910000 USDT, free=9_927.37090000 USDT), AccountBalance(total=1.00000000 BTC, locked=0.00000000 BTC, free=1.00000000 BTC)], margins=[], event_id=3286f322-6e0d-4f9d-bd0a-a855f1810423)
+2026-08-26T06:28:44.379211112Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: <--[EVT] OrderAccepted(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry, venue_order_id=BINANCE-1229-001, account_id=BINANCE-001, ts_event=1787725608356647295)
+2026-08-26T06:28:44.379229955Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: ✅ Entry order accepted, awaiting fill (trade=ATMUSDT.BINANCE_20260807T100000123)
+🗑️ [msg cd80f960-483d-43d9-9756-15754b9ad165] SQS message acked
+📡 [poll #7] Long-polling SQS (wait=20s)...
+
+
+
+
+
+
+
+http://localhost:8000/health
+
+{
+  "status": "ok",
+  "active_trades_count": 1,
+  "dependencies": {
+    "postgres": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-08-26T06:26:41.422682+00:00"
+    },
+    "sqs": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-08-26T06:29:45.676071+00:00"
+    },
+    "nautilus": {
+      "status": "running",
+      "trader_running": true
+    }
+  }
+}
+
+
+http://localhost:8000/active_trades
+
+
+[
+  {
+    "trade_id": "ATMUSDT.BINANCE_20260807T100000123",
+    "state": "AWAITING_FILL",
+    "instrument": "ATMUSDT.BINANCE",
+    "side": "BUY",
+    "size": 45.455,
+    "entry_price": 1.598,
+    "sl_price": 1.587,
+    "tp_price": 1.618
+  }
+]
+
+
+
+aws sqs send-message --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" --region ap-southeast-1 --message-body file://cancel_message.json
+
+
+📡 [poll #20] Long-polling SQS (wait=20s)...
+📥 [poll #20] Received 1 message(s)
+📨 [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] Raw body: {
+    "ticker": "ATMUSDT.BINANCE",
+    "event_type": "cancel",
+    "occurred_at": "2026-08-07T10:15:00.456Z"
+}
+✅ [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] Claimed for processing
+🔎 [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] Processing event_type='cancel' for ticker=ATMUSDT.BINANCE
+🔍 [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] Looking up active trade for ticker=ATMUSDT.BINANCE
+🔗 [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] Found active_trade_id=ATMUSDT.BINANCE_20260807T100000123 for ticker=ATMUSDT.BINANCE
+2026-08-26T07:17:29.554892235Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: <--[EVT] OrderPendingCancel(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry, venue_order_id=BINANCE-197-001, account_id=BINANCE-001, ts_event=1787728649554460138)
+2026-08-26T07:17:29.555326603Z [INFO] EDGETRADER-001.TradeStrategy: [CMD]--> [Execution] CancelOrder(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry, venue_order_id=BINANCE-197-001)
+🛑 [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] Sent cancel request to trade ATMUSDT.BINANCE_20260807T1000001232026-08-26T07:17:29.555404376Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: Cancelling entry order for ATMUSDT.BINANCE_20260807T100000123
+
+📨 [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] Acknowledging SQS message
+2026-08-26T07:17:29.556483155Z [INFO] EDGETRADER-001.Portfolio: Updated AccountState(account_id=BINANCE-001, account_type=CASH, base_currency=None, is_reported=False, balances=[AccountBalance(total=10_000.00000000 USDT, locked=0.00000000 USDT, free=10_000.00000000 USDT), AccountBalance(total=1.00000000 BTC, locked=0.00000000 BTC, free=1.00000000 BTC)], margins=[], event_id=3eb733fc-bd8f-411e-8502-7b576d7fda70)
+2026-08-26T07:17:29.556758694Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: <--[EVT] OrderCanceled(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123-entry, venue_order_id=BINANCE-197-001, account_id=BINANCE-001, ts_event=1787728268939267604)
+2026-08-26T07:17:29.556890601Z [WARN] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: 🚫 Order canceled: edge-ATMUSDT.BINANCE_20260807T100000123-entry
+2026-08-26T07:17:29.557381412Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: 🛑 TradeStrategy stopped for ATMUSDT.BINANCE_20260807T100000123
+🧹 Removed strategy for trade ATMUSDT.BINANCE_20260807T100000123
+2026-08-26T07:17:29.557648203Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: STOPPED
+2026-08-26T07:17:29.557807142Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: Trade ATMUSDT.BINANCE_20260807T100000123 reached terminal state TradeState.CANCELING; stopping
+2026-08-26T07:17:29.557964128Z [ERROR] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: InvalidStateTrigger('STOPPED -> STOP') state STOPPED
+2026-08-26T07:17:29.557989095Z [ERROR] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: InvalidStateTrigger('STOPPED -> STOP_COMPLETED') state STOPPED
+2026-08-26T07:17:29.566886496Z [INFO] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: 📝 Logged Cancelled event for ATMUSDT.BINANCE_20260807T100000123
+🗑️ [msg b5c75533-bf87-49d5-9cf8-9ffdcc99cfbe] SQS message acked
+📡 [poll #21] Long-polling SQS (wait=20s)...
+
+
+http://localhost:8000/active_trades
+
+[]
+
+http://localhost:8000/health
+
+{
+  "status": "ok",
+  "active_trades_count": 0,
+  "dependencies": {
+    "postgres": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-08-26T07:11:06.166894+00:00"
+    },
+    "sqs": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-08-26T07:18:30.484374+00:00"
+    },
+    "nautilus": {
+      "status": "running",
+      "trader_running": true
+    }
+  }
+}
+
+//********************************//
+
+Overall the flow worked — the cancel event was received, 
+the order was canceled on the venue, and the SQS message 
+was acknowledged. That part is fine. But those two ERROR 
+lines are a real (if likely non-fatal) bug, not noise:
+
+[ERROR] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: InvalidStateTrigger('STOPPED -> STOP') state STOPPED
+[ERROR] EDGETRADER-001.ATMUSDT.BINANCE_20260807T100000123: InvalidStateTrigger('STOPPED -> STOP') state STOPPED
+
+What's happening: Looking at the sequence, the strategy's state machine already transitioned to STOPPED:
+
+🛑 TradeStrategy stopped for ATMUSDT.BINANCE_20260807T100000123
+...
+STOPPED
+
+Then immediately after, something tries to trigger STOP and STOP_COMPLETED on it again — but you can't transition out of STOPPED a second time, hence InvalidStateTrigger.

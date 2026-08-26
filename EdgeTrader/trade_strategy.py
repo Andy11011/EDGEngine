@@ -236,7 +236,10 @@ class TradeStrategy(Strategy):
 
     # ---------- DB helpers ----------
     async def _append_opened_event(self) -> None:
-        """Insert the 'Opened' event after entry fill."""
+        """Insert the 'Opened' event once the entry order is confirmed live
+        (state enters AWAITING_FILL). This is the trade's start-of-chain
+        event — written before any fill, so the trade is discoverable
+        (e.g. by a cancel event) even while still awaiting fill."""
         db = await self._get_db()
         await db.insert_trade_event(
             trade_id=self.config.trade_id,
@@ -248,9 +251,26 @@ class TradeStrategy(Strategy):
             ep=self.config.entry_price,
             sl=self.config.sl_price,
             tp=self.config.tp_price,
-            fill_price=self.sm.extra_data.get("fill_price"),
         )
         self.log.info(f"📝 Logged Opened event for {self.config.trade_id}")
+
+    async def _append_filled_event(self) -> None:
+        """Insert the 'Filled' event once the entry order fills (state moves
+        AWAITING_FILL → PROTECTING)."""
+        db = await self._get_db()
+        await db.insert_trade_event(
+            trade_id=self.config.trade_id,
+            event_type="Filled",
+            instrument=str(self.config.instrument_id),
+            side=self.config.side,
+            size=self.config.size,
+            occurred_at=None,  # use now()
+            ep=self.config.entry_price,
+            sl=self.config.sl_price,
+            tp=self.config.tp_price,
+            fill_price=self.sm.extra_data.get("fill_price"),
+        )
+        self.log.info(f"📝 Logged Filled event for {self.config.trade_id}")
 
     async def _append_closing_event(self) -> None:
         """Insert the final 'Closed' or 'Cancelled' event into trade_events."""
@@ -378,6 +398,9 @@ class TradeStrategy(Strategy):
         if self._is_entry_order(event) and self.sm.state == TradeState.PLACING_ENTRY:
             self.sm.entry_accepted()
             self.log.info(f"✅ Entry order accepted, awaiting fill (trade={self.config.trade_id})")
+            # Record the Opened event now, not just after fill, so the trade
+            # is discoverable (e.g. by a cancel event) while AWAITING_FILL.
+            asyncio.create_task(self._append_opened_event())
 
         elif coid in self._pending_protection_ids:
             self._pending_protection_ids.discard(coid)
@@ -394,8 +417,8 @@ class TradeStrategy(Strategy):
 
         if self._is_entry_order(event) and self.sm.state == TradeState.AWAITING_FILL:
             self.sm.entry_filled()
-            # Record the opened event
-            asyncio.create_task(self._append_opened_event())
+            # Record the Filled event → SM is moving into PROTECTING
+            asyncio.create_task(self._append_filled_event())
             self._submit_protection_orders()
 
         elif self._is_protection_order(event) and self.sm.state == TradeState.IN_POSITION:

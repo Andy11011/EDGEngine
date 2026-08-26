@@ -183,8 +183,11 @@ class TradeEventsDB:
     ) -> Dict[str, Any]:
         """
         Insert a new event into trade_events.
-        If previous_event_id is omitted, it automatically links to the latest event
-        for the same trade_id (except for 'Opened' events, which start a new chain).
+        If previous_event_id is omitted, it automatically links to the latest
+        existing event for the same trade_id. A brand-new trade_id naturally
+        has no prior rows (trade_id already encodes the unique open
+        timestamp), so this correctly starts a new chain without needing to
+        special-case any particular event_type.
         Returns the inserted row as a dict (including the generated event_id).
         """
         if metadata is None:
@@ -193,8 +196,8 @@ class TradeEventsDB:
             occurred_at = "CURRENT_TIMESTAMP"
 
         async with self.pool.acquire() as conn:
-            # Auto‑link previous event unless it's an Opened event (new chain)
-            if previous_event_id is None and event_type != "Opened":
+            # Auto‑link to whatever the latest event for this trade_id is (if any)
+            if previous_event_id is None:
                 prev = await conn.fetchval(
                     """SELECT event_id FROM trade_events
                        WHERE trade_id = $1
@@ -290,9 +293,12 @@ class TradeEventsDB:
     # ------------------------------------------------------------------
     async def get_active_trade_for_ticker(self, ticker: str) -> Optional[str]:
         """
-        Returns the trade_id of the most recent 'Opened' event for this ticker
-        that does not have a subsequent terminal event (Closed or Cancelled)
-        for the same trade_id.
+        Returns the trade_id of the most recent 'Opened' event for this
+        ticker that does not have a subsequent terminal event (Closed or
+        Cancelled) for the same trade_id. 'Opened' is written as soon as the
+        entry order is accepted (AWAITING_FILL) — it is the start-of-chain
+        event, not a post-fill one — so trades still awaiting fill are
+        already discoverable here.
         """
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(

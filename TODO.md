@@ -2,9 +2,7 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: Fix a location error
-- [ ] Edge-trader: Do health check in all 4 modes
-- [ ] Edge-trader: Check open and close locally
+- [ ] Edge-trader: Fix close error
 - [ ] Edge-trader: Add open and close in CI/CD
 - [ ] Edge-trader: Check open and close locally for multiple trades
 - [ ] Edge-trader: Add open and close for multiple trades in CI/CD
@@ -15,6 +13,7 @@
 - [ ] Edge-trader: Redesign new main flow and Integration path with message broker
 - [ ] Edge-trader: Implement new main flow
 - [ ] Edge-trader: Push messages when get new signal (in java app)
+- [ ] Edge-trader: Do tests in all 4 modes
 - [ ] Show crossovers on the chart
 - [ ] Monitor Several pairs at once
 - [ ] Improve RSI to MLMI
@@ -23,6 +22,8 @@
 - [ ] Improve volume for Z-Score
 - [ ] Old outdated sl, ep, tp - price <= sl, price >= tp
 - [ ] Two different orders if price <= ep and price>=ep
+- [X] ~~*Edge-trader: Check open and close locally*~~ [2026-08-26]
+- [X] ~~*Edge-trader: Fix a location error*~~ [2026-08-22]
 - [X] ~~*Edge-trader: write down integration*~~ [2026-08-03]
 - [X] ~~*Edge-trader: Implement vertual trade switch*~~ [2026-07-31]
 - [X] ~~*Edge-trader: Draw a SM diagramm*~~ [2026-07-31]
