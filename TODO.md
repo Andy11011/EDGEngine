@@ -4,6 +4,7 @@
 
 - [ ] Edge-trader: Fix close error
 - [ ] Edge-trader: Add open and close in CI/CD
+- [ ] Edge-trader: Add size calculation to the backend
 - [ ] Edge-trader: Check open and close locally for multiple trades
 - [ ] Edge-trader: Add open and close for multiple trades in CI/CD
 - [ ] Edge-trader: All the state machine stransitions do there job

@@ -304,18 +304,27 @@ class TradeStrategy(Strategy):
 
     # -------- Modified _finalize_and_stop --------
     def _finalize_and_stop(self) -> None:
-        """Terminal state reached: log event, notify listener, then stop."""
+        """Terminal state reached: log event, then either hand off to the
+        listener (which deregisters us — and, per node.trader.remove_strategy,
+        already stops us as part of that) or stop directly if there's no
+        listener. Calling both would double-stop an already-STOPPED strategy
+        and raise InvalidStateTrigger('STOPPED -> STOP')."""
         # Fire‑and‑forget the DB insert (we don't wait for it)
         asyncio.create_task(self._append_closing_event())
-
-        # Notify the listener so it can remove this strategy
-        if self._close_callback is not None:
-            self._close_callback(self.config.trade_id)
 
         self.log.info(
             f"Trade {self.config.trade_id} reached terminal state {self.sm.state}; stopping"
         )
-        self.stop()
+
+        if self._close_callback is not None:
+            # The callback (EDGETrader's on_strategy_closed) deregisters this
+            # strategy via node.trader.remove_strategy(), which already stops
+            # it internally — don't stop it again here.
+            self._close_callback(self.config.trade_id)
+        else:
+            # No listener wired up (e.g. standalone/unit-test usage) — we're
+            # responsible for stopping ourselves.
+            self.stop()
 
     # ---------- Lifecycle ----------
     def on_start(self) -> None:
