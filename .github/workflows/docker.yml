@@ -83,8 +83,8 @@ jobs:
   # ap-southeast-1, pulling the exact edge-trader:<sha> image built above.
   # No second build happens here.
   # --------------------------------------------------------------------------
-  integration_tests:
-    name: Run integration tests (CodeBuild, ap-southeast-1)
+  smoke_tests:
+    name: Run Smoke tests (CodeBuild, ap-southeast-1)
     needs: build_amd64
     runs-on: ubuntu-latest
     steps:

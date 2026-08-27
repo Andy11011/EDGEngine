@@ -22,7 +22,7 @@ phases:
       # start it ourselves and wait until it's actually ready.
       - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --storage-driver=overlay2 &
       - timeout 15 sh -c "until docker info >/dev/null 2>&1; do echo waiting for docker; sleep 1; done"
-      - pip install --quiet requests pytest psycopg2-binary
+      - pip install --quiet requests pytest psycopg2-binary boto3
 
   pre_build:
     commands:
@@ -63,7 +63,7 @@ phases:
           -e DB_PORT=5432 \
           "${IMAGE}"
       - sleep 5
-      - pytest -v tests/test_health.py
+      - pytest -v tests/
 
   post_build:
     commands:
