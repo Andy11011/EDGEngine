@@ -110,6 +110,28 @@ class TradeEventsDB:
                 )
             """)
 
+            # 4. trades_config – singleton row of tunable sizing config.
+            #    risk_ratio matches LevelsBot's "Risk Ratio (%)" input (stored
+            #    here as a fraction, e.g. 0.001 = 0.1%, not a percentage).
+            #    virtual_balance_usdt is the equity used for sizing in
+            #    virtual/simulated modes (TEST1/TEST2); real modes (TEST3/LIVE)
+            #    size off the live account balance instead and ignore this.
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS trades_config (
+                    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                    risk_ratio NUMERIC NOT NULL DEFAULT 0.001,
+                    virtual_balance_usdt NUMERIC NOT NULL DEFAULT 500,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Seed the single config row on first run only — never overwrite
+            # an existing row (that's what update_trades_config is for).
+            await conn.execute("""
+                INSERT INTO trades_config (id, risk_ratio, virtual_balance_usdt)
+                VALUES (1, 0.001, 500)
+                ON CONFLICT (id) DO NOTHING
+            """)
+
             # Indexes
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_trade_id ON trade_events(trade_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_occurred_at ON trade_events(occurred_at)")
@@ -287,6 +309,59 @@ class TradeEventsDB:
                 commission, commission_asset, is_maker,
             )
             return dict(row) if row else None
+
+    # ------------------------------------------------------------------
+    # Sizing config (trades_config) — singleton row
+    # ------------------------------------------------------------------
+    async def get_trades_config(self) -> Dict[str, Any]:
+        """
+        Returns the current sizing config: {'risk_ratio': float,
+        'virtual_balance_usdt': float, 'updated_at': datetime}.
+
+        Falls back to the same defaults as the schema seed if the row is
+        somehow missing (it shouldn't be, since _init_schema seeds it), so
+        sizing never hard-fails purely because of a missing config row.
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT risk_ratio, virtual_balance_usdt, updated_at FROM trades_config WHERE id = 1"
+            )
+            if row is None:
+                return {"risk_ratio": 0.001, "virtual_balance_usdt": 500.0, "updated_at": None}
+            return {
+                "risk_ratio": float(row["risk_ratio"]),
+                "virtual_balance_usdt": float(row["virtual_balance_usdt"]),
+                "updated_at": row["updated_at"],
+            }
+
+    async def update_trades_config(
+        self,
+        risk_ratio: Optional[float] = None,
+        virtual_balance_usdt: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Partial update — only overwrites the fields explicitly passed
+        (COALESCE keeps the existing value for anything left as None).
+        Returns the resulting row.
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE trades_config
+                SET risk_ratio = COALESCE($1, risk_ratio),
+                    virtual_balance_usdt = COALESCE($2, virtual_balance_usdt),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                RETURNING risk_ratio, virtual_balance_usdt, updated_at
+                """,
+                risk_ratio,
+                virtual_balance_usdt,
+            )
+            return {
+                "risk_ratio": float(row["risk_ratio"]),
+                "virtual_balance_usdt": float(row["virtual_balance_usdt"]),
+                "updated_at": row["updated_at"],
+            }
 
     # ------------------------------------------------------------------
     # Query: find the active (open) trade for a given ticker

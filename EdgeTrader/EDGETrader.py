@@ -41,7 +41,9 @@ from nautilus_trader.config import (
 from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.data import BarType
 from nautilus_trader.model.identifiers import InstrumentId
+from nautilus_trader.model.objects import Currency
 from nautilus_trader.trading.config import ImportableControllerConfig
+from position_sizing import PositionSizingError, calculate_position_size
 from trade_strategy import TradeStrategy, TradeStrategyConfig
 from trades_db_async import TradeEventsDB
 
@@ -387,6 +389,40 @@ async def delete_message(sqs_client, queue_url: str, receipt_handle: str) -> boo
 
 
 # -----------------------------------------------------------------------------
+# Real-mode balance lookup (used for position sizing when not virtual)
+# -----------------------------------------------------------------------------
+
+def _get_real_usdt_balance(node: TradingNode) -> float:
+    """
+    Live free USDT balance from the connected Binance account — used for
+    REAL-mode position sizing (TEST3 / LIVE, i.e. use_sim_exec=False).
+
+    We use *free* (not total) balance: total includes funds already locked
+    in other open orders/positions, which aren't actually available to size
+    a *new* trade against. This mirrors "what could I actually spend right
+    now", which is the closest real-account equivalent to Pine's
+    strategy.equity for a spot, non-margin bot.
+
+    NOTE: verify this against your installed nautilus_trader version — the
+    Portfolio/Account API has moved around across versions. This uses the
+    documented Account.balance_free(Currency) pattern; if that doesn't match
+    what you have installed, this is the one place to adjust it.
+    """
+    account = node.portfolio.account(BINANCE)
+    if account is None:
+        raise RuntimeError(
+            "No account available yet for venue BINANCE — the exec client may "
+            "not have received its first AccountState update yet. Cannot size "
+            "a real-mode trade without a live balance."
+        )
+    usdt = Currency.from_str("USDT")
+    balance = account.balance_free(usdt)
+    if balance is None:
+        raise RuntimeError("Account has no USDT balance entry yet — cannot size a real-mode trade.")
+    return float(balance.as_double())
+
+
+# -----------------------------------------------------------------------------
 # Standalone SQS Trade-Event Listener Coroutine
 # -----------------------------------------------------------------------------
 
@@ -396,6 +432,7 @@ async def listen_trade_events(
     queue_url: str,
     bar_interval: str,
     active_strategies: Dict[str, TradeStrategy],
+    is_virtual_mode: bool,
 ) -> None:
     """
     Long‑poll SQS for trade‑event messages, claim them via Postgres,
@@ -513,7 +550,11 @@ async def listen_trade_events(
             print(f"🔎 [msg {msg_id}] Processing event_type='{event_type}' for ticker={ticker}", file=sys.stderr)
 
             if event_type.lower() == "open":
-                # Required fields for an open trade
+                # Required fields for an open trade. `size` may still arrive
+                # from the alert payload but is no longer trusted for sizing
+                # (see below) — it's logged for comparison only, since it was
+                # computed off TradingView's own strategy.equity, which has
+                # no relation to our real or virtual account balance.
                 side = event_data.get("side")
                 size = event_data.get("size")
                 ep = event_data.get("ep")
@@ -525,9 +566,45 @@ async def listen_trade_events(
                     file=sys.stderr,
                 )
 
-                if not side or size is None or ep is None:
-                    print(f"⚠️ [msg {msg_id}] Missing required open fields (side, size, ep); deleting", file=sys.stderr)
+                if not side or ep is None or sl is None:
+                    print(f"⚠️ [msg {msg_id}] Missing required open fields (side, ep, sl); deleting", file=sys.stderr)
                     await delete_message(sqs_client, queue_url, receipt_handle)
+                    continue
+
+                # ---------- Compute position size ourselves ----------
+                # Real mode (TEST3/LIVE): size off the live account balance.
+                # Virtual mode (TEST1/TEST2): size off the configured virtual
+                # balance. Either way, the risk-ratio/equity formula matches
+                # LevelsBot_v1_0_7.pine's entry_zone_calc_routine() exactly.
+                try:
+                    sizing_config = await db.get_trades_config()
+                    risk_ratio = sizing_config["risk_ratio"]
+
+                    if is_virtual_mode:
+                        equity = sizing_config["virtual_balance_usdt"]
+                        equity_source = "virtual"
+                    else:
+                        equity = _get_real_usdt_balance(node)
+                        equity_source = "real"
+
+                    computed_size = calculate_position_size(
+                        equity=equity,
+                        risk_ratio=risk_ratio,
+                        entry_price=float(ep),
+                        stop_loss_price=float(sl),
+                    )
+                    print(
+                        f"💰 [msg {msg_id}] Sized trade: equity={equity:.2f} USDT ({equity_source}) "
+                        f"risk_ratio={risk_ratio} -> size={computed_size:.6f} "
+                        f"(payload size={size}, ignored)",
+                        file=sys.stderr,
+                    )
+                except (PositionSizingError, RuntimeError) as e:
+                    print(f"❌ [msg {msg_id}] Position sizing failed: {e}; will retry via DLQ", file=sys.stderr)
+                    # Do not delete SQS – will go to DLQ. But undo the claim
+                    # too, otherwise a redelivery is treated as a duplicate
+                    # and silently dropped instead of actually retrying.
+                    await db.unclaim_event(ticker, event_type, occurred_at)
                     continue
 
                 # Generate a trade_id (deterministic from ticker + occurred_at)
@@ -544,7 +621,7 @@ async def listen_trade_events(
                     bar_type=bar_type,
                     trade_id=trade_id,
                     side=side,
-                    size=float(size),
+                    size=computed_size,
                     entry_price=float(ep),
                     sl_price=float(sl) if sl is not None else None,
                     tp_price=float(tp) if tp is not None else None,
@@ -850,7 +927,7 @@ def main():
         try:
             await asyncio.gather(
                 node.run_async(),
-                listen_trade_events(node, sqs_client, queue_url, bar_interval, api_active_strategies),
+                listen_trade_events(node, sqs_client, queue_url, bar_interval, api_active_strategies, use_sim_exec),
                 server.serve(),
             )
         except asyncio.CancelledError:

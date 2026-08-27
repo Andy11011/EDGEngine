@@ -1038,3 +1038,10 @@ one strategy, same terminal event.
 //********************************//
 
 Yes — this run confirms all three fixes are working together correctly:
+
+//********************************//
+
+1. Update ER diagram
+2. Remove size from SQS processing 
+3. Remove size from the tests
+4. Unit tests for getting balance

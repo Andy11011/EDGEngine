@@ -2,9 +2,15 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: Add size calculation to the backend
+- [ ] Edge-trader: Add position sizing to the backend
+  - [ ] Update ER diagram
+  - [ ] Remove size from SQS processing
+  - [ ] Remove size from the tests
+  - [ ] Unit tests for getting balance
+  - [ ] API to set/get trades_config (with tests)
 - [ ] Edge-trader: Check open and close locally for multiple trades
 - [ ] Edge-trader: Add open and close for multiple trades in CI/CD
+- [ ] Edge-trader: endpoint to read all the history
 - [ ] Edge-trader: All the state machine stransitions do there job
 - [ ] Edge-trader: I want another postgres table the same as google sheet for closed trades
 - [ ] Edge-trader: Separate insert function for each event
@@ -13,6 +19,8 @@
 - [ ] Edge-trader: Implement new main flow
 - [ ] Edge-trader: Push messages when get new signal (in java app)
 - [ ] Edge-trader: Do tests in all 4 modes
+- [ ] Edge-trader: Lambda for telegram
+- [ ] Edge-trader: Lambda for google sheets
 - [ ] Show crossovers on the chart
 - [ ] Monitor Several pairs at once
 - [ ] Improve RSI to MLMI
