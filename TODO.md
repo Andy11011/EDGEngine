@@ -2,8 +2,6 @@
 
 ## Top Priority
 
-- [ ] Edge-trader: Fix close error
-- [ ] Edge-trader: Add open and close in CI/CD
 - [ ] Edge-trader: Add size calculation to the backend
 - [ ] Edge-trader: Check open and close locally for multiple trades
 - [ ] Edge-trader: Add open and close for multiple trades in CI/CD
@@ -23,6 +21,8 @@
 - [ ] Improve volume for Z-Score
 - [ ] Old outdated sl, ep, tp - price <= sl, price >= tp
 - [ ] Two different orders if price <= ep and price>=ep
+- [X] ~~*Edge-trader: Fix close error*~~ [2026-08-27]
+- [X] ~~*Edge-trader: Add open and close in CI/CD*~~ [2026-08-27]
 - [X] ~~*Edge-trader: Check open and close locally*~~ [2026-08-26]
 - [X] ~~*Edge-trader: Fix a location error*~~ [2026-08-22]
 - [X] ~~*Edge-trader: write down integration*~~ [2026-08-03]

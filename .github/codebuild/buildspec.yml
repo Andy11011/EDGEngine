@@ -51,6 +51,7 @@ phases:
       - |
         docker run -d --name edgetrader-ci --network edgetrader-net \
           -p "${APP_PORT}:${APP_PORT}" \
+          -e PYTHONUNBUFFERED=1 \
           -e TRADING_MODE=TEST1 \
           -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
           -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
