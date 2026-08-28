@@ -63,6 +63,14 @@ def calculate_position_size(
 
     risk_amount = equity * risk_ratio
     position_size = risk_amount / risk
+
+    # risk_amount / risk has no inherent ceiling: if stop_loss_price sits
+    # very close to entry_price (small `risk`), the formula can produce a
+    # size whose notional value (size * entry_price) exceeds the equity we
+    # actually have. max_position_size clips that back down to ~99% of
+    # equity so we don't submit an order that gets rejected for
+    # insufficient balance (or, in virtual mode, one that silently implies
+    # more capital than the configured virtual balance).
     max_position_size = 0.99 * (equity / entry_price)
 
     return min(position_size, max_position_size)

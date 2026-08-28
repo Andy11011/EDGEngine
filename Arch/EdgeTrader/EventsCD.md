@@ -9,7 +9,6 @@ classDiagram
 
     class OpenTradeMessage {
         +string side          // "BUY" or "SELL"
-        +double size
         +double ep            // entry price
         +double sl            // stop loss
         +double tp            // take profit

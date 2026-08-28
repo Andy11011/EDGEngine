@@ -46,4 +46,11 @@ erDiagram
         timestamp occurred_at PK "event timestamp from SQS message, completes derived claim key"
         timestamp processed_at "when the consumer claimed/processed this event"
     }
+
+    TRADES_CONFIG {
+        smallint id PK "always 1, CHECK (id = 1) enforces singleton row"
+        numeric risk_ratio "fraction e.g. 0.001 = 0.1%, mirrors LevelsBot Risk Ratio input"
+        numeric virtual_balance_usdt "equity used for sizing in virtual/simulated modes only"
+        timestamp updated_at
+    }
 ```

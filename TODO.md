@@ -3,9 +3,9 @@
 ## Top Priority
 
 - [ ] Edge-trader: Add position sizing to the backend
-  - [ ] Update ER diagram
-  - [ ] Remove size from SQS processing
-  - [ ] Remove size from the tests
+  - [X] ~~*Update ER diagram*~~ [2026-08-28]
+  - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]
+  - [X] ~~*Remove size from the tests*~~ [2026-08-28]
   - [ ] Unit tests for getting balance
   - [ ] API to set/get trades_config (with tests)
 - [ ] Edge-trader: Check open and close locally for multiple trades
@@ -18,6 +18,7 @@
 - [ ] Edge-trader: Redesign new main flow and Integration path with message broker
 - [ ] Edge-trader: Implement new main flow
 - [ ] Edge-trader: Push messages when get new signal (in java app)
+- [ ] Edge-trader: virtual mode should be in db
 - [ ] Edge-trader: Do tests in all 4 modes
 - [ ] Edge-trader: Lambda for telegram
 - [ ] Edge-trader: Lambda for google sheets

@@ -1,12 +1,16 @@
 import json
 import os
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 
 import boto3
 import pytest
 import requests
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from position_sizing import calculate_position_size
 
 BASE_URL = "http://localhost:8000"
 HEALTH_URL = f"{BASE_URL}/health"
@@ -18,10 +22,18 @@ CONTAINER_NAME = "edgetrader-ci"
 
 TEST_TICKER = "ATMUSDT.BINANCE"
 TEST_SIDE = "BUY"
-TEST_SIZE = 45.455
 TEST_EP = 1.598
 TEST_SL = 1.587
 TEST_TP = 1.618
+
+# Mirrors the seed row inserted by trades_db_async.py's CREATE TABLE
+# IF NOT EXISTS / INSERT ... ON CONFLICT DO NOTHING for trades_config.
+# This test only holds if the CI environment is running in a virtual
+# mode (TEST1/TEST2) against a freshly-seeded DB — if trades_config has
+# been tuned away from these defaults, update these two constants (or
+# better, fetch them from the DB/API) rather than the assertion below.
+DEFAULT_RISK_RATIO = 0.001
+DEFAULT_VIRTUAL_BALANCE_USDT = 500
 
 
 def wait_for_healthy(timeout=120, interval=2):
@@ -123,7 +135,6 @@ def test_open_then_cancel_trade_lifecycle():
         "event_type": "open",
         "occurred_at": occurred_at_open,
         "side": TEST_SIDE,
-        "size": TEST_SIZE,
         "ep": TEST_EP,
         "sl": TEST_SL,
         "tp": TEST_TP,
@@ -145,7 +156,18 @@ def test_open_then_cancel_trade_lifecycle():
     assert trade is not None, f"{trade_id} never reached AWAITING_FILL in /active_trades"
     assert trade["instrument"] == TEST_TICKER
     assert trade["side"] == TEST_SIDE
-    assert trade["size"] == pytest.approx(TEST_SIZE)
+    # Size is no longer part of the payload — EDGETrader computes it from
+    # trades_config (risk_ratio / virtual_balance_usdt) and entry/stop via
+    # calculate_position_size(). Duplicate that math here using the known
+    # default config (see DEFAULT_RISK_RATIO / DEFAULT_VIRTUAL_BALANCE_USDT
+    # above) so we can assert an exact expected size.
+    expected_size = calculate_position_size(
+        equity=DEFAULT_VIRTUAL_BALANCE_USDT,
+        risk_ratio=DEFAULT_RISK_RATIO,
+        entry_price=TEST_EP,
+        stop_loss_price=TEST_SL,
+    )
+    assert trade["size"] == pytest.approx(expected_size)
     assert trade["entry_price"] == pytest.approx(TEST_EP)
     assert trade["sl_price"] == pytest.approx(TEST_SL)
     assert trade["tp_price"] == pytest.approx(TEST_TP)

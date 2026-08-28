@@ -1041,7 +1041,9 @@ Yes — this run confirms all three fixes are working together correctly:
 
 //********************************//
 
-1. Update ER diagram
-2. Remove size from SQS processing 
-3. Remove size from the tests
-4. Unit tests for getting balance
+>       assert trade["size"] == pytest.approx(TEST_SIZE)
+E       assert 45.454545454544956 == 45.455 ± 4.5e-05
+E
+E         comparison failed
+E         Obtained: 45.454545454544956
+E         Expected: 45.455 ± 4.5e-05

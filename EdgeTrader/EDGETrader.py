@@ -550,19 +550,18 @@ async def listen_trade_events(
             print(f"🔎 [msg {msg_id}] Processing event_type='{event_type}' for ticker={ticker}", file=sys.stderr)
 
             if event_type.lower() == "open":
-                # Required fields for an open trade. `size` may still arrive
-                # from the alert payload but is no longer trusted for sizing
-                # (see below) — it's logged for comparison only, since it was
-                # computed off TradingView's own strategy.equity, which has
-                # no relation to our real or virtual account balance.
+                # Required fields for an open trade. Position size is not
+                # part of the payload at all — it's always computed by us
+                # (see below), off our own real/virtual equity, since a
+                # size derived from TradingView's strategy.equity has no
+                # relation to our real or virtual account balance.
                 side = event_data.get("side")
-                size = event_data.get("size")
                 ep = event_data.get("ep")
                 sl = event_data.get("sl")
                 tp = event_data.get("tp")
 
                 print(
-                    f"📥 [msg {msg_id}] OPEN payload: side={side} size={size} ep={ep} sl={sl} tp={tp}",
+                    f"📥 [msg {msg_id}] OPEN payload: side={side} ep={ep} sl={sl} tp={tp}",
                     file=sys.stderr,
                 )
 
@@ -595,8 +594,7 @@ async def listen_trade_events(
                     )
                     print(
                         f"💰 [msg {msg_id}] Sized trade: equity={equity:.2f} USDT ({equity_source}) "
-                        f"risk_ratio={risk_ratio} -> size={computed_size:.6f} "
-                        f"(payload size={size}, ignored)",
+                        f"risk_ratio={risk_ratio} -> size={computed_size:.6f}",
                         file=sys.stderr,
                     )
                 except (PositionSizingError, RuntimeError) as e:
