@@ -1047,3 +1047,19 @@ E
 E         comparison failed
 E         Obtained: 45.454545454544956
 E         Expected: 45.455 ± 4.5e-05
+
+//********************************//
+
+Since one running instance only ever connects to one real Binance environment 
+at a time (per TRADING_MODE), I designed the two "real" endpoints to honestly
+report when they can't answer — either the deployment is in the other environment,
+or it's in simulated-exec mode with no real account connected — 
+rather than faking a number. /balance/virtual is mode-independent (pure DB read).
+
+
+api.py — new balance_refs dict + three endpoints:
+
+GET /balance/virtual — always answerable, pure DB read of trades_config.virtual_balance_usdt.
+GET /balance/testnet / GET /balance/mainnet — only the one matching this instance's actual
+connected environment returns a number; the other reports why it can't 
+(wrong environment, or simulated-exec mode with no real account) instead of faking data.

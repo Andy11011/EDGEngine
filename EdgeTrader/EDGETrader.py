@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from api import app
 from api import active_strategies as api_active_strategies
-from api import set_status, node_ref
+from api import set_status, node_ref, balance_refs
 
 from nautilus_trader.adapters.binance import (
     BINANCE,
@@ -449,6 +449,15 @@ async def listen_trade_events(
             set_status("postgres", "failed", detail=str(e))
             await asyncio.sleep(5)
     set_status("postgres", "connected")
+
+    # Wire up /balance/virtual now that the DB is ready. trades_config is
+    # mode-independent (a plain config row), so this getter is valid for
+    # any TRADING_MODE, not just TEST1/TEST2.
+    async def _get_virtual_balance() -> float:
+        cfg = await db.get_trades_config()
+        return cfg["virtual_balance_usdt"]
+
+    balance_refs["get_virtual_balance"] = _get_virtual_balance
 
     def on_strategy_closed(trade_id: str) -> None:
         """Callback invoked by the strategy when it reaches a terminal state."""
@@ -907,6 +916,15 @@ def main():
     # Expose the node to the API layer so /health can read node.trader.is_running
     # live (a cheap attribute lookup, no I/O) instead of relying on push updates.
     node_ref["node"] = node
+
+    # Wire up /balance/testnet and /balance/mainnet. "environment" records
+    # which real Binance environment (if any) this instance is actually
+    # connected to; get_real_balance is only set when a real account
+    # connection exists at all (TEST3/LIVE, i.e. use_sim_exec is False) —
+    # in TEST1/TEST2 execution is simulated, so there's no real account to
+    # read a balance from even though a "environment" (data feed) is set.
+    balance_refs["environment"] = "MAINNET" if environment == "LIVE" else environment
+    balance_refs["get_real_balance"] = (lambda: _get_real_usdt_balance(node)) if not use_sim_exec else None
 
     # 3. Get SQS queue URL (required)
     queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")

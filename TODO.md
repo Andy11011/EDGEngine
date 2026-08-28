@@ -6,8 +6,10 @@
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
   - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]
   - [X] ~~*Remove size from the tests*~~ [2026-08-28]
-  - [ ] Unit tests for getting balance
+  - [ ] Unit tests for getting balance (via api)
   - [ ] API to set/get trades_config (with tests)
+- [ ] Edge-trader: virtual mode should be in db
+  - [ ] Combine all modes together
 - [ ] Edge-trader: Check open and close locally for multiple trades
 - [ ] Edge-trader: Add open and close for multiple trades in CI/CD
 - [ ] Edge-trader: endpoint to read all the history
@@ -18,7 +20,6 @@
 - [ ] Edge-trader: Redesign new main flow and Integration path with message broker
 - [ ] Edge-trader: Implement new main flow
 - [ ] Edge-trader: Push messages when get new signal (in java app)
-- [ ] Edge-trader: virtual mode should be in db
 - [ ] Edge-trader: Do tests in all 4 modes
 - [ ] Edge-trader: Lambda for telegram
 - [ ] Edge-trader: Lambda for google sheets
