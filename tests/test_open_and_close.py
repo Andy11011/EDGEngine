@@ -1,16 +1,12 @@
 import json
 import os
 import subprocess
-import sys
 import time
 from datetime import datetime, timezone
 
 import boto3
 import pytest
 import requests
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from position_sizing import calculate_position_size
 
 BASE_URL = "http://localhost:8000"
 HEALTH_URL = f"{BASE_URL}/health"
@@ -34,6 +30,21 @@ TEST_TP = 1.618
 # better, fetch them from the DB/API) rather than the assertion below.
 DEFAULT_RISK_RATIO = 0.001
 DEFAULT_VIRTUAL_BALANCE_USDT = 500
+
+
+def expected_position_size(equity, risk_ratio, entry_price, stop_loss_price):
+    """Self-contained copy of position_sizing.calculate_position_size()'s
+    math, kept deliberately independent of the source tree (no sys.path
+    tricks, no import of the app package) so this test doesn't care where
+    EDGETrader.py's modules live on disk. If the real formula changes,
+    update this copy too — see position_sizing.py for the authoritative
+    version and its unit tests.
+    """
+    risk = abs(entry_price - stop_loss_price)
+    risk_amount = equity * risk_ratio
+    position_size = risk_amount / risk
+    max_position_size = 0.99 * (equity / entry_price)
+    return min(position_size, max_position_size)
 
 
 def wait_for_healthy(timeout=120, interval=2):
@@ -158,10 +169,10 @@ def test_open_then_cancel_trade_lifecycle():
     assert trade["side"] == TEST_SIDE
     # Size is no longer part of the payload — EDGETrader computes it from
     # trades_config (risk_ratio / virtual_balance_usdt) and entry/stop via
-    # calculate_position_size(). Duplicate that math here using the known
-    # default config (see DEFAULT_RISK_RATIO / DEFAULT_VIRTUAL_BALANCE_USDT
-    # above) so we can assert an exact expected size.
-    expected_size = calculate_position_size(
+    # calculate_position_size(). Duplicate that math here (see
+    # expected_position_size() above) using the known default config
+    # so we can assert an exact expected size.
+    expected_size = expected_position_size(
         equity=DEFAULT_VIRTUAL_BALANCE_USDT,
         risk_ratio=DEFAULT_RISK_RATIO,
         entry_price=TEST_EP,
