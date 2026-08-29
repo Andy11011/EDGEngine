@@ -20,30 +20,29 @@ service_state: Dict[str, Dict[str, Any]] = {
     "sqs": {"status": "unknown", "detail": None, "updated_at": None},
 }
 
-# Live reference to the running TradingNode, set once by EDGETrader.py right
-# after node.build(). node.trader.is_running is a cheap attribute read (no
-# I/O), so /health checks it live instead of relying on push updates that
-# could go stale.
-node_ref: Dict[str, Any] = {"node": None}
+# Live references to the two running TradingNode instances, set once by
+# EDGETrader.py right after each node's node.build(). Both nodes connect to
+# Binance MAINNET data; "real" additionally has a live Binance exec client,
+# "virtual" has a sandbox exec client instead. node.trader.is_running is a
+# cheap attribute read (no I/O), so /health checks both live rather than
+# relying on push updates that could go stale.
+#
+# TESTNET support is intentionally not built at all right now (see
+# ENABLE_TESTNET in EDGETrader.py) — deprioritized since MAINNET paper vs.
+# real is the only distinction that currently matters. /balance/testnet
+# below reports that plainly rather than guessing.
+node_ref: Dict[str, Any] = {"real": None, "virtual": None}
 
 # ---------------------------------------------------------------------------
 # Balance-check endpoints (/balance/virtual, /balance/testnet,
-# /balance/mainnet). Populated by EDGETrader.py once the node/DB are ready.
+# /balance/mainnet). Populated by EDGETrader.py once the nodes/DB are ready.
 # Kept as thin closures here (rather than importing nautilus_trader or
 # trades_db_async into api.py) so this module stays free of heavy
 # trading-specific dependencies.
-#
-# A single running instance is only ever connected to ONE real Binance
-# environment at a time (TESTNET or MAINNET, chosen via TRADING_MODE) — it
-# never runs both simultaneously. So "environment" below records which one
-# (if any) this deployment is actually wired to, and the testnet/mainnet
-# endpoints report clearly when they're asked about the other one, or about
-# a mode (TEST1/TEST2) where execution is simulated and no real account is
-# connected at all — rather than fabricating a number.
+# ---------------------------------------------------------------------------
 balance_refs: Dict[str, Any] = {
-    "environment": None,        # "TESTNET" | "MAINNET" | None (not ready yet)
-    "get_real_balance": None,   # sync callable -> float, or None if not applicable
-    "get_virtual_balance": None,  # async callable -> float, or None if not ready yet
+    "get_real_balance": None,     # sync callable -> float, set once the real node's account is ready
+    "get_virtual_balance": None,  # async callable -> float, set once the DB is ready
 }
 
 
@@ -72,37 +71,41 @@ class TradeStatus(BaseModel):
 
 class BalanceResponse(BaseModel):
     source: str                        # "virtual" | "testnet" | "mainnet"
-    environment: Optional[str] = None  # environment this deployment is actually connected to, if any
     balance_usdt: Optional[float] = None
     available: bool
     detail: Optional[str] = None
+
+def _node_status(node: Optional[Any]) -> Dict[str, Any]:
+    if node is None:
+        return {"status": "not_started", "trader_running": False}
+    try:
+        trader_running = bool(node.trader.is_running)
+        return {
+            "status": "running" if trader_running else "starting",
+            "trader_running": trader_running,
+        }
+    except Exception as e:
+        return {"status": "unknown", "detail": str(e), "trader_running": False}
+
 
 @app.get("/health")
 async def health_check():
     """
     Liveness + dependency status probe.
 
-    Reports Postgres/SQS connectivity as last observed by the worker loops
-    in EDGETrader.py (push-based, no I/O here), plus the live TradingNode
-    running state (read directly off node.trader.is_running, cheap/no I/O).
+    Reports Postgres/SQS connectivity as last observed by the worker loop in
+    EDGETrader.py (push-based, no I/O here), plus the live running state of
+    both TradingNode instances (real exec + virtual/sandbox exec), read
+    directly off node.trader.is_running (cheap attribute read, no I/O).
     """
-    node = node_ref.get("node")
-    if node is None:
-        nautilus_status: Dict[str, Any] = {"status": "not_started", "trader_running": False}
-    else:
-        try:
-            trader_running = bool(node.trader.is_running)
-            nautilus_status = {
-                "status": "running" if trader_running else "starting",
-                "trader_running": trader_running,
-            }
-        except Exception as e:
-            nautilus_status = {"status": "unknown", "detail": str(e), "trader_running": False}
+    real_status = _node_status(node_ref.get("real"))
+    virtual_status = _node_status(node_ref.get("virtual"))
 
     overall_ok = (
         service_state["postgres"]["status"] == "connected"
         and service_state["sqs"]["status"] == "connected"
-        and nautilus_status.get("trader_running") is True
+        and real_status.get("trader_running") is True
+        and virtual_status.get("trader_running") is True
     )
 
     return {
@@ -111,16 +114,16 @@ async def health_check():
         "dependencies": {
             "postgres": service_state["postgres"],
             "sqs": service_state["sqs"],
-            "nautilus": nautilus_status,
+            "nautilus_real": real_status,
+            "nautilus_virtual": virtual_status,
         },
     }
 
 @app.get("/balance/virtual", response_model=BalanceResponse)
 async def get_virtual_usdt_balance():
-    """Configured virtual equity used for TEST1/TEST2 sizing (trades_config.
-    virtual_balance_usdt). Mode-independent — this is a plain DB read, so it
-    works regardless of which real Binance environment (if any) this
-    deployment is connected to."""
+    """Configured virtual equity used for sizing trades on the sandbox/virtual
+    exec node (trades_config.virtual_balance_usdt). Always applicable — this
+    is a plain DB read, independent of which nodes are up."""
     getter = balance_refs.get("get_virtual_balance")
     if getter is None:
         return BalanceResponse(source="virtual", available=False, detail="Virtual balance getter not wired up yet (DB not ready)")
@@ -131,55 +134,30 @@ async def get_virtual_usdt_balance():
         return BalanceResponse(source="virtual", available=False, detail=str(e))
 
 
-async def _real_balance_response(source: str, expected_environment: str) -> BalanceResponse:
-    """Shared logic for the testnet/mainnet endpoints below. Only the
-    environment this instance is actually connected to (per TRADING_MODE)
-    can report a real number — the other one, and any simulated-exec mode
-    (TEST1/TEST2), report clearly why they can't rather than guessing."""
-    current_env = balance_refs.get("environment")
-    if current_env != expected_environment:
-        return BalanceResponse(
-            source=source,
-            environment=current_env,
-            available=False,
-            detail=(
-                f"This deployment is connected to {current_env or 'no'} Binance "
-                f"environment, not {expected_environment}. Only one real "
-                "environment is live per running instance (set via "
-                "TRADING_MODE)."
-            ),
-        )
-    getter = balance_refs.get("get_real_balance")
-    if getter is None:
-        return BalanceResponse(
-            source=source,
-            environment=current_env,
-            available=False,
-            detail=(
-                f"Running against {current_env} but in simulated-exec mode "
-                "(TEST1/TEST2) — no real Binance account is connected, so "
-                "there's no real balance to report."
-            ),
-        )
-    try:
-        balance = getter()
-        return BalanceResponse(source=source, environment=current_env, balance_usdt=balance, available=True)
-    except Exception as e:
-        return BalanceResponse(source=source, environment=current_env, available=False, detail=str(e))
-
-
 @app.get("/balance/testnet", response_model=BalanceResponse)
 async def get_testnet_usdt_balance():
-    """Live free USDT balance from Binance TESTNET — only available when
-    this deployment is actually running TEST3 (real orders on testnet)."""
-    return await _real_balance_response("testnet", "TESTNET")
+    """TESTNET support is intentionally not built right now (see
+    ENABLE_TESTNET in EDGETrader.py) — this deployment only ever runs
+    against MAINNET, for both the real and virtual/sandbox exec nodes."""
+    return BalanceResponse(
+        source="testnet",
+        available=False,
+        detail="TESTNET is disabled (ENABLE_TESTNET=false) — this deployment only connects to Binance MAINNET.",
+    )
 
 
 @app.get("/balance/mainnet", response_model=BalanceResponse)
 async def get_mainnet_usdt_balance():
-    """Live free USDT balance from Binance MAINNET — only available when
-    this deployment is actually running LIVE (real orders, real funds)."""
-    return await _real_balance_response("mainnet", "MAINNET")
+    """Live free USDT balance from the real (non-sandbox) Binance MAINNET
+    exec node's account."""
+    getter = balance_refs.get("get_real_balance")
+    if getter is None:
+        return BalanceResponse(source="mainnet", available=False, detail="Real exec node not ready yet (no account state received)")
+    try:
+        balance = getter()
+        return BalanceResponse(source="mainnet", balance_usdt=balance, available=True)
+    except Exception as e:
+        return BalanceResponse(source="mainnet", available=False, detail=str(e))
 
 
 @app.get("/active_trades", response_model=List[TradeStatus])

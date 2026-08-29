@@ -78,8 +78,16 @@ class TradeEventsDB:
                     close_reason VARCHAR,
                     cancel_reason VARCHAR,
                     metadata JSONB,
-                    occurred_at TIMESTAMP NOT NULL
+                    occurred_at TIMESTAMP NOT NULL,
+                    target VARCHAR(10) NOT NULL DEFAULT 'virtual'
                 )
+            """)
+            # Migration for pre-existing tables created before `target` existed
+            # (CREATE TABLE IF NOT EXISTS won't add columns to an existing
+            # table, so this ALTER makes the upgrade idempotent either way).
+            await conn.execute("""
+                ALTER TABLE trade_events
+                ADD COLUMN IF NOT EXISTS target VARCHAR(10) NOT NULL DEFAULT 'virtual'
             """)
 
             # 2. order_fills – linked by trade_id
@@ -99,15 +107,44 @@ class TradeEventsDB:
             """)
 
             # 3. claimed_events – infrastructure for idempotent consumption
-            #    Keyed by the exact SQS message identity: ticker + event_type + occurred_at
+            #    Keyed by the exact trade identity: ticker + event_type +
+            #    occurred_at + target. `target` is part of the key (not just
+            #    a column) because a single SQS event can now legitimately
+            #    open both a virtual AND a real trade — those are two
+            #    separate claims, not duplicates of each other.
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS claimed_events (
                     ticker VARCHAR(64) NOT NULL,
                     event_type VARCHAR(20) NOT NULL,   -- 'open' or 'cancel'
                     occurred_at TIMESTAMP NOT NULL,
+                    target VARCHAR(10) NOT NULL DEFAULT 'virtual',
                     processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (ticker, event_type, occurred_at)
+                    PRIMARY KEY (ticker, event_type, occurred_at, target)
                 )
+            """)
+            # Migration for pre-existing installs: add the column, then widen
+            # the primary key to include it. Dropping/re-adding the PK is
+            # only safe because claimed_events is a pure dedup ledger (no
+            # foreign keys reference it) — existing rows get 'virtual' as a
+            # reasonable default via DEFAULT, since every trade was
+            # virtual-or-real-but-singular before this change.
+            await conn.execute("""
+                ALTER TABLE claimed_events
+                ADD COLUMN IF NOT EXISTS target VARCHAR(10) NOT NULL DEFAULT 'virtual'
+            """)
+            await conn.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'claimed_events_pkey'
+                        AND conrelid = 'claimed_events'::regclass
+                        AND array_length(conkey, 1) = 3
+                    ) THEN
+                        ALTER TABLE claimed_events DROP CONSTRAINT claimed_events_pkey;
+                        ALTER TABLE claimed_events ADD PRIMARY KEY (ticker, event_type, occurred_at, target);
+                    END IF;
+                END $$;
             """)
 
             # 4. trades_config – singleton row of tunable sizing config.
@@ -142,16 +179,21 @@ class TradeEventsDB:
     # ------------------------------------------------------------------
     # Claim an SQS message (dedup)
     # ------------------------------------------------------------------
-    async def claim_event(self, ticker: str, event_type: str, occurred_at: str) -> bool:
+    async def claim_event(self, ticker: str, event_type: str, occurred_at: str, target: str = "virtual") -> bool:
+        """
+        Claim (ticker, event_type, occurred_at, target). `target` is part of
+        the dedup key so one SQS event that fans out to both a virtual and a
+        real trade produces two independent claims, not a duplicate.
+        """
         # Parse ISO string with Z (UTC) and then discard timezone info
         dt = datetime.fromisoformat(occurred_at.replace('Z', '+00:00')).replace(tzinfo=None)
         async with self.pool.acquire() as conn:
             result = await conn.fetchrow(
-                """INSERT INTO claimed_events (ticker, event_type, occurred_at)
-                VALUES ($1, $2, $3)
+                """INSERT INTO claimed_events (ticker, event_type, occurred_at, target)
+                VALUES ($1, $2, $3, $4)
                 ON CONFLICT DO NOTHING
                 RETURNING ticker""",
-                ticker, event_type, dt
+                ticker, event_type, dt, target
             )
             return result is not None
 
@@ -160,17 +202,17 @@ class TradeEventsDB:
     # SQS message can be legitimately retried instead of being silently
     # treated as a duplicate on redelivery)
     # ------------------------------------------------------------------
-    async def unclaim_event(self, ticker: str, event_type: str, occurred_at: str) -> bool:
+    async def unclaim_event(self, ticker: str, event_type: str, occurred_at: str, target: str = "virtual") -> bool:
         """
-        Delete a previously-inserted claim row for (ticker, event_type, occurred_at).
+        Delete a previously-inserted claim row for (ticker, event_type, occurred_at, target).
         Returns True if a row was actually deleted, False if there was nothing to delete.
         """
         dt = datetime.fromisoformat(occurred_at.replace('Z', '+00:00')).replace(tzinfo=None)
         async with self.pool.acquire() as conn:
             result = await conn.execute(
                 """DELETE FROM claimed_events
-                   WHERE ticker = $1 AND event_type = $2 AND occurred_at = $3""",
-                ticker, event_type, dt
+                   WHERE ticker = $1 AND event_type = $2 AND occurred_at = $3 AND target = $4""",
+                ticker, event_type, dt, target
             )
             # asyncpg's execute() returns a status string like "DELETE 1"
             deleted_count = int(result.split()[-1])
@@ -202,9 +244,13 @@ class TradeEventsDB:
         cancel_reason: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         previous_event_id: Optional[int] = None,
+        target: str = "virtual",
     ) -> Dict[str, Any]:
         """
-        Insert a new event into trade_events.
+        Insert a new event into trade_events. `target` ('virtual' or 'real')
+        records which execution path this trade actually ran on — this is
+        the event-sourced audit trail for virtual-vs-real, so no separate
+        "mode" table is needed elsewhere.
         If previous_event_id is omitted, it automatically links to the latest
         existing event for the same trade_id. A brand-new trade_id naturally
         has no prior rows (trade_id already encodes the unique open
@@ -238,13 +284,13 @@ class TradeEventsDB:
                     stop_limit_buy_order_id, stop_limit_sell_order_id,
                     oco_order_id,
                     fill_price, close_reason, cancel_reason,
-                    metadata, occurred_at
+                    metadata, occurred_at, target
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6,
                     $7, $8, $9,
                     $10, $11, $12, $13, $14, $15,
                     $16, $17, $18, $19,
-                    $20::jsonb, {occurred_at}
+                    $20::jsonb, {occurred_at}, $21
                 )
                 RETURNING *
                 """,
@@ -268,6 +314,7 @@ class TradeEventsDB:
                 close_reason,
                 cancel_reason,
                 json.dumps(metadata),
+                target,
             )
             return dict(row)
 
@@ -366,14 +413,20 @@ class TradeEventsDB:
     # ------------------------------------------------------------------
     # Query: find the active (open) trade for a given ticker
     # ------------------------------------------------------------------
-    async def get_active_trade_for_ticker(self, ticker: str) -> Optional[str]:
+    async def get_active_trade_for_ticker(self, ticker: str, target: str) -> Optional[str]:
         """
         Returns the trade_id of the most recent 'Opened' event for this
-        ticker that does not have a subsequent terminal event (Closed or
-        Cancelled) for the same trade_id. 'Opened' is written as soon as the
-        entry order is accepted (AWAITING_FILL) — it is the start-of-chain
-        event, not a post-fill one — so trades still awaiting fill are
-        already discoverable here.
+        (ticker, target) that does not have a subsequent terminal event
+        (Closed or Cancelled) for the same trade_id.
+
+        `target` is required (not optional) because a ticker can now have
+        both an open virtual trade and an open real trade at the same time
+        — without filtering by target, a 'cancel' event for one would
+        ambiguously match whichever happened to be "most recent" and could
+        cancel the wrong one. 'Opened' is written as soon as the entry order
+        is accepted (AWAITING_FILL) — it is the start-of-chain event, not a
+        post-fill one — so trades still awaiting fill are already
+        discoverable here.
         """
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -381,7 +434,7 @@ class TradeEventsDB:
                 WITH latest_open AS (
                     SELECT trade_id, occurred_at
                     FROM trade_events
-                    WHERE instrument = $1 AND event_type = 'Opened'
+                    WHERE instrument = $1 AND event_type = 'Opened' AND target = $2
                     ORDER BY occurred_at DESC, event_id DESC
                     LIMIT 1
                 )
@@ -393,7 +446,7 @@ class TradeEventsDB:
                     AND terminal.occurred_at > lo.occurred_at
                 WHERE terminal.event_id IS NULL
                 """,
-                ticker
+                ticker, target
             )
             return row["trade_id"] if row else None
 

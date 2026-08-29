@@ -1,5 +1,8 @@
 {
     "ticker": "ATMUSDT.BINANCE",
     "event_type": "cancel",
-    "occurred_at": "2026-08-07T10:15:00.456Z"
+    "occurred_at": "2026-08-07T10:15:00.456Z",
+    "target": [
+        "virtual"
+    ]
 }

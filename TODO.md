@@ -9,7 +9,14 @@
   - [ ] Unit tests for getting balance (via api)
   - [ ] API to set/get trades_config (with tests)
 - [ ] Edge-trader: virtual mode should be in db
-  - [ ] Combine all modes together
+  - [ ] Combine all modes together in EDGETrader.py
+  - [ ] Remove mode variable from deploy
+  - [ ] Remove mode variable from tests
+  - [ ] Add mode to event sourcing
+  - [ ] Add api for setting the mode
+  - [ ] Process SQS according to the mode
+  - [ ] Fix balance tests
+  - [ ] Update ER files
 - [ ] Edge-trader: Check open and close locally for multiple trades
 - [ ] Edge-trader: Add open and close for multiple trades in CI/CD
 - [ ] Edge-trader: endpoint to read all the history

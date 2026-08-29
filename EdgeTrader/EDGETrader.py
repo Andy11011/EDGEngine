@@ -43,6 +43,7 @@ from nautilus_trader.model.data import BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.model.objects import Currency
 from nautilus_trader.trading.config import ImportableControllerConfig
+from nautilus_trader.adapters.binance.common.enums import BinanceEnvironment
 from position_sizing import PositionSizingError, calculate_position_size
 from trade_strategy import TradeStrategy, TradeStrategyConfig
 from trades_db_async import TradeEventsDB
@@ -427,18 +428,13 @@ def _get_real_usdt_balance(node: TradingNode) -> float:
 # -----------------------------------------------------------------------------
 
 async def listen_trade_events(
-    node: TradingNode,
+    nodes: Dict[str, TradingNode],
     sqs_client,
     queue_url: str,
     bar_interval: str,
     active_strategies: Dict[str, TradeStrategy],
-    is_virtual_mode: bool,
 ) -> None:
-    """
-    Long‑poll SQS for trade‑event messages, claim them via Postgres,
-    and spin up a TradeStrategy for each new 'open' event.
-    'cancel' events are handled by calling request_cancel on the active strategy.
-    """
+    """Long‑poll SQS for trade events, claim via Postgres, and route to target nodes."""
     set_status("postgres", "connecting")
     while True:
         try:
@@ -450,52 +446,36 @@ async def listen_trade_events(
             await asyncio.sleep(5)
     set_status("postgres", "connected")
 
-    # Wire up /balance/virtual now that the DB is ready. trades_config is
-    # mode-independent (a plain config row), so this getter is valid for
-    # any TRADING_MODE, not just TEST1/TEST2.
     async def _get_virtual_balance() -> float:
         cfg = await db.get_trades_config()
         return cfg["virtual_balance_usdt"]
 
     balance_refs["get_virtual_balance"] = _get_virtual_balance
 
-    def on_strategy_closed(trade_id: str) -> None:
-        """Callback invoked by the strategy when it reaches a terminal state."""
-        strategy = active_strategies.pop(trade_id, None)
-        if strategy is not None:
-            try:
-                # remove_strategy()/stop_strategy() take a StrategyId, not the
-                # Strategy object — passing the object raised a TypeError that
-                # was being swallowed here, so strategies never actually got
-                # deregistered from the trader (zombie strategies piling up).
-                # remove_strategy() already stops the strategy first if it's
-                # still RUNNING, so a separate stop_strategy() call afterwards
-                # is both redundant and would raise ValueError (strategy_id no
-                # longer registered once removed).
-                node.trader.remove_strategy(strategy.id)
-                print(f"🧹 Removed strategy for trade {trade_id}")
-            except Exception as e:
-                print(f"⚠️ Error removing strategy for {trade_id}: {e}")
+    def make_close_callback(node: TradingNode, trade_id: str):
+        def callback() -> None:
+            strategy = active_strategies.pop(trade_id, None)
+            if strategy is not None:
+                try:
+                    node.trader.remove_strategy(strategy.id)
+                    print(f"🧹 Removed strategy for trade {trade_id} from {node.trader.id}")
+                except Exception as e:
+                    print(f"⚠️ Error removing strategy for {trade_id}: {e}")
+        return callback
 
     poll_wait_seconds = int(os.getenv("SQS_POLL_WAIT_SECONDS", "20"))
     poll_count = 0
 
-    # Wait for the TradingNode to actually finish starting (this includes
-    # instrument loading from load_all=True, which can take several seconds)
-    # before pulling anything off SQS. Without this gate, listen_trade_events()
-    # and node.run_async() race each other (they're launched together via
-    # asyncio.gather in main()), and the first message(s) can get processed
-    # before any instrument is in the cache — the exact "No instrument found
-    # in cache" failure this was hitting, even with load_all=True configured
-    # correctly, because it just hadn't finished loading yet.
-    print("⏳ Waiting for TradingNode to finish starting before polling SQS...", file=sys.stderr)
-    while not node.trader.is_running:
-        await asyncio.sleep(0.5)
-    print("✅ TradingNode is RUNNING; starting to process trade events", file=sys.stderr)
+    # Wait for both nodes to be running
+    print("⏳ Waiting for all TradingNodes to finish starting...", file=sys.stderr)
+    for name, node in nodes.items():
+        while not node.trader.is_running:
+            await asyncio.sleep(0.5)
+    print("✅ All TradingNodes are RUNNING; starting to process trade events", file=sys.stderr)
 
     while True:
         poll_count += 1
-        print(f"📡 [poll #{poll_count}] Long-polling SQS (wait={poll_wait_seconds}s)...", file=sys.stderr)
+        print(f"📡 [poll #{poll_count}] Long-polling SQS...", file=sys.stderr)
         try:
             messages = await receive_trade_events(
                 sqs_client,
@@ -503,7 +483,6 @@ async def listen_trade_events(
                 max_messages=int(os.getenv("SQS_MAX_MESSAGES", "10")),
                 wait_seconds=poll_wait_seconds,
             )
-            # A successful call (even with 0 messages) proves connectivity.
             set_status("sqs", "connected")
         except Exception as e:
             print(f"❌ SQS receive error: {e}", file=sys.stderr)
@@ -512,226 +491,150 @@ async def listen_trade_events(
             continue
 
         if not messages:
-            print(f"💤 [poll #{poll_count}] No messages received", file=sys.stderr)
             continue
 
-        print(f"📥 [poll #{poll_count}] Received {len(messages)} message(s)", file=sys.stderr)
+        print(f"📥 Received {len(messages)} message(s)", file=sys.stderr)
 
         for msg in messages:
             receipt_handle = msg["ReceiptHandle"]
             msg_id = msg.get("MessageId", "?")
-            raw_body_preview = msg.get("Body", "")[:500]
-            print(f"📨 [msg {msg_id}] Raw body: {raw_body_preview}", file=sys.stderr)
 
-            # ---------- Parse SNS notification ----------
+            # Parse SNS wrapper
             try:
                 body = json.loads(msg["Body"])
                 if body.get("Type") == "Notification":
                     event_data = json.loads(body["Message"])
-                    print(f"📨 [msg {msg_id}] Unwrapped SNS notification envelope", file=sys.stderr)
                 else:
                     event_data = body
             except (json.JSONDecodeError, KeyError) as e:
-                print(f"⚠️ [msg {msg_id}] Failed to parse message: {e}", file=sys.stderr)
+                print(f"⚠️ [msg {msg_id}] Failed to parse: {e}", file=sys.stderr)
                 await delete_message(sqs_client, queue_url, receipt_handle)
-                print(f"🗑️ [msg {msg_id}] Deleted (unparseable)", file=sys.stderr)
                 continue
 
-            # ---------- Extract required fields ----------
             ticker = event_data.get("ticker")
-            event_type = event_data.get("event_type")   # "open" or "cancel"
+            event_type = event_data.get("event_type")
             occurred_at = event_data.get("occurred_at")
+            targets = event_data.get("target", ["virtual"])
+            if isinstance(targets, str):
+                targets = [targets]
 
             if not ticker or not event_type or not occurred_at:
-                print(f"⚠️ [msg {msg_id}] Missing ticker/event_type/occurred_at; deleting", file=sys.stderr)
+                print(f"⚠️ [msg {msg_id}] Missing required fields; deleting", file=sys.stderr)
                 await delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
-            # ---------- Claim (dedup) ----------
-            claimed = await db.claim_event(ticker, event_type, occurred_at)
-            if not claimed:
-                print(f"♻️ [msg {msg_id}] Already claimed (duplicate) — acking and skipping", file=sys.stderr)
-                await delete_message(sqs_client, queue_url, receipt_handle)
-                continue
-            print(f"✅ [msg {msg_id}] Claimed for processing", file=sys.stderr)
+            # We'll collect successfully processed targets to decide whether to ack
+            processed_targets = []
 
-            # ---------- Process based on event_type ----------
-            print(f"🔎 [msg {msg_id}] Processing event_type='{event_type}' for ticker={ticker}", file=sys.stderr)
-
-            if event_type.lower() == "open":
-                # Required fields for an open trade. Position size is not
-                # part of the payload at all — it's always computed by us
-                # (see below), off our own real/virtual equity, since a
-                # size derived from TradingView's strategy.equity has no
-                # relation to our real or virtual account balance.
-                side = event_data.get("side")
-                ep = event_data.get("ep")
-                sl = event_data.get("sl")
-                tp = event_data.get("tp")
-
-                print(
-                    f"📥 [msg {msg_id}] OPEN payload: side={side} ep={ep} sl={sl} tp={tp}",
-                    file=sys.stderr,
-                )
-
-                if not side or ep is None or sl is None:
-                    print(f"⚠️ [msg {msg_id}] Missing required open fields (side, ep, sl); deleting", file=sys.stderr)
-                    await delete_message(sqs_client, queue_url, receipt_handle)
+            for target in targets:
+                # Claim for this target
+                claimed = await db.claim_event(ticker, event_type, occurred_at, target=target)
+                if not claimed:
+                    print(f"♻️ [msg {msg_id}] Already claimed for target={target}; skipping", file=sys.stderr)
                     continue
 
-                # ---------- Compute position size ourselves ----------
-                # Real mode (TEST3/LIVE): size off the live account balance.
-                # Virtual mode (TEST1/TEST2): size off the configured virtual
-                # balance. Either way, the risk-ratio/equity formula matches
-                # LevelsBot_v1_0_7.pine's entry_zone_calc_routine() exactly.
-                try:
-                    sizing_config = await db.get_trades_config()
-                    risk_ratio = sizing_config["risk_ratio"]
+                print(f"✅ [msg {msg_id}] Claimed for target={target}", file=sys.stderr)
 
-                    if is_virtual_mode:
-                        equity = sizing_config["virtual_balance_usdt"]
-                        equity_source = "virtual"
-                    else:
-                        equity = _get_real_usdt_balance(node)
-                        equity_source = "real"
+                if event_type.lower() == "open":
+                    side = event_data.get("side")
+                    ep = event_data.get("ep")
+                    sl = event_data.get("sl")
+                    tp = event_data.get("tp")
 
-                    computed_size = calculate_position_size(
-                        equity=equity,
-                        risk_ratio=risk_ratio,
-                        entry_price=float(ep),
-                        stop_loss_price=float(sl),
-                    )
-                    print(
-                        f"💰 [msg {msg_id}] Sized trade: equity={equity:.2f} USDT ({equity_source}) "
-                        f"risk_ratio={risk_ratio} -> size={computed_size:.6f}",
-                        file=sys.stderr,
-                    )
-                except (PositionSizingError, RuntimeError) as e:
-                    print(f"❌ [msg {msg_id}] Position sizing failed: {e}; will retry via DLQ", file=sys.stderr)
-                    # Do not delete SQS – will go to DLQ. But undo the claim
-                    # too, otherwise a redelivery is treated as a duplicate
-                    # and silently dropped instead of actually retrying.
-                    await db.unclaim_event(ticker, event_type, occurred_at)
-                    continue
+                    if not side or ep is None or sl is None:
+                        print(f"⚠️ [msg {msg_id}] Missing open fields; unclaiming target={target}", file=sys.stderr)
+                        await db.unclaim_event(ticker, event_type, occurred_at, target=target)
+                        continue
 
-                # Generate a trade_id (deterministic from ticker + occurred_at)
-                trade_id = f"{ticker}_{occurred_at.replace(':', '').replace('.', '').replace('-', '').replace('Z', '')}"
-                print(f"🆔 [msg {msg_id}] Generated trade_id={trade_id}", file=sys.stderr)
-
-                instrument_id = InstrumentId.from_str(ticker)
-                bar_type_str = f"{ticker}-{bar_interval}-LAST-EXTERNAL"
-                bar_type = BarType.from_str(bar_type_str)
-                print(f"📊 [msg {msg_id}] instrument_id={instrument_id} bar_type={bar_type_str}", file=sys.stderr)
-
-                config = TradeStrategyConfig(
-                    instrument_id=instrument_id,
-                    bar_type=bar_type,
-                    trade_id=trade_id,
-                    side=side,
-                    size=computed_size,
-                    entry_price=float(ep),
-                    sl_price=float(sl) if sl is not None else None,
-                    tp_price=float(tp) if tp is not None else None,
-                    strategy_id=trade_id,   # use your trade_id as the strategy ID
-                )
-                print(f"🧩 [msg {msg_id}] TradeStrategyConfig built for trade_id={trade_id}", file=sys.stderr)
-
-                async def add_strategy_to_trader(trader, strategy) -> bool:
-                    controller = node.kernel._controller  # registered above
+                    # Compute size
                     try:
-                        controller.create_strategy(strategy, start=True)  # add_strategy() + start(), controller-bypassed
-                        print(f"✅ Strategy {strategy.config.trade_id} added and started")
-                    except Exception as e:
-                        print(f"❌ Failed to add strategy: {e}")
-                        raise
-
-                    if strategy.is_running:
-                        print(f"✅ Strategy {strategy.config.trade_id} added and started")
-                        return True
-                    else:
-                        # on_start() ran, hit an internal problem (e.g. instrument not
-                        # in cache yet), logged it, and stopped itself. No exception was
-                        # raised, so we only catch this by checking state explicitly.
-                        print(
-                            f"❌ Strategy {strategy.config.trade_id} did not stay running "
-                            f"after start (see strategy log above for the cause)"
+                        sizing_config = await db.get_trades_config()
+                        risk_ratio = sizing_config["risk_ratio"]
+                        if target == "real":
+                            equity = _get_real_usdt_balance(nodes["real"])
+                        else:
+                            equity = sizing_config["virtual_balance_usdt"]
+                        computed_size = calculate_position_size(
+                            equity=equity,
+                            risk_ratio=risk_ratio,
+                            entry_price=float(ep),
+                            stop_loss_price=float(sl),
                         )
-                        return False
+                    except Exception as e:
+                        print(f"❌ [msg {msg_id}] Sizing failed for target={target}: {e}", file=sys.stderr)
+                        await db.unclaim_event(ticker, event_type, occurred_at, target=target)
+                        continue
 
-                try:
-                    strategy = TradeStrategy(config, close_callback=on_strategy_closed)
+                    # Generate trade_id with target suffix
+                    trade_id = f"{ticker}_{occurred_at.replace(':', '').replace('.', '').replace('-', '').replace('Z', '')}_{target}"
+                    print(f"🆔 [msg {msg_id}] Generated trade_id={trade_id} for target={target}", file=sys.stderr)
+
+                    instrument_id = InstrumentId.from_str(ticker)
+                    bar_type_str = f"{ticker}-{bar_interval}-LAST-EXTERNAL"
+                    bar_type = BarType.from_str(bar_type_str)
+
+                    config = TradeStrategyConfig(
+                        instrument_id=instrument_id,
+                        bar_type=bar_type,
+                        trade_id=trade_id,
+                        side=side,
+                        size=computed_size,
+                        entry_price=float(ep),
+                        sl_price=float(sl) if sl is not None else None,
+                        tp_price=float(tp) if tp is not None else None,
+                        strategy_id=trade_id,
+                        target=target,
+                    )
+
+                    node = nodes[target]
+                    close_callback = make_close_callback(node, trade_id)
+                    strategy = TradeStrategy(config, close_callback=close_callback)
                     active_strategies[trade_id] = strategy
-                    print(
-                        f"🗂️ [msg {msg_id}] Registered strategy in active_strategies "
-                        f"(now tracking {len(active_strategies)} active)",
-                        file=sys.stderr,
-                    )
-                    started_ok = await add_strategy_to_trader(node.trader, strategy)
-                except Exception as e:
-                    print(f"❌ [msg {msg_id}] Failed to start strategy: {e}", file=sys.stderr)
-                    active_strategies.pop(trade_id, None)
-                    # Do not delete SQS – will go to DLQ. But undo the claim too,
-                    # otherwise a redelivery will be treated as a duplicate and
-                    # silently dropped instead of actually retrying.
-                    await db.unclaim_event(ticker, event_type, occurred_at)
-                    continue
 
-                if not started_ok:
-                    # Belt-and-braces: on_strategy_closed should already have popped
-                    # this via the close_callback, but pop defensively in case that
-                    # path didn't fire for some reason.
-                    active_strategies.pop(trade_id, None)
-                    unclaimed = await db.unclaim_event(ticker, event_type, occurred_at)
-                    print(
-                        f"⚠️ [msg {msg_id}] Strategy failed to start for trade {trade_id}; "
-                        f"NOT acking SQS message so it can be retried "
-                        f"(unclaimed={unclaimed})",
-                        file=sys.stderr,
-                    )
-                    # Do not ack — leave the message for SQS to redeliver/DLQ.
-                    continue
+                    # Add to the node's trader
+                    try:
+                        controller = node.kernel._controller
+                        controller.create_strategy(strategy, start=True)
+                        if strategy.is_running:
+                            processed_targets.append(target)
+                            print(f"🚀 [msg {msg_id}] Started strategy for trade {trade_id} on {target}", file=sys.stderr)
+                        else:
+                            raise RuntimeError("Strategy stopped immediately after start")
+                    except Exception as e:
+                        print(f"❌ [msg {msg_id}] Failed to start strategy for target={target}: {e}", file=sys.stderr)
+                        active_strategies.pop(trade_id, None)
+                        await db.unclaim_event(ticker, event_type, occurred_at, target=target)
+                        # Not acking this target – will retry
 
-                print(f"🚀 [msg {msg_id}] Started TradeStrategy for trade {trade_id} on {ticker}")
+                elif event_type.lower() == "cancel":
+                    active_trade_id = await db.get_active_trade_for_ticker(ticker, target=target)
+                    if active_trade_id is None:
+                        print(f"⚠️ [msg {msg_id}] No active trade for target={target}; unclaiming", file=sys.stderr)
+                        await db.unclaim_event(ticker, event_type, occurred_at, target=target)
+                        continue
 
-            elif event_type.lower() == "cancel":
-                print(f"🔍 [msg {msg_id}] Looking up active trade for ticker={ticker}", file=sys.stderr)
-                # Cancel the active trade for this ticker
-                active_trade_id = await db.get_active_trade_for_ticker(ticker)
-                if active_trade_id is None:
-                    print(f"⚠️ [msg {msg_id}] No active open trade found for {ticker}; acking and skipping", file=sys.stderr)
-                    await delete_message(sqs_client, queue_url, receipt_handle)
-                    continue
-                print(f"🔗 [msg {msg_id}] Found active_trade_id={active_trade_id} for ticker={ticker}", file=sys.stderr)
+                    strategy = active_strategies.get(active_trade_id)
+                    if strategy is None:
+                        print(f"⚠️ [msg {msg_id}] Strategy for {active_trade_id} not in memory; unclaiming", file=sys.stderr)
+                        await db.unclaim_event(ticker, event_type, occurred_at, target=target)
+                        continue
 
-                strategy = active_strategies.get(active_trade_id)
-                if strategy is None:
-                    print(f"⚠️ [msg {msg_id}] Active trade {active_trade_id} not in memory; acking", file=sys.stderr)
-                    await delete_message(sqs_client, queue_url, receipt_handle)
-                    continue
-
-                # Ask the strategy to cancel/close the trade
-                try:
                     strategy.request_cancel()
-                    print(f"🛑 [msg {msg_id}] Sent cancel request to trade {active_trade_id}")
-                except Exception as e:
-                    # request_cancel() isn't wrapped anywhere upstream — an uncaught
-                    # exception here would previously crash the whole listener
-                    # coroutine, not just this one message.
-                    print(f"❌ [msg {msg_id}] request_cancel() failed for trade {active_trade_id}: {e}", file=sys.stderr)
-                    await db.unclaim_event(ticker, event_type, occurred_at)
-                    print(f"⚠️ [msg {msg_id}] NOT acking SQS message so the cancel can be retried", file=sys.stderr)
+                    processed_targets.append(target)
+                    print(f"🛑 [msg {msg_id}] Cancel requested for trade {active_trade_id} (target={target})", file=sys.stderr)
+
+                else:
+                    print(f"⚠️ [msg {msg_id}] Unknown event_type '{event_type}'; unclaiming", file=sys.stderr)
+                    await db.unclaim_event(ticker, event_type, occurred_at, target=target)
                     continue
 
-            else:
-                print(f"⚠️ [msg {msg_id}] Unknown event_type '{event_type}'; deleting", file=sys.stderr)
+            # If at least one target was successfully processed, ack the SQS message.
+            # If no target was processed, leave the message to be retried/DLQ.
+            if processed_targets:
                 await delete_message(sqs_client, queue_url, receipt_handle)
-                continue
-
-            # ---------- Acknowledge SQS ----------
-            print(f"📨 [msg {msg_id}] Acknowledging SQS message", file=sys.stderr)
-            acked = await delete_message(sqs_client, queue_url, receipt_handle)
-            print(f"{'🗑️' if acked else '⚠️'} [msg {msg_id}] SQS message {'acked' if acked else 'ack FAILED'}", file=sys.stderr)
-
+                print(f"🗑️ [msg {msg_id}] Acked after processing targets: {processed_targets}", file=sys.stderr)
+            else:
+                print(f"⚠️ [msg {msg_id}] No target processed; message retained for retry", file=sys.stderr)
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
@@ -741,192 +644,157 @@ def main():
     log_level = os.getenv("LOG_LEVEL", "INFO")
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
 
-    # MODE is the single source of truth for how this node behaves. The
-    # Binance data environment, whether execution is simulated, and which
-    # credentials are required are all *derived* from it below rather than
-    # independently settable, so it's impossible for them to drift out of
-    # sync with each other (e.g. believing you're on testnet while the venue
-    # or credentials silently point at mainnet).
+    # ------------------------------------------------------------------
+    # Scope: Binance MAINNET only, with TWO always-on TradingNode instances
+    # sharing this process — a real exec node and a virtual (sandbox) exec
+    # node, both fed by their own MAINNET data client. "Mode" is no longer a
+    # startup-time choice: each incoming SQS 'open' event carries its own
+    # `targets` list (["virtual"], ["real"], or both — see
+    # listen_trade_events), and is routed to whichever node(s) match.
     #
-    #   TEST1 (default) - Nautilus-simulated orders (SandboxExecutionClient),
-    #                      fed by live market data from Binance TESTNET. No
-    #                      real orders are ever sent to Binance. Needs only
-    #                      BINANCE_SANDBOX_API_KEY/SECRET (for the testnet
-    #                      data feed) — no Ed25519 exec credentials.
-    #   TEST2           - Nautilus-simulated orders (SandboxExecutionClient),
-    #                      fed by live market data from Binance MAINNET. No
-    #                      real orders are ever sent to Binance. Needs only
-    #                      BINANCE_API_KEY/SECRET (for the mainnet data feed)
-    #                      — no Ed25519 exec credentials.
-    #   TEST3           - Real orders sent to Binance's Spot/Futures TESTNET
-    #                      (not simulated). Needs BINANCE_SANDBOX_API_KEY/SECRET
-    #                      for data, plus BINANCE_ED25519_PUBLIC_KEY/PRIVATE_KEY
-    #                      for order execution.
-    #   LIVE            - Real trading on Binance MAINNET with real funds.
-    #                      Needs BINANCE_API_KEY/SECRET for data, plus
-    #                      BINANCE_ED25519_PUBLIC_KEY/PRIVATE_KEY for order
-    #                      execution.
-    mode = os.getenv("TRADING_MODE", "TEST1").upper()
-
-    # mode -> (Binance environment used for data/exec, use simulated exec?)
-    _MODE_TABLE = {
-        "TEST1": ("TESTNET", True),
-        "TEST2": ("LIVE", True),
-        "TEST3": ("TESTNET", False),
-        "LIVE": ("LIVE", False),
-    }
-    if mode not in _MODE_TABLE:
-        print(f"❌ Unsupported TRADING_MODE: {mode}. Use TEST1, TEST2, TEST3, or LIVE.", file=sys.stderr)
+    # Real and virtual deliberately do NOT share one TradingNode: Nautilus
+    # routes orders to exactly one exec client per venue, so a real
+    # BinanceExecClientConfig and a SandboxExecutionClientConfig can't both
+    # be independently addressable under the same venue in one node. Two
+    # separate nodes (each with its own data+exec pair, same pattern this
+    # file already used pre-refactor) sidesteps that entirely, at the cost
+    # of loading the Binance instrument set twice at startup.
+    #
+    # TESTNET support is deprioritized for now. ENABLE_TESTNET exists as the
+    # switch for it, but isn't wired to anything yet — flipping it fails
+    # fast with a clear message rather than silently doing nothing, so a
+    # misconfigured deployment can't mistake "the flag exists" for "the
+    # feature works".
+    # ------------------------------------------------------------------
+    enable_testnet = os.getenv("ENABLE_TESTNET", "false").strip().lower() in ("1", "true", "yes")
+    if enable_testnet:
+        print(
+            "❌ ENABLE_TESTNET=true, but TESTNET support isn't implemented yet — "
+            "this build only connects to Binance MAINNET (real + virtual exec "
+            "nodes). Set ENABLE_TESTNET=false (or leave it unset) to run.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    environment, use_sim_exec = _MODE_TABLE[mode]
-    sandbox = environment == "TESTNET"  # drives which data credentials to load
-
-    _MODE_DESCRIPTIONS = {
-        "TEST1": "🧪 Nautilus-simulated trades, fed by live market data from Binance TESTNET. "
-                 "No real orders will be sent to Binance.",
-        "TEST2": "🧪 Nautilus-simulated trades, fed by live market data from Binance MAINNET. "
-                 "No real orders will be sent to Binance.",
-        "TEST3": "🟡 Real orders placed on Binance TESTNET (not simulated) — no real funds at risk.",
-        "LIVE": "🔴 Doing LIVE trades on Binance MAINNET. Real orders with real funds.",
-    }
-    print("=" * 78, file=sys.stderr)
-    print(
-        f"MODE={mode}  |  BINANCE_ENV={environment}  |  "
-        f"SIM_EXEC={'1' if use_sim_exec else '0'}  |  "
-        f"BINANCE_SANDBOX={'1' if sandbox else '0'}",
-        file=sys.stderr,
-    )
-    print(_MODE_DESCRIPTIONS[mode], file=sys.stderr)
-    print("=" * 78, file=sys.stderr)
-
-    # Load credentials (env vars first for local runs, AWS Secrets Manager otherwise)
-    try:
-        api_key, api_secret = load_credentials(region=aws_region, sandbox=sandbox)
-    except Exception as e:
-        print(f"❌ Failed to load credentials (env vars and AWS both failed): {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # --- Load Ed25519 keys and use them for the EXEC client ---
-    # Only needed when real orders are actually sent to Binance (TEST3, LIVE).
-    # Binance's WebSocket API session.logon (used by Nautilus exec clients)
-    # rejects HMAC-SHA-256 keys, so the exec client must use Ed25519 (or RSA,
-    # though RSA is not supported for execution). Nautilus auto-detects the
-    # key type from the api_secret format, so no key_type config is needed.
-    # Skipped entirely when use_sim_exec is True, since no real exec
-    # connection is ever made.
-    #
-    # This now hard-fails (rather than warning and silently continuing) if a
-    # real-exec mode is missing credentials. Continuing with api_key=None
-    # previously caused Nautilus's own internal fallback to look for its own
-    # differently-named env var and raise a confusing, unrelated-looking
-    # error deep inside the library instead of a clear failure here.
-    exec_api_key = exec_api_secret = None
-    if not use_sim_exec:
-        try:
-            ed25519_public_key, ed25519_private_key = load_ed25519_credentials(region=aws_region)
-
-            _validate_ed25519_private_key(ed25519_private_key)
-            _warn_if_api_key_looks_like_raw_pem(ed25519_public_key)
-
-            exec_api_key = ed25519_public_key
-            exec_api_secret = ed25519_private_key
-            print("🔐 Using Ed25519 credentials for the execution client", file=sys.stderr)
-        except Exception as e:
-            print(f"❌ Ed25519 credentials required for MODE={mode} but not loaded: {e}", file=sys.stderr)
-            sys.exit(1)
-
+    environment = "MAINNET"
     account_type = BinanceAccountType.SPOT
+    binance_config_kwargs = {"environment": BinanceEnvironment.LIVE}
 
-    binance_config_kwargs = _resolve_binance_config_kwargs(environment)
+    print("=" * 78, file=sys.stderr)
+    print(f"BINANCE_ENV={environment}  |  exec nodes: real + virtual (both always on)", file=sys.stderr)
+    print("=" * 78, file=sys.stderr)
 
-    # Shared instrument provider config. load_all=True fetches every instrument
-    # for the account type (SPOT) at startup and keeps the cache populated —
-    # without this (or load_ids), the instrument cache stays permanently empty
-    # and every strategy fails at on_start() with "No instrument found in
-    # cache", as confirmed by Nautilus's own startup warning:
-    #   "No loading configured: ensure either `load_all=True` or there are `load_ids`"
-    # Trade-off: loads thousands of Binance Spot instruments at startup, which
-    # adds some latency before the node is ready to trade, but tickers arrive
-    # dynamically via SQS so we can't know load_ids in advance.
-    instrument_provider_config = InstrumentProviderConfig(load_all=True)
+    # Load MAINNET data credentials (env vars first for local runs, AWS
+    # Secrets Manager otherwise). Both nodes' data clients use these — the
+    # real-vs-virtual split only affects the exec client, not the feed.
+    try:
+        api_key, api_secret = load_credentials(region=aws_region, sandbox=False)
+    except Exception as e:
+        print(f"❌ Failed to load MAINNET data credentials (env vars and AWS both failed): {e}", file=sys.stderr)
+        sys.exit(1)
 
-    # Data client config
-    data_config = BinanceDataClientConfig(
-        api_key=api_key,
-        api_secret=api_secret,
-        account_type=account_type,
-        instrument_provider=instrument_provider_config,
-        **binance_config_kwargs,
-    )
-
-    # Execution client config
-    if use_sim_exec:
-        # Nautilus's own simulated exec client: fills are computed locally
-        # against the live data feed above, no order ever reaches Binance.
-        starting_balances = [
-            b.strip()
-            for b in os.getenv("SANDBOX_STARTING_BALANCES", "10000 USDT,1 BTC").split(",")
-            if b.strip()
-        ]
-        exec_config = SandboxExecutionClientConfig(
-            venue=BINANCE,
-            account_type=os.getenv("SANDBOX_ACCOUNT_TYPE", "CASH"),
-            starting_balances=starting_balances,
-            instrument_provider=instrument_provider_config,
-        )
-    else:
-        # Real Binance execution (testnet or mainnet). Uses Ed25519 credentials
-        # when available/valid (see above), since Binance's WebSocket API
-        # session.logon rejects HMAC keys for the exec client.
-        exec_config = BinanceExecClientConfig(
-            api_key=exec_api_key,
-            api_secret=exec_api_secret,
-            account_type=account_type,
-            instrument_provider=instrument_provider_config,
-            **binance_config_kwargs,
-        )
+    # --- Load Ed25519 keys for the REAL exec node only ---
+    # Binance's WebSocket API session.logon (used by Nautilus's live exec
+    # client) rejects HMAC-SHA-256 keys, so real order execution must use
+    # Ed25519 (or RSA, though RSA isn't supported here). The virtual/sandbox
+    # node never sends real orders, so it doesn't need these at all.
+    try:
+        ed25519_public_key, ed25519_private_key = load_ed25519_credentials(region=aws_region)
+        _validate_ed25519_private_key(ed25519_private_key)
+        _warn_if_api_key_looks_like_raw_pem(ed25519_public_key)
+        print("🔐 Using Ed25519 credentials for the real execution node", file=sys.stderr)
+    except Exception as e:
+        print(f"❌ Ed25519 credentials required for the real exec node but not loaded: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # ----------------------------------------------------------------------
-    # Own the event loop explicitly rather than using asyncio.run().
+    # Own the event loop explicitly rather than using asyncio.run(). Both
+    # TradingNode instances below are built against this SAME loop object —
+    # see build_trading_node()'s docstring for why that matters.
     # ----------------------------------------------------------------------
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    # Build the full trading node
-    node = build_trading_node(
-        trader_id=trader_id,
-        data_clients={BINANCE: data_config},
-        exec_clients={BINANCE: exec_config},
+    # Each node gets its own InstrumentProviderConfig instance. load_all=True
+    # loads the full Binance Spot instrument set independently per node —
+    # duplicated network cost at startup (two full instrument loads instead
+    # of one), but it keeps each node's internal state (cache, portfolio,
+    # msgbus) fully isolated, which is what lets a real exec client and a
+    # sandbox exec client coexist safely in one process.
+    real_instrument_provider = InstrumentProviderConfig(load_all=True)
+    virtual_instrument_provider = InstrumentProviderConfig(load_all=True)
+
+    # ---- Real exec node: MAINNET data + real Binance exec (Ed25519) ----
+    real_data_config = BinanceDataClientConfig(
+        api_key=api_key,
+        api_secret=api_secret,
+        account_type=account_type,
+        instrument_provider=real_instrument_provider,
+        **binance_config_kwargs,
+    )
+    real_exec_config = BinanceExecClientConfig(
+        api_key=ed25519_public_key,
+        api_secret=ed25519_private_key,
+        account_type=account_type,
+        instrument_provider=real_instrument_provider,
+        **binance_config_kwargs,
+    )
+    real_node = build_trading_node(
+        trader_id=f"{trader_id}-REAL",
+        data_clients={BINANCE: real_data_config},
+        exec_clients={BINANCE: real_exec_config},
         log_level=log_level,
         loop=loop,
     )
+    register_binance_data(real_node)
+    register_binance_exec(real_node)
+    real_node.build()
 
-    # ----------------------------------------------------------------------
-    # Event‑driven trade execution
-    # ----------------------------------------------------------------------
-    # 1. Register data and execution factories
-    register_binance_data(node)
-    register_exec = register_sandbox_exec if use_sim_exec else register_binance_exec
-    register_exec(node)
+    # ---- Virtual exec node: MAINNET data + Nautilus sandbox exec ----
+    # Fills are computed locally against this node's own live MAINNET data
+    # feed; no order from this node ever reaches Binance.
+    virtual_data_config = BinanceDataClientConfig(
+        api_key=api_key,
+        api_secret=api_secret,
+        account_type=account_type,
+        instrument_provider=virtual_instrument_provider,
+        **binance_config_kwargs,
+    )
+    starting_balances = [
+        b.strip()
+        for b in os.getenv("SANDBOX_STARTING_BALANCES", "10000 USDT,1 BTC").split(",")
+        if b.strip()
+    ]
+    virtual_exec_config = SandboxExecutionClientConfig(
+        venue=BINANCE,
+        account_type=os.getenv("SANDBOX_ACCOUNT_TYPE", "CASH"),
+        starting_balances=starting_balances,
+        instrument_provider=virtual_instrument_provider,
+    )
+    virtual_node = build_trading_node(
+        trader_id=f"{trader_id}-VIRTUAL",
+        data_clients={BINANCE: virtual_data_config},
+        exec_clients={BINANCE: virtual_exec_config},
+        log_level=log_level,
+        loop=loop,
+    )
+    register_binance_data(virtual_node)
+    register_sandbox_exec(virtual_node)
+    virtual_node.build()
 
-    # 2. Build the node's clients (now that factories are registered)
-    node.build()
+    # Expose both nodes to the API layer so /health can read
+    # node.trader.is_running live (cheap attribute lookup, no I/O) instead
+    # of relying on push updates that could go stale.
+    node_ref["real"] = real_node
+    node_ref["virtual"] = virtual_node
 
-    # Expose the node to the API layer so /health can read node.trader.is_running
-    # live (a cheap attribute lookup, no I/O) instead of relying on push updates.
-    node_ref["node"] = node
+    # Wire up /balance/mainnet. get_virtual_balance is wired up inside
+    # listen_trade_events once the DB is ready (same as before).
+    balance_refs["get_real_balance"] = lambda: _get_real_usdt_balance(real_node)
 
-    # Wire up /balance/testnet and /balance/mainnet. "environment" records
-    # which real Binance environment (if any) this instance is actually
-    # connected to; get_real_balance is only set when a real account
-    # connection exists at all (TEST3/LIVE, i.e. use_sim_exec is False) —
-    # in TEST1/TEST2 execution is simulated, so there's no real account to
-    # read a balance from even though a "environment" (data feed) is set.
-    balance_refs["environment"] = "MAINNET" if environment == "LIVE" else environment
-    balance_refs["get_real_balance"] = (lambda: _get_real_usdt_balance(node)) if not use_sim_exec else None
+    nodes = {"real": real_node, "virtual": virtual_node}
 
-    # 3. Get SQS queue URL (required)
+    # Get SQS queue URL (required)
     queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")
     if not queue_url:
         print("❌ SQS_TRADE_EVENTS_QUEUE_URL environment variable not set.", file=sys.stderr)
@@ -935,28 +803,34 @@ def main():
     sqs_client = get_sqs_client()
     set_status("sqs", "connecting")
 
-    # 4. Define the async entry point that runs both coroutines concurrently
+    # Define the async entry point that runs everything concurrently
     async def run_event_driven():
         config = uvicorn.Config(app, host="0.0.0.0", port=8000, loop="asyncio")
         server = uvicorn.Server(config)
 
         try:
             await asyncio.gather(
-                node.run_async(),
-                listen_trade_events(node, sqs_client, queue_url, bar_interval, api_active_strategies, use_sim_exec),
+                real_node.run_async(),
+                virtual_node.run_async(),
+                listen_trade_events(nodes, sqs_client, queue_url, bar_interval, api_active_strategies),
                 server.serve(),
             )
         except asyncio.CancelledError:
             # Normal shutdown
             pass
         finally:
-            # Ensure clean teardown using async stop
+            # Ensure clean teardown of both nodes using async stop
             try:
-                await node.stop_async()
+                await asyncio.gather(
+                    real_node.stop_async(),
+                    virtual_node.stop_async(),
+                    return_exceptions=True,
+                )
             finally:
-                node.dispose()
+                real_node.dispose()
+                virtual_node.dispose()
 
-    # 5. Run the main loop we created and handed to the node above
+    # Run the main loop we created and handed to both nodes above
     try:
         loop.run_until_complete(run_event_driven())
     except KeyboardInterrupt:

@@ -189,6 +189,13 @@ class TradeStrategyConfig(StrategyConfig, frozen=True, kw_only=True):
     sl_price: Optional[float] = None
     tp_price: Optional[float] = None
     strategy_id: Optional[str] = None
+    # Which execution path this trade actually runs on — 'virtual' (sandbox
+    # exec node) or 'real' (live Binance exec node). Required (no default)
+    # so a trade can never be silently logged as the wrong one; this is what
+    # gets written to trade_events.target for the audit trail, and it's also
+    # how EDGETrader decides which of the two TradingNode instances to
+    # attach this strategy to.
+    target: str
 
 # ----------------------------------------------------------------------
 # Per‑Trade Strategy
@@ -251,8 +258,9 @@ class TradeStrategy(Strategy):
             ep=self.config.entry_price,
             sl=self.config.sl_price,
             tp=self.config.tp_price,
+            target=self.config.target,
         )
-        self.log.info(f"📝 Logged Opened event for {self.config.trade_id}")
+        self.log.info(f"📝 Logged Opened event for {self.config.trade_id} (target={self.config.target})")
 
     async def _append_filled_event(self) -> None:
         """Insert the 'Filled' event once the entry order fills (state moves
@@ -269,8 +277,9 @@ class TradeStrategy(Strategy):
             sl=self.config.sl_price,
             tp=self.config.tp_price,
             fill_price=self.sm.extra_data.get("fill_price"),
+            target=self.config.target,
         )
-        self.log.info(f"📝 Logged Filled event for {self.config.trade_id}")
+        self.log.info(f"📝 Logged Filled event for {self.config.trade_id} (target={self.config.target})")
 
     async def _append_closing_event(self) -> None:
         """Insert the final 'Closed' or 'Cancelled' event into trade_events."""
@@ -299,8 +308,9 @@ class TradeStrategy(Strategy):
             fill_price=fill_price,
             close_reason=close_reason,
             cancel_reason=cancel_reason,
+            target=self.config.target,
         )
-        self.log.info(f"📝 Logged {event_type} event for {self.config.trade_id}")
+        self.log.info(f"📝 Logged {event_type} event for {self.config.trade_id} (target={self.config.target})")
 
     # -------- Modified _finalize_and_stop --------
     def _finalize_and_stop(self) -> None:

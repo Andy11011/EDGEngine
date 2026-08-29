@@ -1063,3 +1063,83 @@ GET /balance/virtual — always answerable, pure DB read of trades_config.virtua
 GET /balance/testnet / GET /balance/mainnet — only the one matching this instance's actual
 connected environment returns a number; the other reports why it can't 
 (wrong environment, or simulated-exec mode with no real account) instead of faking data.
+
+
+
+	            Simulated exec	Real exec
+TESTNET data	TEST1	          TEST3
+MAINNET data	TEST2	          LIVE
+
+
+TEST1 ↔ TEST3 (both TESTNET data) → one data client, two exec clients: real BINANCE + sandbox BINANCE_SIM_TESTNET.
+TEST2 ↔ LIVE (both MAINNET data) → one data client, two exec clients: real BINANCE + sandbox BINANCE_SIM_MAINNET.
+
+That's 2 data connections + 4 exec clients total
+
+//********************************//
+
+Scope: MAINNET only, real + virtual, TESTNET stubbed off
+
+1. EDGETrader.py
+
+- Add ENABLE_TESTNET env flag (default false). When off, skip 
+loading testnet credentials and skip building any TESTNET data/exec clients entirely.
+
+- Build one TradingNode against MAINNET data, with two exec clients off that single feed:
+Sandbox exec (virtual) — always on.
+Real exec (BinanceExecClientConfig, Ed25519 creds) — always on, since there's 
+no gate deciding whether it's "allowed" anymore.
+
+- listen_trade_events: for an open event, read targets from the SQS 
+payload (["virtual"], ["real"], or both) and fan out to the matching 
+exec client(s) — no DB lookup involved in this decision anymore.
+
+- trade_id generation: suffix by target (e.g. f"{ticker}_{occurred_at}_{target}") 
+so one signal can produce a virtual row and a real row without one being treated as
+ a duplicate of the other.
+
+2. SQS payload schema
+
+Add "targets": ["virtual"] | ["real"] | ["virtual", "real"] to the open event shape.
+
+cancel events: needs a target too, since a ticker could now have an open virtual trade
+ and an open real trade simultaneously — get_active_trade_for_ticker needs to resolve 
+ per-target, not just per-ticker.
+
+3. trades_db_async.py
+
+- trade_events (and order_fills) gain a target column, populated from the payload 
+at claim time — this is your audit trail for virtual-vs-real, no separate mode 
+table needed.
+
+- claim_event dedup key becomes (ticker, event_type, occurred_at, target) 
+instead of (ticker, event_type, occurred_at).
+
+- get_active_trade_for_ticker takes a target parameter.
+
+- trades_config stays as-is (just risk_ratio / virtual_balance_usdt)
+ — no mode/enabled column added.
+
+4. api.py
+
+- No change needed for
+ /balance/virtual and /balance/mainnet (already correct for this shape).
+
+- /balance/testnet keeps reporting "not connected" via the existing environment 
+check — nothing to build until ENABLE_TESTNET is real.
+
+- /active_trades and /cancel/{trade_id} are already trade_id-keyed,
+ so the target-suffixed IDs flow through without changes.
+
+//********************************//
+
+Traceback (most recent call last):
+  File "/app/EDGETrader.py", line 941, in <module>
+    main()
+  File "/app/EDGETrader.py", line 933, in main
+    loop.run_until_complete(run_event_driven())
+  File "uvloop/loop.pyx", line 1518, in uvloop.loop.Loop.run_until_complete
+  File "/app/EDGETrader.py", line 913, in run_event_driven
+    listen_trade_events(nodes, sqs_client, queue_url, bar_interval, api_active_strategies),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: listen_trade_events() missing 1 required positional argument: 'is_virtual_mode'
