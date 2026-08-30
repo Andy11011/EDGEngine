@@ -273,6 +273,16 @@ docker run --rm --env-file .env.local -p 8000:8000 edgetrader
 
 `--env-file` is required — host-shell env vars (`export`/`$env:`) are **not** automatically passed into the container.
 
+Using the `-it` flags tells Docker to attach your terminal's standard input (stdin) and standard output (stdout) to the container's internal process, which allows you to view and interact with the pdb debugger prompt.
+
+`-i` (interactive): Connects your terminal's stdin to the container so you can actually type commands (like n, s, p result) into the pdb prompt. Without this, pdb cannot read your keystrokes.
+
+`-t` (tty): Allocates a pseudo-TTY (a terminal session) inside the container. This fixes the formatting, gives you text coloring, and prevents Python from crashing when it looks for a terminal screen to attach to.
+
+```powershell
+docker run --rm -it --env-file .env.local -p 8000:8000 edgetrader
+```
+
 ### Environment variables reference
 
 Only variables you are **likely to change** are listed below – all others have sensible defaults.

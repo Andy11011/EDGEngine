@@ -1,0 +1,256 @@
+PS C:\Users\andy9\EDGEngine>
+PS C:\Users\andy9\EDGEngine> docker run --rm -it --env-file .env.local -p 8000:8000 edgetrader
+==============================================================================
+BINANCE_ENV=MAINNET  |  exec nodes: real + virtual (both always on)
+==============================================================================
+✅ Credentials loaded from environment variables (local override)
+✅ Ed25519 credentials loaded from environment variables (local override)
+🔐 Using Ed25519 credentials for the real execution node
+2026-08-30T07:59:05.188782616Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188800850Z [INFO] EDGETRADER-001-REAL.TradingNode:  NAUTILUS TRADER - Automated Algorithmic Trading Platform
+2026-08-30T07:59:05.188801862Z [INFO] EDGETRADER-001-REAL.TradingNode:  by Nautech Systems Pty Ltd.
+2026-08-30T07:59:05.188802109Z [INFO] EDGETRADER-001-REAL.TradingNode:  Copyright (C) 2015-2026. All rights reserved.
+2026-08-30T07:59:05.188802847Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188803336Z [INFO] EDGETRADER-001-REAL.TradingNode:
+2026-08-30T07:59:05.188803630Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+2026-08-30T07:59:05.188803922Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣾⣿⣿⣿⠀⢸⣿⣿⣿⣿⣶⣶⣤⣀⠀⠀⠀⠀⠀
+2026-08-30T07:59:05.188804204Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⠀⠀⢀⣴⡇⢀⣾⣿⣿⣿⣿⣿⠀⣾⣿⣿⣿⣿⣿⣿⣿⠿⠓⠀⠀⠀⠀
+2026-08-30T07:59:05.188804635Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⠀⣰⣿⣿⡀⢸⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⠟⠁⣠⣄⠀⠀⠀⠀
+2026-08-30T07:59:05.188805217Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⢠⣿⣿⣿⣇⠀⢿⣿⣿⣿⣿⣿⠀⢻⣿⣿⣿⡿⢃⣠⣾⣿⣿⣧⡀⠀⠀
+2026-08-30T07:59:05.188805655Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠠⣾⣿⣿⣿⣿⣿⣧⠈⠋⢀⣴⣧⠀⣿⡏⢠⡀⢸⣿⣿⣿⣿⣿⣿⣿⡇⠀
+2026-08-30T07:59:05.188806056Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⣀⠙⢿⣿⣿⣿⣿⣿⠇⢠⣿⣿⣿⡄⠹⠃⠼⠃⠈⠉⠛⠛⠛⠛⠛⠻⠇⠀
+2026-08-30T07:59:05.188806536Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⢸⡟⢠⣤⠉⠛⠿⢿⣿⠀⢸⣿⡿⠋⣠⣤⣄⠀⣾⣿⣿⣶⣶⣶⣦⡄⠀⠀⠀
+2026-08-30T07:59:05.188809787Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠸⠀⣾⠏⣸⣷⠂⣠⣤⠀⠘⢁⣴⣾⣿⣿⣿⡆⠘⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀
+2026-08-30T07:59:05.188809961Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⠛⠀⣿⡟⠀⢻⣿⡄⠸⣿⣿⣿⣿⣿⣿⣿⡀⠘⣿⣿⣿⣿⠟⠀⠀⠀⠀
+2026-08-30T07:59:05.188810134Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⢻⡿⠀⠈⠻⣿⣿⣿⣿⣿⡇⠀⢹⣿⠿⠋⠀⠀⠀⠀⠀
+2026-08-30T07:59:05.188810738Z [INFO] EDGETRADER-001-REAL.TradingNode: ⠀⠀⠀⠀⠀⠀⠋⠀⠀⠀⡘⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀⠀⠀⠀⠀⠀
+2026-08-30T07:59:05.188810913Z [INFO] EDGETRADER-001-REAL.TradingNode:
+2026-08-30T07:59:05.188811071Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188811450Z [INFO] EDGETRADER-001-REAL.TradingNode:  SYSTEM SPECIFICATION
+2026-08-30T07:59:05.188811654Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188813453Z [INFO] EDGETRADER-001-REAL.TradingNode: CPU architecture: 12th Gen Intel(R) Core(TM) i5-1235U
+2026-08-30T07:59:05.188816672Z [INFO] EDGETRADER-001-REAL.TradingNode: CPU(s): 4 @ 2496 MHz
+2026-08-30T07:59:05.188819167Z [INFO] EDGETRADER-001-REAL.TradingNode: OS: kernel-5.15.167.4-microsoft-standard-WSL2 Linux (Debian GNU/Linux 13)
+2026-08-30T07:59:05.188853330Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188853709Z [INFO] EDGETRADER-001-REAL.TradingNode:  MEMORY USAGE
+2026-08-30T07:59:05.188853933Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188858271Z [INFO] EDGETRADER-001-REAL.TradingNode: RAM-Total: 15.33 GiB
+2026-08-30T07:59:05.188859084Z [INFO] EDGETRADER-001-REAL.TradingNode: RAM-Used: 3.21 GiB (20.96%)
+2026-08-30T07:59:05.188859691Z [INFO] EDGETRADER-001-REAL.TradingNode: RAM-Avail: 12.12 GiB (79.04%)
+2026-08-30T07:59:05.188864504Z [INFO] EDGETRADER-001-REAL.TradingNode: Swap-Total: 16.00 GiB
+2026-08-30T07:59:05.188865539Z [INFO] EDGETRADER-001-REAL.TradingNode: Swap-Used: 0.00 GiB (0.00%)
+2026-08-30T07:59:05.188866856Z [INFO] EDGETRADER-001-REAL.TradingNode: Swap-Avail: 16.00 GiB (100.00%)
+2026-08-30T07:59:05.188867712Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188867951Z [INFO] EDGETRADER-001-REAL.TradingNode:  IDENTIFIERS
+2026-08-30T07:59:05.188868597Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188870174Z [INFO] EDGETRADER-001-REAL.TradingNode: trader_id: EDGETRADER-001-REAL
+2026-08-30T07:59:05.188870785Z [INFO] EDGETRADER-001-REAL.TradingNode: machine_id: 3121b280159d
+2026-08-30T07:59:05.188873979Z [INFO] EDGETRADER-001-REAL.TradingNode: instance_id: 854c5892-775c-4005-97cf-aa2cea4780ed
+2026-08-30T07:59:05.188874559Z [INFO] EDGETRADER-001-REAL.TradingNode: PID: 1
+2026-08-30T07:59:05.188874784Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188875000Z [INFO] EDGETRADER-001-REAL.TradingNode:  VERSIONING
+2026-08-30T07:59:05.188875232Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.188897102Z [INFO] EDGETRADER-001-REAL.TradingNode: nautilus_trader: 1.228.0
+2026-08-30T07:59:05.188905952Z [INFO] EDGETRADER-001-REAL.TradingNode: python: 3.12.14
+2026-08-30T07:59:05.188912828Z [INFO] EDGETRADER-001-REAL.TradingNode: numpy: 2.5.2
+2026-08-30T07:59:05.188918064Z [INFO] EDGETRADER-001-REAL.TradingNode: pandas: 2.3.3
+2026-08-30T07:59:05.188924394Z [INFO] EDGETRADER-001-REAL.TradingNode: msgspec: 0.21.1
+2026-08-30T07:59:05.188929883Z [INFO] EDGETRADER-001-REAL.TradingNode: pyarrow: 25.0.1
+2026-08-30T07:59:05.188933819Z [INFO] EDGETRADER-001-REAL.TradingNode: pytz: 2026.3.post1
+2026-08-30T07:59:05.188937395Z [INFO] EDGETRADER-001-REAL.TradingNode: uvloop: 0.22.1
+2026-08-30T07:59:05.188937611Z [INFO] EDGETRADER-001-REAL.TradingNode: =================================================================
+2026-08-30T07:59:05.189008060Z [INFO] EDGETRADER-001-REAL.TradingNode: Building system kernel
+2026-08-30T07:59:05.189368195Z [INFO] EDGETRADER-001-REAL.MessageBus: config.database=None
+2026-08-30T07:59:05.189377164Z [INFO] EDGETRADER-001-REAL.MessageBus: config.encoding='msgpack'
+2026-08-30T07:59:05.189379660Z [INFO] EDGETRADER-001-REAL.MessageBus: config.timestamps_as_iso8601=False
+2026-08-30T07:59:05.189381237Z [INFO] EDGETRADER-001-REAL.MessageBus: config.buffer_interval_ms=None
+2026-08-30T07:59:05.189382646Z [INFO] EDGETRADER-001-REAL.MessageBus: config.autotrim_mins=None
+2026-08-30T07:59:05.189384356Z [INFO] EDGETRADER-001-REAL.MessageBus: config.use_trader_prefix=True
+2026-08-30T07:59:05.189387279Z [INFO] EDGETRADER-001-REAL.MessageBus: config.use_trader_id=True
+2026-08-30T07:59:05.189388707Z [INFO] EDGETRADER-001-REAL.MessageBus: config.use_instance_id=False
+2026-08-30T07:59:05.189395548Z [INFO] EDGETRADER-001-REAL.MessageBus: config.streams_prefix='stream'
+2026-08-30T07:59:05.189396874Z [INFO] EDGETRADER-001-REAL.MessageBus: config.types_filter=None
+2026-08-30T07:59:05.189501301Z [INFO] EDGETRADER-001-REAL.Cache: READY
+2026-08-30T07:59:05.192769376Z [INFO] EDGETRADER-001-REAL.DataEngine: READY
+2026-08-30T07:59:05.193213431Z [INFO] EDGETRADER-001-REAL.DataEngine: config.graceful_shutdown_on_exception=False
+2026-08-30T07:59:05.193363816Z [INFO] EDGETRADER-001-REAL.RiskEngine: READY
+2026-08-30T07:59:05.193610470Z [INFO] EDGETRADER-001-REAL.RiskEngine: TradingState is ACTIVE
+2026-08-30T07:59:05.193862827Z [INFO] EDGETRADER-001-REAL.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-08-30T07:59:05.193955556Z [INFO] EDGETRADER-001-REAL.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-08-30T07:59:05.195161860Z [INFO] EDGETRADER-001-REAL.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-08-30T07:59:05.195829946Z [INFO] EDGETRADER-001-REAL.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-08-30T07:59:05.196453251Z [INFO] EDGETRADER-001-REAL.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-08-30T07:59:05.196852630Z [INFO] EDGETRADER-001-REAL.ExecEngine: READY
+2026-08-30T07:59:05.197393217Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.snapshot_orders=True
+2026-08-30T07:59:05.197430699Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.snapshot_positions=True
+2026-08-30T07:59:05.197433665Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-08-30T07:59:05.197435553Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.allow_overfills=False
+2026-08-30T07:59:05.197591589Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation=True
+2026-08-30T07:59:05.197596988Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation_lookback_mins=None
+2026-08-30T07:59:05.197598468Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation_instrument_ids=None
+2026-08-30T07:59:05.197600137Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-08-30T07:59:05.197601610Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.filter_position_reports=False
+2026-08-30T07:59:05.197606179Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.filtered_client_order_ids=None
+2026-08-30T07:59:05.197608303Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.inflight_check_interval_ms=2000
+2026-08-30T07:59:05.197609612Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-08-30T07:59:05.197611115Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.inflight_check_retries=5
+2026-08-30T07:59:05.197612631Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.own_books_audit_interval_secs=None
+2026-08-30T07:59:05.197614799Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_interval_secs=None
+2026-08-30T07:59:05.197616935Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_open_only=True
+2026-08-30T07:59:05.197619421Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_lookback_mins=60
+2026-08-30T07:59:05.197632060Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_threshold_ms=5000
+2026-08-30T07:59:05.197644224Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_missing_retries=5
+2026-08-30T07:59:05.197646402Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-08-30T07:59:05.197647864Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.single_order_query_delay_ms=100
+2026-08-30T07:59:05.197649226Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_interval_secs=None
+2026-08-30T07:59:05.197650605Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_lookback_mins=60
+2026-08-30T07:59:05.197652064Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_threshold_ms=5000
+2026-08-30T07:59:05.197653532Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_retries=3
+2026-08-30T07:59:05.197658021Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-08-30T07:59:05.197661689Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-08-30T07:59:05.197662970Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-08-30T07:59:05.197664263Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-08-30T07:59:05.197665715Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-08-30T07:59:05.197667124Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_account_events_interval_mins=None
+2026-08-30T07:59:05.197668494Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-08-30T07:59:05.197669951Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_from_database=False
+2026-08-30T07:59:05.197671248Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-08-30T07:59:05.197741292Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 general objects from database
+2026-08-30T07:59:05.197748545Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 currencies from database
+2026-08-30T07:59:05.197755552Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 instruments from database
+2026-08-30T07:59:05.197762621Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 accounts from database
+2026-08-30T07:59:05.197772929Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 orders from database
+2026-08-30T07:59:05.197779890Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 order lists from database
+2026-08-30T07:59:05.197786009Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 positions from database
+2026-08-30T07:59:05.197826530Z [INFO] EDGETRADER-001-REAL.Cache: Checking data integrity
+2026-08-30T07:59:05.197842325Z [INFO] EDGETRADER-001-REAL.Cache: Integrity check passed in 8μs
+2026-08-30T07:59:05.197861454Z [INFO] EDGETRADER-001-REAL.ExecEngine: Loaded cache in 0ms
+2026-08-30T07:59:05.197993302Z [INFO] EDGETRADER-001-REAL.OrderEmulator: READY
+2026-08-30T07:59:05.198130915Z [INFO] EDGETRADER-001-REAL.EDGETRADER-001-REAL: READY
+2026-08-30T07:59:05.198675055Z [INFO] EDGETRADER-001-REAL.Controller: READY
+2026-08-30T07:59:05.198773310Z [INFO] EDGETRADER-001-REAL.EDGETRADER-001-REAL: Registered Component Controller
+2026-08-30T07:59:05.198803237Z [INFO] EDGETRADER-001-REAL.TradingNode: Initialized in 16ms
+2026-08-30T07:59:05.198832922Z [INFO] EDGETRADER-001-REAL.TradingNode: has_cache_backing=False
+2026-08-30T07:59:05.198835125Z [INFO] EDGETRADER-001-REAL.TradingNode: has_msgbus_backing=False
+2026-08-30T07:59:05.198863550Z [INFO] EDGETRADER-001-REAL.TradingNode: Building data client for BINANCE
+2026-08-30T07:59:05.247493306Z [INFO] EDGETRADER-001-REAL.BinanceSpotInstrumentProvider: READY
+2026-08-30T07:59:05.251069111Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: READY
+2026-08-30T07:59:05.251216865Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: Account type: SPOT
+2026-08-30T07:59:05.251223149Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: config.update_instruments_interval_mins=60
+2026-08-30T07:59:05.251226096Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: config.use_agg_trade_ticks=False
+2026-08-30T07:59:05.251324824Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: Base url HTTP https://api.binance.com
+2026-08-30T07:59:05.251328950Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: Base url WebSocket wss://stream.binance.com:9443
+2026-08-30T07:59:05.252369154Z [INFO] EDGETRADER-001-REAL.DataEngine: Registered BINANCE
+2026-08-30T07:59:05.252455083Z [INFO] EDGETRADER-001-REAL.TradingNode: Building execution client for BINANCE
+2026-08-30T07:59:05.264310691Z [INFO] EDGETRADER-001-REAL.BinanceSpotInstrumentProvider: READY
+2026-08-30T07:59:05.266187551Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: READY
+2026-08-30T07:59:05.266315959Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: Account type: SPOT
+2026-08-30T07:59:05.266321323Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.use_gtd=True
+2026-08-30T07:59:05.266327732Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.use_reduce_only=True
+2026-08-30T07:59:05.266332142Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.use_position_ids=True
+2026-08-30T07:59:05.266334082Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.treat_expired_as_canceled=False
+2026-08-30T07:59:05.266336639Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.recv_window_ms=5000
+2026-08-30T07:59:05.266338991Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.max_retries=None
+2026-08-30T07:59:05.266341477Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.retry_delay_initial_ms=None
+2026-08-30T07:59:05.266343307Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.retry_delay_max_ms=None
+2026-08-30T07:59:05.266345244Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: config.log_rejected_due_post_only_as_warning=True
+2026-08-30T07:59:05.267061010Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: Base url HTTP https://api.binance.com
+2026-08-30T07:59:05.267077059Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: Base url WebSocket wss://ws-api.binance.com:443/ws-api/v3
+2026-08-30T07:59:05.267400567Z [INFO] EDGETRADER-001-REAL.ExecEngine: Registered ExecutionClient-BINANCE
+> /app/EDGETrader.py(758)main()
+-> virtual_data_config = BinanceDataClientConfig(
+(Pdb) continue
+2026-08-30T07:59:11.288782214Z [INFO] EDGETRADER-001-REAL.TradingNode: Building system kernel
+2026-08-30T07:59:11.289295871Z [INFO] EDGETRADER-001-REAL.MessageBus: config.database=None
+2026-08-30T07:59:11.289384594Z [INFO] EDGETRADER-001-REAL.MessageBus: config.encoding='msgpack'
+2026-08-30T07:59:11.289449117Z [INFO] EDGETRADER-001-REAL.MessageBus: config.timestamps_as_iso8601=False
+2026-08-30T07:59:11.289458661Z [INFO] EDGETRADER-001-REAL.MessageBus: config.buffer_interval_ms=None
+2026-08-30T07:59:11.289460927Z [INFO] EDGETRADER-001-REAL.MessageBus: config.autotrim_mins=None
+2026-08-30T07:59:11.289463847Z [INFO] EDGETRADER-001-REAL.MessageBus: config.use_trader_prefix=True
+2026-08-30T07:59:11.289466456Z [INFO] EDGETRADER-001-REAL.MessageBus: config.use_trader_id=True
+2026-08-30T07:59:11.289469010Z [INFO] EDGETRADER-001-REAL.MessageBus: config.use_instance_id=False
+2026-08-30T07:59:11.289471240Z [INFO] EDGETRADER-001-REAL.MessageBus: config.streams_prefix='stream'
+2026-08-30T07:59:11.289473691Z [INFO] EDGETRADER-001-REAL.MessageBus: config.types_filter=None
+2026-08-30T07:59:11.289581462Z [INFO] EDGETRADER-001-REAL.Cache: READY
+2026-08-30T07:59:11.291782936Z [INFO] EDGETRADER-001-REAL.DataEngine: READY
+2026-08-30T07:59:11.291990486Z [INFO] EDGETRADER-001-REAL.DataEngine: config.graceful_shutdown_on_exception=False
+2026-08-30T07:59:11.292084946Z [INFO] EDGETRADER-001-REAL.RiskEngine: READY
+2026-08-30T07:59:11.292146960Z [INFO] EDGETRADER-001-REAL.RiskEngine: TradingState is ACTIVE
+2026-08-30T07:59:11.292258888Z [INFO] EDGETRADER-001-REAL.Throttler-ORDER_SUBMIT_THROTTLER: READY
+2026-08-30T07:59:11.292291735Z [INFO] EDGETRADER-001-REAL.RiskEngine: Set MAX_ORDER_SUBMIT_RATE: 100/00:00:01
+2026-08-30T07:59:11.292316170Z [INFO] EDGETRADER-001-REAL.Throttler-ORDER_MODIFY_THROTTLER: READY
+2026-08-30T07:59:11.292323789Z [INFO] EDGETRADER-001-REAL.RiskEngine: Set MAX_ORDER_MODIFY_RATE: 100/00:00:01
+2026-08-30T07:59:11.295329815Z [INFO] EDGETRADER-001-REAL.RiskEngine: config.graceful_shutdown_on_exception=False
+2026-08-30T07:59:11.295474643Z [INFO] EDGETRADER-001-REAL.ExecEngine: READY
+2026-08-30T07:59:11.295587190Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.snapshot_orders=True
+2026-08-30T07:59:11.295605482Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.snapshot_positions=True
+2026-08-30T07:59:11.295607432Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.snapshot_positions_interval_secs=None
+2026-08-30T07:59:11.295608405Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.allow_overfills=False
+2026-08-30T07:59:11.295702062Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation=True
+2026-08-30T07:59:11.295706881Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation_lookback_mins=None
+2026-08-30T07:59:11.295708592Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation_instrument_ids=None
+2026-08-30T07:59:11.295709975Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.filter_unclaimed_external_orders=False
+2026-08-30T07:59:11.295710836Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.filter_position_reports=False
+2026-08-30T07:59:11.295712445Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.filtered_client_order_ids=None
+2026-08-30T07:59:11.295713684Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.inflight_check_interval_ms=2000
+2026-08-30T07:59:11.295714564Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.inflight_check_threshold_ms=5000
+2026-08-30T07:59:11.295715518Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.inflight_check_retries=5
+2026-08-30T07:59:11.295718372Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.own_books_audit_interval_secs=None
+2026-08-30T07:59:11.295719379Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_interval_secs=None
+2026-08-30T07:59:11.295720280Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_open_only=True
+2026-08-30T07:59:11.295721263Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_lookback_mins=60
+2026-08-30T07:59:11.295722281Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_threshold_ms=5000
+2026-08-30T07:59:11.295723388Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.open_check_missing_retries=5
+2026-08-30T07:59:11.295724401Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.max_single_order_queries_per_cycle=10
+2026-08-30T07:59:11.295725387Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.single_order_query_delay_ms=100
+2026-08-30T07:59:11.295726468Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_interval_secs=None
+2026-08-30T07:59:11.295727495Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_lookback_mins=60
+2026-08-30T07:59:11.295728452Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_threshold_ms=5000
+2026-08-30T07:59:11.295729620Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.position_check_retries=3
+2026-08-30T07:59:11.295732892Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.reconciliation_startup_delay_secs=10.0
+2026-08-30T07:59:11.295733966Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_orders_interval_mins=None
+2026-08-30T07:59:11.295734945Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_orders_buffer_mins=None
+2026-08-30T07:59:11.295735957Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_positions_interval_mins=None
+2026-08-30T07:59:11.295736834Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_closed_positions_buffer_mins=None
+2026-08-30T07:59:11.295737709Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_account_events_interval_mins=None
+2026-08-30T07:59:11.295738575Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_account_events_lookback_mins=None
+2026-08-30T07:59:11.295739607Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.purge_from_database=False
+2026-08-30T07:59:11.295740641Z [INFO] EDGETRADER-001-REAL.ExecEngine: config.graceful_shutdown_on_exception=False
+2026-08-30T07:59:11.295776672Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 general objects from database
+2026-08-30T07:59:11.295781004Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 currencies from database
+2026-08-30T07:59:11.295784786Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 instruments from database
+2026-08-30T07:59:11.295788527Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 accounts from database
+2026-08-30T07:59:11.295791656Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 orders from database
+2026-08-30T07:59:11.295795429Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 order lists from database
+2026-08-30T07:59:11.295798418Z [INFO] EDGETRADER-001-REAL.Cache: Cached 0 positions from database
+2026-08-30T07:59:11.295811443Z [INFO] EDGETRADER-001-REAL.Cache: Checking data integrity
+2026-08-30T07:59:11.295821055Z [INFO] EDGETRADER-001-REAL.Cache: Integrity check passed in 6μs
+2026-08-30T07:59:11.295835654Z [INFO] EDGETRADER-001-REAL.ExecEngine: Loaded cache in 0ms
+2026-08-30T07:59:11.295883235Z [INFO] EDGETRADER-001-REAL.OrderEmulator: READY
+2026-08-30T07:59:11.295941769Z [INFO] EDGETRADER-001-REAL.EDGETRADER-001-VIRTUAL: READY
+2026-08-30T07:59:11.296056846Z [INFO] EDGETRADER-001-REAL.Controller: READY
+2026-08-30T07:59:11.296073779Z [INFO] EDGETRADER-001-REAL.EDGETRADER-001-VIRTUAL: Registered Component Controller
+2026-08-30T07:59:11.296083348Z [INFO] EDGETRADER-001-REAL.TradingNode: Initialized in 7ms
+2026-08-30T07:59:11.296097287Z [INFO] EDGETRADER-001-REAL.TradingNode: has_cache_backing=False
+2026-08-30T07:59:11.296098670Z [INFO] EDGETRADER-001-REAL.TradingNode: has_msgbus_backing=False
+2026-08-30T07:59:11.296114856Z [INFO] EDGETRADER-001-REAL.TradingNode: Building data client for BINANCE
+2026-08-30T07:59:11.302463800Z [INFO] EDGETRADER-001-REAL.BinanceSpotInstrumentProvider: READY
+2026-08-30T07:59:11.303472297Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: READY
+2026-08-30T07:59:11.303688009Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: Account type: SPOT
+2026-08-30T07:59:11.303737512Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: config.update_instruments_interval_mins=60
+2026-08-30T07:59:11.303743885Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: config.use_agg_trade_ticks=False
+2026-08-30T07:59:11.303785460Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: Base url HTTP https://api.binance.com
+2026-08-30T07:59:11.303790262Z [INFO] EDGETRADER-001-REAL.DataClient-BINANCE: Base url WebSocket wss://stream.binance.com:9443
+2026-08-30T07:59:11.303890615Z [INFO] EDGETRADER-001-REAL.DataEngine: Registered BINANCE
+2026-08-30T07:59:11.303920957Z [INFO] EDGETRADER-001-REAL.TradingNode: Building execution client for BINANCE
+2026-08-30T07:59:11.304137172Z [INFO] EDGETRADER-001-REAL.InstrumentProvider: READY
+2026-08-30T07:59:11.304502510Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: READY
+2026-08-30T07:59:11.305365775Z [INFO] EDGETRADER-001-REAL.SimulatedExchange(BINANCE): OmsType=NETTING
+2026-08-30T07:59:11.305715932Z [INFO] EDGETRADER-001-REAL.ExecClient-BINANCE: READY
+2026-08-30T07:59:11.305892024Z [INFO] EDGETRADER-001-REAL.SimulatedExchange(BINANCE): Registered ExecutionClient-BINANCE
+2026-08-30T07:59:11.306535731Z [INFO] EDGETRADER-001-REAL.Portfolio: Updated AccountState(account_id=BINANCE-001, account_type=CASH, base_currency=None, is_reported=True, balances=[AccountBalance(total=10_000.00000000 USDT, locked=0.00000000 USDT, free=10_000.00000000 USDT), AccountBalance(total=1.00000000 BTC, locked=0.00000000 BTC, free=1.00000000 BTC)], margins=[], event_id=6c907afb-5711-407c-9548-92d0e7949f08)
+2026-08-30T07:59:11.306758830Z [INFO] EDGETRADER-001-REAL.ExecEngine: Registered ExecutionClient-BINANCE
+> /app/EDGETrader.py(792)main()
+-> node_ref["real"] = real_node
+(Pdb)
+(Pdb)

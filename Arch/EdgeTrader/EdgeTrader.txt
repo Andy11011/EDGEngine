@@ -1143,3 +1143,144 @@ Traceback (most recent call last):
     listen_trade_events(nodes, sqs_client, queue_url, bar_interval, api_active_strategies),
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: listen_trade_events() missing 1 required positional argument: 'is_virtual_mode'
+
+//********************************//
+
+08:01:02.359  [ERROR] BinanceSpotInstrumentProvider: Cannot load instruments: API key authentication failed... {'code': -1022, 'msg': 'Signature for this request is not valid.'}
+08:01:02.674  [ERROR] ExecClient-BINANCE: Error on '_connect' → BinanceClientError({'code': -1022, ...})
+
+-1022 is Binance's own "your signature didn't validate" error — a credential/signing problem, 
+not a networking or app-conflict problem. It happens purely on the HTTP/WS request your real 
+exec client sent to api.binance.com.
+
+//********************************//
+
+Data client — HMAC. Both the real node's real_data_config and the 
+virtual node's virtual_data_config use the plain api_key/api_secret
+ HMAC pair from load_credentials(). Ed25519 is loaded only for 
+ real_exec_config. So: data feed = HMAC (both nodes), 
+ real exec = Ed25519, virtual exec = no Binance creds at all (sandbox).
+
+
+So the more accurate framing: data client (HMAC) and virtual exec (sandbox) 
+never had issues at all; the real exec node (Ed25519) hit that one -1022 
+blip right at connect time but self-recovered — which still points at
+ the shared-InstrumentProviderConfig race as the likely culprit, 
+ since it's exactly the kind of thing that would resolve itself 
+ once the initial contention passes.
+
+//********************************//
+
+real_instrument_provider = InstrumentProviderConfig(load_all=True)   # ONE instance
+
+real_data_config = BinanceDataClientConfig(
+    api_key=api_key, api_secret=api_secret,              # HMAC creds
+    instrument_provider=real_instrument_provider,
+)
+real_exec_config = BinanceExecClientConfig(
+    api_key=ed25519_public_key, api_secret=ed25519_private_key,  # Ed25519 creds
+    instrument_provider=real_instrument_provider,          # <- same instance
+)
+
+
+The same InstrumentProviderConfig object is handed to two clients on the real node that
+sign requests completely differently — the data client with your HMAC key, the exec 
+client with Ed25519. virtual_instrument_provider is correctly kept as its own separate 
+instance for the virtual node, but within the real node, data and exec share one.
+
+
+[WARN]  BinanceSpotInstrumentProvider: No instruments were loaded
+[ERROR] BinanceSpotInstrumentProvider: Cannot load instruments... {-1022}
+[ERROR] ExecClient-BINANCE: Error on '_connect'  →  {-1022}
+
+//********************************//
+
+Ok, by the way can't we just build one node with one MAINNET data client 
+and two exec clients, what was wrong with this approach?
+
+
+Nautilus's exec_clients config is a dict keyed by venue:
+
+exec_clients={BINANCE: some_config}
+
+Only one exec client can be registered per venue name, per node. If you tried:
+
+exec_clients={BINANCE: real_exec_config, BINANCE: virtual_exec_config}  # ← same key twice
+
+Same story if you call node.add_exec_client_factory(BINANCE, ...) twice: the second registration overwrites the first.
+
+
+Nautilus's ExecEngine routes every order for a given instrument to exactly one exec client, 
+resolved by that instrument's venue — there's no mechanism to say "send this order to exec client A, 
+but that one to exec client B" when they both claim to be BINANCE.
+
+//********************************//
+
+The -1022 error is a Binance-side authentication/signature rejection on the 
+real exec client specifically. It has nothing to do with how many TradingNodes
+you run — it would happen the exact same way even if you only ever ran the real node by itself.
+
+//********************************//
+
+2026-08-30T07:59:11.295941769Z [INFO] EDGETRADER-001-REAL.EDGETRADER-001-VIRTUAL: READY
+2026-08-30T07:59:11.296056846Z [INFO] EDGETRADER-001-REAL.Controller: READY
+2026-08-30T07:59:11.296073779Z [INFO] EDGETRADER-001-REAL.EDGETRADER-001-VIRTUAL: Registered Component Controller
+
+
+[LEVEL] <global-logger-prefix>.<component-name>: <message>
+
+
+EDGETRADER-001-REAL at the front = the global logger prefix (locked in because real_node.build() ran first — this part is wrong/stuck for every line in the whole process).
+EDGETRADER-001-VIRTUAL right after the dot = the actual component name — and this part is correct.
+
+
+So EDGETRADER-001-REAL.EDGETRADER-001-VIRTUAL: READY reads as: "the (mislabeled) global logger is reporting that a component called EDGETRADER-001-VIRTUAL just became READY."
+That component is the virtual node's own top-level Trader object — Nautilus names it using whatever trader_id you gave that node, which is f"{trader_id}-VIRTUAL" in your code.
+
+//********************************//
+
+Ok, what do you think about running two processes/containers with real
+and virtual node simultaniously to make the code and debugging cleaner?
+Or it's bad idea?
+
+
+Why it's a good idea:
+
+1. Kills the logger-prefix problem at the root.
+2. Failure isolation — arguably the bigger win.
+
+A crash or unhandled exception anywhere in the virtual/paper
+side currently propagates through gather and triggers the 
+finally block that stops both nodes — including live trading.
+
+3. Independent deploy/restart.
+
+
+What you'd actually need to change — real but bounded:
+
+1. EDGETrader.py → split into edgetrader_real.py / edgetrader_virtual.py
+2. api.py needs to run twice, on two ports (or two containers), since right now /health, /balance/*, /active_trades
+3. SQS: both processes can safely long-poll the same queue — a standard SQS queue
+4. Doubled AWS/DB connections — Secrets Manager calls and Postgres pool connections
+
+//********************************//
+
+Yes — the venue question makes this even more clearly the right direction. 
+Right now "real vs virtual" is really just two instances of the same idea 
+(a node connected to a venue in a given mode), and a new venue (Bybit, OKX, whatever)
+is a third axis on the same pattern.
+
+the process-per-node model scales cleanly, the shared-process model doesn't.
+
+//********************************//
+
+1. Deployment/topology diagram — what physical processes/containers exist, what they connect 
+to (queues, DB, secrets, external APIs), and how they talk to each other. This is the 
+one you're asking for — it's the map you'd actually use to decide "does adding Bybit mean +2 containers or +1?"
+
+2. Sequence diagram — how a single trade event flows through the system over time 
+(SQS → claim → strategy → order → fill → DB). 
+Useful once you're debugging cross-service timing, not so much for the topology question itself.
+
+3. Component/module diagram — internal structure of one node (data client, exec client, risk engine, etc.) 
+— you've effectively already been reading this straight out of the boot logs.

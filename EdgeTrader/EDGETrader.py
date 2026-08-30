@@ -750,6 +750,8 @@ def main():
     register_binance_exec(real_node)
     real_node.build()
 
+    breakpoint()
+
     # ---- Virtual exec node: MAINNET data + Nautilus sandbox exec ----
     # Fills are computed locally against this node's own live MAINNET data
     # feed; no order from this node ever reaches Binance.
@@ -781,6 +783,8 @@ def main():
     register_binance_data(virtual_node)
     register_sandbox_exec(virtual_node)
     virtual_node.build()
+
+    breakpoint()
 
     # Expose both nodes to the API layer so /health can read
     # node.trader.is_running live (cheap attribute lookup, no I/O) instead
