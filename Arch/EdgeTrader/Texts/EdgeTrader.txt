@@ -1259,9 +1259,9 @@ finally block that stops both nodes — including live trading.
 What you'd actually need to change — real but bounded:
 
 1. EDGETrader.py → split into edgetrader_real.py / edgetrader_virtual.py
-2. api.py needs to run twice, on two ports (or two containers), since right now /health, /balance/*, /active_trades
-3. SQS: both processes can safely long-poll the same queue — a standard SQS queue
-4. Doubled AWS/DB connections — Secrets Manager calls and Postgres pool connections
+2. api.py needs to run twice, on two ports (or two containers), since right now /health, /balance/*, /active_trades - orchestrator?
+3. SQS: both processes can safely long-poll the same queue — a standard SQS queue - orchestrator?
+4. Doubled AWS/DB connections — Secrets Manager calls and Postgres pool connections - orchestrator?
 
 //********************************//
 
@@ -1284,3 +1284,236 @@ Useful once you're debugging cross-service timing, not so much for the topology 
 
 3. Component/module diagram — internal structure of one node (data client, exec client, risk engine, etc.) 
 — you've effectively already been reading this straight out of the boot logs.
+
+//********************************//
+
+Removing AWS Secrets Manager from each container
+
+Kubernetes: External Secrets Operator or the AWS Secrets Manager CSI driver syncs
+the secret into a native Secret object or mounted file, refreshed on an interval.
+Same effect — app code reads env vars or a file, no AWS SDK call in your container.
+
+Removing the API from each container
+
+This one is a legitimate orchestrator/aggregator use case — 
+but the key design choice is keeping it stateless. Two options:
+
+1. Pure infra, no code: nginx/Envoy/ALB path-routes /binance/health, /bybit/health 
+to each container's own tiny FastAPI app. Nothing to build or run yourself beyond config.
+
+2. A small aggregator service: on /health, it fans out an HTTP call to each venue container's 
+own /health and merges the JSON. This is the "backend-for-frontend" / gateway-aggregation pattern
+ — genuinely common in industry for exactly this reason (one dashboard URL, N independent backends).
+
+
+The failure mode scales the wrong way. With 2 venues, a shared orchestrator going down affects 2 containers. 
+With 8 venues, it affects 8 — the blast radius grows with the thing you're trying to extend, which fights your actual goal.
+
+//********************************//
+
+1. Secrets → platform, not app code
+
+ECS: task definition's secrets block points at the Secrets Manager ARN; ECS resolves it and injects env vars 
+before your container's entrypoint even runs.
+Kubernetes: External Secrets Operator or the Secrets Manager CSI driver syncs into a native Secret/mounted file.
+
+Either way, load_credentials_from_aws() in EDGETrader.py becomes dead code per-container — you'd keep only the 
+env-var path (load_credentials_from_env()), because the platform already turned "fetch from AWS" into "read an 
+env var." No boto3 import, no AWS call, no AWS IAM permissions needed inside the trading container at all.
+
+That's a mix-up worth clearing up first: ECS is the orchestrator itself — the thing that schedules your containers, 
+restarts them on failure, and manages task lifecycle, same role as Kubernetes' control plane. Envoy is not ECS — it's
+an optional sidecar that only shows up if you enable Service Connect on a task, which we discussed a few messages back
+for internal service-to-service calls. Most of your containers (the venue trading containers, once they drop the
+HTTP listener per the exec-healthcheck design) won't run Envoy at all — only read-api, if it needs Service Connect
+to be called by other internal services, would have that sidecar.
+
+
+So the actual comparison is ECS vs. Kubernetes (EKS on AWS) as the orchestration layer underneath everything we've designed.
+
+Cost — not close, for your scale. The ECS control plane is free; you only pay for the underlying Fargate/EC2 compute.
+EKS charges a flat $0.10/hour per cluster for the control plane — roughly $73/month — on top of the same compute costs,
+before a single pod runs. For a handful of venue containers plus one read-api service, that $73/month is pure overhead 
+ECS doesn't have.
+
+Everything we've designed already assumes ECS-native features. Task definition secrets blocks resolving from Secrets Manager,
+ ECS Service Connect, exec-based HEALTHCHECK in the task definition — all of this is what we've been building against for the
+  last dozen messages. On EKS you'd get equivalent capability (External Secrets Operator instead of task-def secrets, a 
+  service mesh or kube-proxy instead of Service Connect, livenessProbe.exec instead of Docker HEALTHCHECK), but it's 
+  more moving pieces to stand up and operate yourself — EKS gives you the raw primitives, ECS gives you AWS-opinionated
+   defaults for the same things.
+
+ECS is AWS's own orchestrator, built before Kubernetes existed as the industry standard. It has its own API, 
+its own object model (task definitions, services, clusters), and its own scheduler — none of it derived from 
+or compatible with Kubernetes concepts. It only runs on AWS, full stop; there's no "ECS elsewhere."
+
+EKS is AWS running upstream, standard Kubernetes — the same Kubernetes API and control plane you'd get on 
+GKE (Google) or AKS (Azure) or self-hosted. AWS operates the control plane for you (that's the $73/month), 
+but the thing underneath is the actual open-source Kubernetes project, with its full object model (Pods, 
+Deployments, Services, Ingress, etc.) and the entire surrounding ecosystem — Helm, operators, kubectl, 
+the same manifests that'd run anywhere else.
+
+2. API unification → reverse proxy, not a Python service
+
+nginx, Envoy, Traefik, or just an ALB with path-based routing rules: /binance/health → Binance container, 
+/bybit/health → Bybit container. Pure config, no code you maintain, and if it goes down you lose the unified 
+dashboard URL, not any actual trading capability — each container is still directly reachable on its own 
+port/service address.
+
+Each container needs an HTTP endpoint regardless — the platform requires it
+
+ECS and Kubernetes both need their own liveness/readiness probe per task/pod to decide whether to restart it. 
+That's a separate consumer from your human-facing dashboard, and it's non-negotiable if you want the platform 
+to self-heal a crashed container. So even if you eliminated the dashboard-facing API entirely, each container 
+would still need something the platform can poll — at minimum a TCP check, more usefully the /health logic 
+already in api.py reading node.trader.is_running. You can't actually get rid of the per-container listener;
+you'd just be building a second thing to satisfy the platform's requirement after removing the first.
+
+What I'd actually do: keep the FastAPI-per-container + reverse-proxy design, extract the route definitions 
+into a shared control_api module so nothing is copy-pasted per venue, and let each container's own /health 
+double as both the platform's restart signal and the thing the proxy fans out to for the dashboard. Same endpoint,
+two consumers, no new infrastructure.
+
+The idea: stop making the API talk to containers at all. Containers only ever write 
+(trade events, fills, periodic status snapshots); the API only ever reads from a shared store.
+No HTTP call from proxy to container at request time, no coupling to whether a specific container
+is currently reachable.
+
+- /active_trades — today it reads active_strategies, an in-memory dict inside one process. 
+It doesn't need to. get_active_trade_for_ticker's query pattern already shows how to derive
+"what's open" from trade_events alone (latest Opened with no later Closed/Cancelled). 
+Point /active_trades at Postgres instead of a live process's memory, and it works identically whether 
+the venue container that opened the trade is up, restarting, or gone — the API never needs to reach it.
+
+/health — this one is inherently about current liveness, so it can't be purely event-sourced from history.
+But it doesn't need direct HTTP either: each container writes a heartbeat row (venue, target, is_running, updated_at)
+to Postgres or Redis every few seconds; the API reads the latest row and treats "no update in N seconds" 
+as down. Same effect as polling the container, but the API and the container are never in the same request path
+— this is the "push to a shared store" option from earlier, just clarified as the general pattern rather than a one-off.
+
+
+/balance/* — same heartbeat idea: each container periodically snapshots 
+its balance to the store instead of computing it live on request. 
+You trade a few seconds of staleness for total decoupling.
+
+Why this is a stronger decoupling than the proxy: with nginx path-routing, 
+the API surface and the containers are still coupled at request time — if a container is mid-restart, 
+that path 502s. With the read-model split, the API is answering from the last known state regardless 
+of what's happening to the container right now. The proxy version decouples deployment; this version 
+decouples runtime availability too.
+
+ALB does routing and TLS only. It cannot execute code or query a database.
+ALB does routing and TLS only. It cannot execute code or query a database. 
+It's a dumb-but-fast forwarder: request comes in, ALB looks at the path, sends it to whatever
+is listening at the IP:port registered in that target group. There has to be something running
+on the other end for every path ALB routes to — ALB itself is never that something.
+
+- A new, small, stateless "read API" service — this is where the DB-querying endpoint implementation 
+lives. Yes, it's a FastAPI + uvicorn app, but it's not one-per-venue — it's a single separate service:
+
+This is the piece we didn't fully name last message — it's the "endpoint implementation which will pull the DB" 
+you're asking about. It holds a DB pool and nothing else. No node_ref, no AWS creds, no reference to any trading 
+container. That's what makes it safe to be a single shared service: if it dies, ECS restarts it and you lose
+the dashboard for a few seconds — trading is completely unaffected because this service was never in the trading path.
+
+Both ECS and Kubernetes support non-HTTP health checks:
+
+ECS: Docker's native HEALTHCHECK — a shell command that runs inside the container's own namespace, no listening port, no network hop.
+Kubernetes: exec probes — same idea, livenessProbe.exec.command instead of livenessProbe.httpGet.
+
+What's still there: the read-api service (the CQRS read side) is still a normal HTTP service that a human or a dashboard hits from outside — and that's still a legitimate reason to want a load balancer in front of it, just not for routing between multiple backends anymore:
+
+TLS termination — read-api's uvicorn process would otherwise need to handle certs itself, which is exactly the kind of thing you'd rather push to infra.
+A stable DNS name/endpoint — the read-api container's actual IP will change every time ECS reschedules it; ALB gives you one address that doesn't move.
+Health-check-based failover if you ever run more than one replica of read-api — with a single instance this doesn't matter, but the moment you want two for availability, ALB is what decides which one gets traffic.
+
+To be precise about what that $16.43 actually is: it's the minimum floor, charged just for the ALB existing and being provisioned, 
+whether or not a single request ever hits it.
+
+Service Connect: effectively free beyond a marginal compute bump, and it also gives you load-balancing across replicas natively if you ever run more than one instance — one of the three ALB benefits from earlier, for free.
+Plain Cloud Map: a dollar or two a month, still far under $16.
+
+The core difference is DNS lookup vs. a proxy that does the connecting for you — and that difference is what explains why they're priced differently.
+
+Cloud Map / ECS Service Discovery (the older one)
+Pure DNS. When a task starts, ECS registers its IP in a Route 53 private hosted zone. 
+Another service calls read-api.internal, gets back an IP via standard DNS resolution,
+and connects directly — client and server, no middleman. This is why it's billed the
+way it is: you're paying for Route 53 hosted zone + DNS query volume, because DNS resolution
+is the entire mechanism. It also works for anything that can do a DNS lookup — 
+Lambda, EC2, on-prem systems over Direct Connect — not just other ECS tasks, since
+there's no ECS-specific agent involved. Its ceiling is a Route 53 quota around 1,000 tasks,
+which won't matter to you.
+
+My actual recommendation, given you said you only want the DNS piece: Cloudflare Tunnel 
+if you're open to a non-AWS dependency, otherwise API Gateway custom domain if you want 
+to stay fully in AWS — both are near-zero cost and neither requires you to own IP-address
+bookkeeping the way the DIY dynamic-DNS route does.
+
+How it works: when you set up a custom domain name in API Gateway, you attach an ACM certificate to that domain.
+API Gateway terminates TLS at the edge — the client's HTTPS connection ends at API Gateway, and the connection
+onward to your ECS task happens over whatever protocol you configure (typically plain HTTP within the VPC,
+since that traffic never left AWS's network).
+
+What API Gateway can actually sit in front of:
+
+Lambda — its original and most common use case, direct integration, no networking setup needed at all.
+Any HTTP endpoint — ECS, EC2, an on-prem server, even a third-party API — via HTTP integration.
+Private VPC resources (your ECS task with no public IP) — via a VPC Link, which is the piece I
+ mentioned last message. The VPC Link is what lets API Gateway reach into your VPC; it's not ECS-specific, 
+ it'd work identically if read-api were running on EC2 instead of Fargate.
+
+read-api: one small stateless FastAPI/uvicorn service, holding only a DB connection pool (Postgres, and/or Redis for heartbeats), 
+no AWS creds, no node_ref, no reference to any trading container. Implements the CQRS read side — /active_trades queries trade_events,
+/health and /balance read the heartbeat/snapshot rows venue containers write periodically.
+Venue containers (Binance, Bybit, ...): write-only into that same shared schema, no listening port at all 
+— liveness handled by the exec-based HEALTHCHECK/livenessProbe we landed on, so ECS/k8s can restart them
+without any HTTP surface to expose.
+API Gateway: sits in front of read-api only, handling TLS termination, the stable public domain, and
+reaching read-api over a VPC Link if you keep it fully private with no public IP.
+
+Option A: API Gateway → FastAPI + Uvicorn (your Python container)
+
+Option B: API Gateway → Nginx (with endpoints embedded/implemented directly inside Nginx)
+
+For your specific use case, Option A (FastAPI) is the overwhelmingly correct choice.
+
+Serving static files: If your endpoints just returned static JSON files (e.g., a config.json or a robots.txt), you could serve them directly from Nginx's root directory without touching Python.
+
+Ultra-simple caching/routing: If you needed a simple in-memory counter or a health check that just returns 
+{"status": "ok"} without querying a database, you could hack it with Lua. But your /health needs to check 
+the last heartbeat timestamp from the DB to know if the venue container is truly running—this requires a DB query.
+
+
+Your read-api ECS task should not have a public IP address. It lives in a private subnet for security.
+
+API Gateway is an AWS-managed service that lives outside your VPC. It cannot directly reach an IP like 
+10.0.5.23—that's a private, non-routable address.
+
+The VPC Link solves this by giving API Gateway a "tunnel" directly into your VPC, so it can forward 
+requests to your private container without ever exposing it to the public internet.
+
+Yes, you are absolutely correct.
+
+Given the strict constraints you have set for your architecture, the VPC Link is strictly non-negotiable—it is required.
+
+3. SNS fan-out with filter policies, one SQS queue per venue
+
+Publisher writes to a single SNS topic (as it does today, but to SNS instead of directly to SQS) 
+with a venue message attribute. Each venue gets its own SQS queue subscribed to that topic with 
+an SNS filter policy on venue — SNS does the routing, and each queue only ever receives messages meant for it.
+
+EDGETrader.py's receive_trade_events/delete_message code doesn't change at all — a container 
+just points SQS_TRADE_EVENTS_QUEUE_URL at its own venue-scoped queue instead of the shared one, 
+and drops any target/venue filtering it would otherwise need.
+
+Adding Bybit = create a new SQS queue + SNS subscription with filter_policy: {"venue": ["bybit"]}. 
+No code touches existing containers. Same "config, not code" shape as the container-lifecycle 
+and secrets pieces we already settled on.
+
+4. Shared tables, not per-container tables. Add venue the same way target was already added —
+ new column + widened primary key, same migration style as lines 88–91 and 131–148 in trades_db_async.py:
+
+ claim_event, unclaim_event, get_active_trade_for_ticker all take a venue parameter alongside target,
+  same shape as they already take target.
+
