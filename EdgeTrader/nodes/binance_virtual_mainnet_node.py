@@ -8,10 +8,9 @@ Scope of this process:
     client — fills are computed locally against this live feed; no order
     from this process ever reaches Binance.
   - NO HTTP listener — same exec-based liveness + heartbeat-row story as
-    binance_real_node.py (see that file's and node_common.py's docstrings).
+    binance_real_node.py.
   - Consumes ONE dedicated SQS queue, filtered upstream to target=virtual.
-    Do NOT point this at the same queue as binance_real_node.py — see
-    node_common.py's module docstring for why.
+    Do NOT point this at the same queue as binance_real_node.py.
 
 Env vars:
   SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL   (required) — this process's own queue
@@ -31,14 +30,33 @@ import os
 import sys
 from typing import Dict
 
-from nautilus_trader.adapters.binance import BINANCE, BinanceAccountType, BinanceDataClientConfig
+from nautilus_trader.adapters.binance import (
+    BINANCE,
+    BinanceAccountType,
+    BinanceDataClientConfig,
+    BinanceLiveDataClientFactory,
+    BinanceLiveExecClientFactory,
+)
 from nautilus_trader.adapters.binance.common.enums import BinanceEnvironment
 from nautilus_trader.adapters.sandbox.config import SandboxExecutionClientConfig
+from nautilus_trader.adapters.sandbox.factory import SandboxLiveExecClientFactory
+from nautilus_trader.config import (
+    InstrumentProviderConfig,
+    LiveDataEngineConfig,
+    LiveExecEngineConfig,
+    LoggingConfig,
+    TradingNodeConfig,
+)
 from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.data import BarType
 from nautilus_trader.model.identifiers import InstrumentId
+from nautilus_trader.trading.config import ImportableControllerConfig
 
-import node_common as nc
+# New split modules
+import auth
+import sqs
+from common_tasks import heartbeat_loop, cancel_requests_loop
+
 from position_sizing import PositionSizingError, calculate_position_size
 from trade_strategy import TradeStrategy, TradeStrategyConfig
 from trades_db_async import TradeEventsDB
@@ -47,6 +65,72 @@ TARGET = "virtual"
 
 active_strategies: Dict[str, TradeStrategy] = {}
 
+# -----------------------------------------------------------------------------
+# Nautilus helper functions (formerly in node_common.py, now local)
+# -----------------------------------------------------------------------------
+
+def build_trading_node(
+    *,
+    trader_id: str,
+    data_clients: dict,
+    exec_clients: dict,
+    log_level: str = "INFO",
+    loop: asyncio.AbstractEventLoop,
+) -> TradingNode:
+    """
+    Build a full trading node with both data and execution clients.
+
+    `loop` must be the SAME loop object later used to run the node (e.g.
+    via `loop.run_until_complete(...)`).
+    """
+    config = TradingNodeConfig(
+        trader_id=trader_id,
+        controller=ImportableControllerConfig(
+            controller_path="nautilus_trader.trading.controller:Controller",
+            config_path="nautilus_trader.common.config:ActorConfig",
+            config={},
+        ),
+        logging=LoggingConfig(log_level=log_level, use_pyo3=True),
+        data_engine=LiveDataEngineConfig(
+            validate_data_sequence=True,
+            time_bars_timestamp_on_close=False,
+        ),
+        exec_engine=LiveExecEngineConfig(
+            reconciliation=True,
+            generate_missing_orders=False,
+            snapshot_orders=True,
+            snapshot_positions=True,
+        ),
+        data_clients=data_clients,
+        exec_clients=exec_clients,
+        timeout_connection=30.0,
+        timeout_reconciliation=10.0,
+        timeout_portfolio=10.0,
+        timeout_disconnection=10.0,
+        timeout_post_stop=5.0,
+    )
+    return TradingNode(config=config, loop=loop)
+
+
+def register_binance_data(node: TradingNode) -> None:
+    node.add_data_client_factory(BINANCE, BinanceLiveDataClientFactory)
+
+
+def register_binance_exec(node: TradingNode) -> None:
+    node.add_exec_client_factory(BINANCE, BinanceLiveExecClientFactory)
+
+
+def register_sandbox_exec(node: TradingNode) -> None:
+    node.add_exec_client_factory(BINANCE, SandboxLiveExecClientFactory)
+
+
+def new_instrument_provider() -> InstrumentProviderConfig:
+    return InstrumentProviderConfig(load_all=True)
+
+
+# -----------------------------------------------------------------------------
+# SQS listener for this target
+# -----------------------------------------------------------------------------
 
 async def listen_trade_events(
     node: TradingNode,
@@ -78,7 +162,7 @@ async def listen_trade_events(
     while True:
         poll_count += 1
         print(f"📡 [poll #{poll_count}] Long-polling SQS (virtual)...", file=sys.stderr)
-        messages = await nc.receive_trade_events(
+        messages = await sqs.receive_trade_events(
             sqs_client, queue_url,
             max_messages=int(os.getenv("SQS_MAX_MESSAGES", "10")),
             wait_seconds=poll_wait_seconds,
@@ -89,10 +173,10 @@ async def listen_trade_events(
         for msg in messages:
             receipt_handle = msg["ReceiptHandle"]
             msg_id = msg.get("MessageId", "?")
-            event_data = nc.parse_event(msg)
+            event_data = sqs.parse_event(msg)
             if event_data is None:
                 print(f"⚠️ [msg {msg_id}] Failed to parse; deleting", file=sys.stderr)
-                await nc.delete_message(sqs_client, queue_url, receipt_handle)
+                await sqs.delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
             ticker = event_data.get("ticker")
@@ -111,13 +195,13 @@ async def listen_trade_events(
 
             if not ticker or not event_type or not occurred_at:
                 print(f"⚠️ [msg {msg_id}] Missing required fields; deleting", file=sys.stderr)
-                await nc.delete_message(sqs_client, queue_url, receipt_handle)
+                await sqs.delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
             claimed = await db.claim_event(ticker, event_type, occurred_at, target=TARGET)
             if not claimed:
                 print(f"♻️ [msg {msg_id}] Already claimed; deleting (dup delivery)", file=sys.stderr)
-                await nc.delete_message(sqs_client, queue_url, receipt_handle)
+                await sqs.delete_message(sqs_client, queue_url, receipt_handle)
                 continue
 
             processed = False
@@ -198,11 +282,15 @@ async def listen_trade_events(
                 await db.unclaim_event(ticker, event_type, occurred_at, target=TARGET)
 
             if processed:
-                await nc.delete_message(sqs_client, queue_url, receipt_handle)
+                await sqs.delete_message(sqs_client, queue_url, receipt_handle)
                 print(f"🗑️ [msg {msg_id}] Acked", file=sys.stderr)
             else:
                 print(f"⚠️ [msg {msg_id}] Not processed; message retained for retry", file=sys.stderr)
 
+
+# -----------------------------------------------------------------------------
+# Main entry point
+# -----------------------------------------------------------------------------
 
 def main() -> None:
     trader_id = os.getenv("TRADER_ID", "EDGETRADER") + "-VIRTUAL"
@@ -223,10 +311,9 @@ def main() -> None:
     account_type = BinanceAccountType.SPOT
     binance_config_kwargs = {"environment": BinanceEnvironment.LIVE}
 
-    # Virtual node's data client uses the same MAINNET data credentials as
-    # the real node (it needs a live feed, never sends real orders).
+    # Load MAINNET data credentials (same as real node – we only need the feed)
     try:
-        api_key, api_secret = nc.load_credentials(region=aws_region, sandbox=False)
+        api_key, api_secret = auth.load_credentials(region=aws_region, sandbox=False)
     except Exception as e:
         print(f"❌ Failed to load MAINNET data credentials: {e}", file=sys.stderr)
         sys.exit(1)
@@ -234,7 +321,7 @@ def main() -> None:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    instrument_provider = nc.new_instrument_provider()
+    instrument_provider = new_instrument_provider()
     data_config = BinanceDataClientConfig(
         api_key=api_key, api_secret=api_secret, account_type=account_type,
         instrument_provider=instrument_provider, **binance_config_kwargs,
@@ -248,15 +335,18 @@ def main() -> None:
         starting_balances=starting_balances,
         instrument_provider=instrument_provider,
     )
-    node = nc.build_trading_node(
-        trader_id=trader_id, data_clients={BINANCE: data_config}, exec_clients={BINANCE: exec_config},
-        log_level=log_level, loop=loop,
+    node = build_trading_node(
+        trader_id=trader_id,
+        data_clients={BINANCE: data_config},
+        exec_clients={BINANCE: exec_config},
+        log_level=log_level,
+        loop=loop,
     )
-    nc.register_binance_data(node)
-    nc.register_sandbox_exec(node)
+    register_binance_data(node)
+    register_sandbox_exec(node)
     node.build()
 
-    sqs_client = nc.get_sqs_client()
+    sqs_client = sqs.get_sqs_client()
 
     async def get_virtual_balance(db: TradeEventsDB) -> float:
         cfg = await db.get_trades_config()
@@ -275,8 +365,8 @@ def main() -> None:
             await asyncio.gather(
                 node.run_async(),
                 listen_trade_events(node, db, sqs_client, queue_url, bar_interval),
-                nc.heartbeat_loop(db, node, TARGET, get_balance=lambda: get_virtual_balance(db)),
-                nc.cancel_requests_loop(db, node, TARGET, active_strategies),
+                heartbeat_loop(db, node, TARGET, get_balance=lambda: get_virtual_balance(db)),
+                cancel_requests_loop(db, TARGET, active_strategies),
             )
         except asyncio.CancelledError:
             pass

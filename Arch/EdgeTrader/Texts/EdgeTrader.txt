@@ -1543,3 +1543,8 @@ Traceback (most recent call last):
   File "/app/binance_virtual_mainnet_node.py", line 41, in <module>
     import node_common as nc
 ModuleNotFoundError: No module named 'node_common'
+
+//********************************//
+
+PS C:\Users\andy9\EDGEngine> docker run --rm --env-file .env.local binance-virtual-mainnet-node:latest
+❌ SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL environment variable not set.

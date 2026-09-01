@@ -16,6 +16,9 @@ RUN pip install --no-cache-dir "${NAUTILUS_WHEEL_URL}"
 COPY docker/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY EdgeTrader/auth.py ./
+COPY EdgeTrader/sqs.py ./
+COPY EdgeTrader/common_tasks.py ./
 COPY EdgeTrader/trades_db_async.py ./
 COPY EdgeTrader/trade_strategy.py ./
 COPY EdgeTrader/position_sizing.py ./

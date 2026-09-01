@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements-nodes.txt
 
 # This container never places a real
 # order and never touches the Ed25519 real-exec credentials at all.
+COPY EdgeTrader/auth.py ./
+COPY EdgeTrader/sqs.py ./
+COPY EdgeTrader/common_tasks.py ./
 COPY EdgeTrader/trades_db_async.py ./
 COPY EdgeTrader/trade_strategy.py ./
 COPY EdgeTrader/position_sizing.py ./
