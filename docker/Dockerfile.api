@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY docker/requirements-api.txt ./
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+COPY EdgeTrader/trades_db_async.py ./
+COPY EdgeTrader/edge-api/main-api.py ./
+COPY EdgeTrader/edge-api/edge-point.py ./
+
+EXPOSE 8000
+
+CMD ["python", "edge-point.py"]

@@ -169,6 +169,42 @@ class TradeEventsDB:
                 ON CONFLICT (id) DO NOTHING
             """)
 
+            # 5. node_heartbeats — one row per (venue, target). Written
+            #    periodically by each headless node process (binance_real_node.py,
+            #    binance_virtual_mainnet_node.py) since those no longer expose an
+            #    HTTP /health endpoint of their own (per MultiVenueTOD.md: exec-based
+            #    health only). edge-api.py reads this table to answer /health and
+            #    /balance/mainnet — it has no direct reference to the node processes.
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS node_heartbeats (
+                    venue VARCHAR(20) NOT NULL,
+                    target VARCHAR(10) NOT NULL,
+                    is_running BOOLEAN NOT NULL,
+                    balance_usdt NUMERIC,
+                    detail VARCHAR,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (venue, target)
+                )
+            """)
+
+            # 6. cancel_requests — how edge-api.py (DB-pool-only, no AWS
+            #    creds, no reference to the node processes) asks a node
+            #    process to cancel a trade. The node processes poll this
+            #    table alongside their SQS queue and mark rows processed
+            #    once handled. This keeps edge-api a pure read/DB service
+            #    per MultiVenueTOD.md instead of giving it SQS send access.
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS cancel_requests (
+                    id BIGSERIAL PRIMARY KEY,
+                    trade_id VARCHAR(64) NOT NULL,
+                    target VARCHAR(10) NOT NULL,
+                    requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    processed BOOLEAN NOT NULL DEFAULT FALSE,
+                    processed_at TIMESTAMP
+                )
+            """)
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_cancel_requests_pending ON cancel_requests(target, processed)")
+
             # Indexes
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_trade_id ON trade_events(trade_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_occurred_at ON trade_events(occurred_at)")
@@ -490,6 +526,107 @@ class TradeEventsDB:
                 trade_id,
             )
             return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Node heartbeats — written by the headless node processes, read by
+    # edge-api.py. Each row is fully replaced (upsert), never mutated
+    # field-by-field, so a concurrent read never sees a torn write.
+    # ------------------------------------------------------------------
+    async def write_heartbeat(
+        self,
+        venue: str,
+        target: str,
+        is_running: bool,
+        balance_usdt: Optional[float] = None,
+        detail: Optional[str] = None,
+    ) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO node_heartbeats (venue, target, is_running, balance_usdt, detail, updated_at)
+                VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+                ON CONFLICT (venue, target) DO UPDATE
+                SET is_running = EXCLUDED.is_running,
+                    balance_usdt = EXCLUDED.balance_usdt,
+                    detail = EXCLUDED.detail,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                venue, target, is_running, balance_usdt, detail,
+            )
+
+    async def get_heartbeat(self, venue: str, target: str) -> Optional[Dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM node_heartbeats WHERE venue = $1 AND target = $2",
+                venue, target,
+            )
+            return dict(row) if row else None
+
+    async def get_all_heartbeats(self) -> List[Dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM node_heartbeats")
+            return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Active trades (for edge-api's /active_trades) — derived from the
+    # event log rather than in-memory process state, per MultiVenueTOD.md:
+    # "Refactor /active_trades to query trade_events (deriving open trades
+    # from Opened vs Closed/Cancelled) instead of reading in-memory state."
+    # ------------------------------------------------------------------
+    async def get_active_trades(self) -> List[Dict[str, Any]]:
+        """
+        Returns the latest 'Opened' event for every trade_id that has no
+        subsequent terminal ('Closed' or 'Cancelled') event — i.e. every
+        trade currently considered open, across both targets/venues.
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT o.*
+                FROM trade_events o
+                WHERE o.event_type = 'Opened'
+                AND NOT EXISTS (
+                    SELECT 1 FROM trade_events terminal
+                    WHERE terminal.trade_id = o.trade_id
+                    AND terminal.event_type IN ('Closed', 'Cancelled')
+                    AND terminal.occurred_at > o.occurred_at
+                )
+                ORDER BY o.occurred_at DESC
+                """
+            )
+            return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Cancel requests — DB-based hand-off from edge-api.py (no AWS access)
+    # to the node processes (which poll this table for their own target).
+    # ------------------------------------------------------------------
+    async def enqueue_cancel_request(self, trade_id: str, target: str) -> int:
+        async with self.pool.acquire() as conn:
+            row_id = await conn.fetchval(
+                """INSERT INTO cancel_requests (trade_id, target)
+                   VALUES ($1, $2) RETURNING id""",
+                trade_id, target,
+            )
+            return row_id
+
+    async def fetch_pending_cancel_requests(self, target: str) -> List[Dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT * FROM cancel_requests
+                   WHERE target = $1 AND processed = FALSE
+                   ORDER BY requested_at ASC""",
+                target,
+            )
+            return [dict(r) for r in rows]
+
+    async def mark_cancel_request_processed(self, request_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """UPDATE cancel_requests
+                   SET processed = TRUE, processed_at = CURRENT_TIMESTAMP
+                   WHERE id = $1""",
+                request_id,
+            )
 
     # ------------------------------------------------------------------
     # Shutdown

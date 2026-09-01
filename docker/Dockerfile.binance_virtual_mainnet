@@ -1,0 +1,26 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG NAUTILUS_WHEEL_URL=https://github.com/Andy11011/nautilus_trader/releases/download/fork-latest/nautilus_trader-1.228.0-cp312-cp312-manylinux_2_39_x86_64.whl
+RUN pip install --no-cache-dir "${NAUTILUS_WHEEL_URL}"
+
+COPY docker/requirements-nodes.txt ./
+RUN pip install --no-cache-dir -r requirements-nodes.txt
+
+# This container never places a real
+# order and never touches the Ed25519 real-exec credentials at all.
+COPY EdgeTrader/trades_db_async.py ./
+COPY EdgeTrader/trade_strategy.py ./
+COPY EdgeTrader/position_sizing.py ./
+COPY EdgeTrader/nodes/binance_virtual_mainnet_node.py ./
+
+CMD ["python", "binance_virtual_mainnet_node.py"]

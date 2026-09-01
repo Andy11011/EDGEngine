@@ -26,6 +26,7 @@ jobs:
   # --------------------------------------------------------------------------
   build_amd64:
     name: Build amd64 images
+    if: false  # TEMP: all jobs disabled — remove this line to re-enable
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -85,6 +86,7 @@ jobs:
   # --------------------------------------------------------------------------
   smoke_tests:
     name: Run Smoke tests (CodeBuild, ap-southeast-1)
+    if: false  # TEMP: all jobs disabled — remove this line to re-enable
     needs: build_amd64
     runs-on: ubuntu-latest
     steps:
@@ -118,6 +120,7 @@ jobs:
   # --------------------------------------------------------------------------
   docker_img_multiarch:
     name: Build multi‑arch images
+    if: false  # TEMP: all jobs disabled — remove this line to re-enable
     runs-on: ubuntu-latest
     needs: build_amd64
     if: github.event_name == 'workflow_dispatch'

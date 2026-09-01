@@ -1517,3 +1517,29 @@ and secrets pieces we already settled on.
  claim_event, unclaim_event, get_active_trade_for_ticker all take a venue parameter alongside target,
   same shape as they already take target.
 
+
+//********************************//
+
+docker build -f docker/Dockerfile.binance_real -t binance-real-node:latest .
+docker build -f Dockerfile.binance_virtual_mainnet -t edgetrader-virtual:latest .
+docker build -f Dockerfile.api -t edgetrader-api:latest .
+
+docker run -d --name real-node    -e SQS_TRADE_EVENTS_QUEUE_URL_REAL=...    edgetrader-real:latest
+docker run -d --name virtual-node -e SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL=... edgetrader-virtual:latest
+docker run -d --name edge-api -p 8000:8000 edgetrader-api:latest
+
+//********************************//
+
+docker build -f docker/Dockerfile.binance_virtual_mainnet -t binance-virtual-mainnet-node:latest .
+
+
+docker run --rm --env-file .env.local binance-virtual-mainnet-node:latest
+docker run --rm -it --env-file .env.local binance-virtual-mainnet-node:latest
+
+//********************************//
+
+PS C:\Users\andy9\EDGEngine> docker run --rm -it --env-file .env.local binance-virtual-mainnet-node:latest
+Traceback (most recent call last):
+  File "/app/binance_virtual_mainnet_node.py", line 41, in <module>
+    import node_common as nc
+ModuleNotFoundError: No module named 'node_common'
