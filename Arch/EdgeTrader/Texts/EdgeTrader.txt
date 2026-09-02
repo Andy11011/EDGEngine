@@ -1548,3 +1548,7 @@ ModuleNotFoundError: No module named 'node_common'
 
 PS C:\Users\andy9\EDGEngine> docker run --rm --env-file .env.local binance-virtual-mainnet-node:latest
 ❌ SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL environment variable not set.
+
+//********************************//
+
+API Gateway ---> VPC Link (for tests)
