@@ -1552,3 +1552,79 @@ PS C:\Users\andy9\EDGEngine> docker run --rm --env-file .env.local binance-virtu
 //********************************//
 
 API Gateway ---> VPC Link (for tests)
+
+//********************************//
+
+Your real-execution Binance node started up cleanly but the exec client could not authenticate to Binance, 
+so Nautilus never got the ExecEngine into a connected state and the whole TradingNode startup timed out after 30 s.
+
+1. Startup fine — credentials loaded (both HMAC and Ed25519), Nautilus TradingNode built, 
+DataClient and ExecClient for BINANCE constructed, event-sourcing tables ready.
+
+2. Data client (HMAC keys) actually works — at 06:07:16 it logs Loaded 3705 instruments and DataClient-BINANCE: Connected. 
+So your BINANCE_API_KEY / BINANCE_API_SECRET pair is valid.
+
+3. Exec client (Ed25519 keys) fails — the important lines:
+
+[ERROR] BinanceSpotInstrumentProvider: Cannot load instruments:
+    API key authentication failed ... {'code': -1022, 'msg': 'Signature for this request is not valid.'}
+[WARN]  BinanceSpotInstrumentProvider: No instruments were loaded ...
+[ERROR] ExecClient-BINANCE: Error on '_connect'
+    BinanceClientError({'code': -1022, 'msg': 'Signature for this request is not valid.'})
+
+4. Consequence — ExecEngine.check_connected() == False at the 30 s deadline, and TradingNode: Timed out (30.0s) waiting for engines to connect and initialize. 
+The node flips to RUNNING but with a dead exec engine, so any real order path would fail.
+
+//********************************//
+
+[ERROR] DataClient-BINANCE: Error running '_connect'
+HttpError(error decoding response body)
+
+[ERROR] ExecClient-BINANCE: Error on '_connect'
+HttpError(error decoding response body)
+
+Both clients sat silent for ~74 seconds, then died with error decoding response body. 
+That is Nautilus's Rust HTTP client (reqwest) saying:
+
+"I got an HTTP response, but the body was not the JSON I expected."
+
+
+1. A Cloudflare / geo-block page — Binance serves an HTML "Service unavailable from a restricted location" page (HTTP 451) 
+or a Cloudflare challenge page (HTTP 403) to certain IPs/regions. The body is HTML, reqwest can't parse it, you get exactly 
+this error.
+
+//********************************//
+
+No geo-block (Binance answered 200, not 451).
+No IP ban (no 418/429, and x-mbx-used-weight: 1 / 21 — you're barely touching your quota).
+No DNS/TLS problem from inside the container.
+Binance is serving JSON, not HTML.
+
+//********************************//
+
+
+# 1. Create a user-defined network so the two containers can see each other
+docker network create edgnet
+
+# 2. Start mitmproxy (web UI on http://localhost:8081)
+docker run --rm -it --name mitm --network edgnet `
+  -p 8080:8080 -p 8081:8081 `
+  mitmproxy/mitmproxy mitmweb --web-host 0.0.0.0 --listen-host 0.0.0.0
+
+# 3. In another PowerShell, run the node pointed at mitmproxy.
+#    The image needs CA trust for mitmproxy's cert — easiest is to mount it
+#    and set REQUESTS_CA_BUNDLE / SSL_CERT_FILE.
+docker run --rm --network edgnet --env-file .env.local `
+  -e HTTPS_PROXY=http://mitm:8080 `
+  -e HTTP_PROXY=http://mitm:8080 `
+  -e RUST_LOG=reqwest=debug,hyper=debug,nautilus_binance=debug `
+  binance-real:latest
+
+//********************************//
+
+Exec credentials authenticate — no more -1022. The muCm...Zx2N key was accepted and Binance confirmed trading permissions.
+Account state was fetched — the giant balance dump is the AccountState event, and it contains your real balances (you can see 0.00470572 BNB, 0.92986683 USDT, 0.00491000 LUNC, etc.).
+Instruments loaded on both sides — 3705 instruments, twice (data + exec providers).
+Exec client connected — user-data WebSocket authenticated, subscribed to stream 0.
+Reconciliation completed — 0 fills, 0 orders, 0 positions, which is what you'd expect on a fresh account with no open orders.
+TradingNode reached RUNNING — and your SQS listener started long-polling.

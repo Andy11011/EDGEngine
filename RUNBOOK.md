@@ -259,16 +259,32 @@ You do **not** need to create the SNS topic yet – that’s Step 2 of the integ
 
 ### Build
 
+For virtual mainnet node:
+
 ```powershell
-docker build -f Dockerfile.trader -t edgetrader .
+docker build -f docker/Dockerfile.binance_virtual_mainnet -t binance-virtual-mainnet-node:latest .
+```
+
+For live trading node:
+
+```powershell
+docker build -f docker/Dockerfile.binance_real -t binance-real:latest .
 ```
 
 Run from the directory containing `EdgeTrader/`, since `COPY EdgeTrader/...` paths are relative to the build context.
 
 ### Run
 
+For virtual mainnet node:
+
 ```powershell
-docker run --rm --env-file .env.local -p 8000:8000 edgetrader
+docker run --rm --env-file .env.local binance-virtual-mainnet-node:latest
+```
+
+For live trading node:
+
+```powershell
+docker run --rm --env-file .env.local binance-real:latest
 ```
 
 `--env-file` is required — host-shell env vars (`export`/`$env:`) are **not** automatically passed into the container.
