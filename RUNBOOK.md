@@ -271,6 +271,12 @@ For live trading node:
 docker build -f docker/Dockerfile.binance_real -t binance-real:latest .
 ```
 
+For api server:
+
+```powershell
+docker build -f docker/Dockerfile.api -t edge-point:latest .
+```
+
 Run from the directory containing `EdgeTrader/`, since `COPY EdgeTrader/...` paths are relative to the build context.
 
 ### Run
@@ -285,6 +291,12 @@ For live trading node:
 
 ```powershell
 docker run --rm --env-file .env.local binance-real:latest
+```
+
+For api server:
+
+```powershell
+docker run --rm --env-file .env.local -p 8000:8000 edge-point:latest
 ```
 
 `--env-file` is required — host-shell env vars (`export`/`$env:`) are **not** automatically passed into the container.

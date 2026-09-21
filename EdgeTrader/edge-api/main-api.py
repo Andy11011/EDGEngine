@@ -18,8 +18,7 @@ Deliberately holds ONLY a Postgres connection pool:
 Everything it serves comes from Postgres:
   - /health           — node_heartbeats rows (written by the node processes
                          every ~15s) + a trivial DB ping.
-  - /balance/virtual   — trades_config.virtual_balance_usdt (plain DB read,
-                         unchanged from the old api.py).
+  - /balance/virtual   — trades_config.virtual_balance_usdt (plain DB read).
   - /balance/testnet   — static "disabled" response (unchanged).
   - /balance/mainnet   — the real node's latest heartbeat balance snapshot.
   - /active_trades     — derived from trade_events (Opened without a later
