@@ -5,9 +5,10 @@
 - [ ] Edge-trader: New arch
   - [X] ~~*Run virtual node locally*~~ [2026-09-18]
   - [X] ~~*Run real node locally*~~ [2026-09-18]
-  - [ ] Run api server locally, test endpoints
-  - [ ] Remove SecretManager and env from the nodes, retest locally
-  - [ ] Proceed on AWS
+  - [X] ~~*Remove SecretManager and env from the nodes, retest locally*~~ [2026-09-21]
+  - [X] ~~*Remove old files*~~ [2026-09-21]
+  - [ ] Build and Run api server locally, test endpoints
+  - [ ] Redesign the CI/CD pipeline
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
   - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]

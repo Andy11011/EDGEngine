@@ -21,7 +21,6 @@ Env vars:
   BINANCE_BAR_INTERVAL              default "15-MINUTE"
   LOG_LEVEL                        default "INFO"
   AWS_REGION                        default "ap-southeast-1"
-  ENABLE_TESTNET                    must be false/unset (see main())
 """
 
 from __future__ import annotations
@@ -315,12 +314,6 @@ def main() -> None:
     trader_id = os.getenv("TRADER_ID", "EDGETRADER") + "-REAL"
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
     log_level = os.getenv("LOG_LEVEL", "INFO")
-    aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
-
-    enable_testnet = os.getenv("ENABLE_TESTNET", "false").strip().lower() in ("1", "true", "yes")
-    if enable_testnet:
-        print("❌ ENABLE_TESTNET=true, but TESTNET support isn't implemented — MAINNET only.", file=sys.stderr)
-        sys.exit(1)
 
     queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL_REAL")
     if not queue_url:
@@ -331,13 +324,26 @@ def main() -> None:
     binance_config_kwargs = {"environment": BinanceEnvironment.LIVE}
 
     try:
-        api_key, api_secret = auth.load_credentials(region=aws_region, sandbox=False)
+        env_creds = auth.load_credentials_from_env(sandbox=False)
+        if env_creds is None:
+            raise RuntimeError(
+                "Missing BINANCE_API_KEY / BINANCE_API_SECRET environment variables "
+                "(this node is configured to load credentials from env only; AWS fallback is disabled)."
+            )
+        api_key, api_secret = env_creds
     except Exception as e:
         print(f"❌ Failed to load MAINNET data credentials: {e}", file=sys.stderr)
         sys.exit(1)
 
     try:
-        ed25519_public_key, ed25519_private_key = auth.load_ed25519_credentials(region=aws_region)
+        ed25519_env_creds = auth.load_ed25519_credentials_from_env()
+        if ed25519_env_creds is None:
+            raise RuntimeError(
+                "Missing BINANCE_ED25519_PUBLIC_KEY / BINANCE_ED25519_PRIVATE_KEY environment "
+                "variables (this node is configured to load credentials from env only; AWS "
+                "fallback is disabled)."
+            )
+        ed25519_public_key, ed25519_private_key = ed25519_env_creds
         auth.validate_ed25519_private_key(ed25519_private_key)
         auth.warn_if_api_key_looks_like_raw_pem(ed25519_public_key)
         print("🔐 Using Ed25519 credentials for real order execution", file=sys.stderr)

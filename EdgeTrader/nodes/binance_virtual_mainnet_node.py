@@ -20,7 +20,6 @@ Env vars:
   BINANCE_BAR_INTERVAL                  default "15-MINUTE"
   LOG_LEVEL                            default "INFO"
   AWS_REGION                            default "ap-southeast-1"
-  ENABLE_TESTNET                        must be false/unset (see main())
 """
 
 from __future__ import annotations
@@ -296,12 +295,6 @@ def main() -> None:
     trader_id = os.getenv("TRADER_ID", "EDGETRADER") + "-VIRTUAL"
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
     log_level = os.getenv("LOG_LEVEL", "INFO")
-    aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
-
-    enable_testnet = os.getenv("ENABLE_TESTNET", "false").strip().lower() in ("1", "true", "yes")
-    if enable_testnet:
-        print("❌ ENABLE_TESTNET=true, but TESTNET support isn't implemented — MAINNET only.", file=sys.stderr)
-        sys.exit(1)
 
     queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL")
     if not queue_url:
@@ -313,7 +306,13 @@ def main() -> None:
 
     # Load MAINNET data credentials (same as real node – we only need the feed)
     try:
-        api_key, api_secret = auth.load_credentials(region=aws_region, sandbox=False)
+        env_creds = auth.load_credentials_from_env(sandbox=False)
+        if env_creds is None:
+            raise RuntimeError(
+                "Missing BINANCE_API_KEY / BINANCE_API_SECRET environment variables "
+                "(this node is configured to load credentials from env only; AWS fallback is disabled)."
+            )
+        api_key, api_secret = env_creds
     except Exception as e:
         print(f"❌ Failed to load MAINNET data credentials: {e}", file=sys.stderr)
         sys.exit(1)
