@@ -53,4 +53,13 @@ erDiagram
         numeric virtual_balance_usdt "equity used for sizing in virtual/simulated modes only"
         timestamp updated_at
     }
+
+    NODE_HEARTBEATS {
+        varchar venue PK "e.g. 'binance'"
+        varchar target PK "'real'|'virtual'"
+        boolean is_running "node.trader.is_running, written every ~15s"
+        numeric balance_usdt "nullable, latest free-USDT snapshot"
+        varchar detail "nullable, e.g. balance lookup failure reason"
+        timestamp updated_at "staleness check: now() - updated_at > 60s => treated as not running"
+    }
 ```

@@ -1628,3 +1628,67 @@ Instruments loaded on both sides — 3705 instruments, twice (data + exec provid
 Exec client connected — user-data WebSocket authenticated, subscribed to stream 0.
 Reconciliation completed — 0 fills, 0 orders, 0 positions, which is what you'd expect on a fresh account with no open orders.
 TradingNode reached RUNNING — and your SQS listener started long-polling.
+
+//********************************//
+
+1. Shared-state heartbeat (what you have now: Postgres)
+2. Each node exposes its own tiny HTTP health endpoint, edge-point calls it directly
+3. Shared cache with TTL (Redis, etc.)
+4. Shared file / volume
+Node touches a file on a shared Docker volume; edge-point checks mtime.
+Pros: dead simple, zero new infra, no schema.
+Cons: only works cleanly on a single Docker host with a shared volume — 
+breaks down the moment you move to multi-host or an orchestrator like ECS/Kubernetes 
+where containers don't share a filesystem. Feels like a step backward once you already 
+have Postgres wired up everywhere else.
+
+5. Docker-level healthcheck (HEALTHCHECK in the Dockerfile / compose)
+
+This is complementary, not a substitute. It tells Docker/the orchestrator "is this container's 
+process still alive," so it can auto-restart a truly-dead node. It says nothing about whether 
+the trading logic inside is healthy (e.g., stuck on repeated Binance API errors while the process
+ itself hums along fine) — which is exactly the distinction your current heartbeat already makes 
+ (is_running + detail, not just "process exists").
+
+ the Postgres heartbeat you already built is the most consistent choice architecturally
+
+//********************************//
+
+In both binance_real_node.py (line 392) and binance_virtual_mainnet_node.py 
+(line 367), heartbeat_loop(...) is scheduled as a sibling task in the same asyncio.gather(...) 
+as listen_trade_events(...) (your SQS loop), node.run_async(), and cancel_requests_loop(...).
+So it's running concurrently, on its own ~15s timer, not driven by SQS messages arriving.
+
+
+//********************************//
+
+2026-09-21T05:46:37.084186150Z [ERROR] EDGETRADER-REAL.Portfolio: Cannot get account: 
+no account registered for venue=Venue('BINANCE') and account_id=None
+
+So: one or two occurrences right at startup, then quiet, is the normal connection-warmup race your own code
+ comment already anticipated ("the exec client may not have received its first AccountState update yet") — 
+ not a bug, and nothing needs to change. If it ever starts recurring steadily later (not just at boot), 
+ that would point to something actually wrong with the Binance connection staying up, and would be worth
+  revisiting — but a one-time startup blip that self-heals is the healthy pattern here.
+{
+  "status": "ok",
+  "active_trades_count": 0,
+  "dependencies": {
+    "postgres": {
+      "status": "connected",
+      "detail": null
+    },
+    "nautilus_real": {
+      "status": "running",
+      "trader_running": true,
+      "detail": null
+    },
+    "nautilus_virtual": {
+      "status": "running",
+      "trader_running": true,
+      "detail": null
+    }
+  }
+}
+
+//********************************//

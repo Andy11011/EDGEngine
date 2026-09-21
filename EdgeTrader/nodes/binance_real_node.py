@@ -32,6 +32,7 @@ from typing import Dict
 
 from nautilus_trader.adapters.binance import (
     BINANCE,
+    BINANCE_VENUE,
     BinanceAccountType,
     BinanceDataClientConfig,
     BinanceExecClientConfig,
@@ -133,7 +134,7 @@ def get_real_usdt_balance(node: TradingNode) -> float:
     Live free (not total) USDT balance from the connected Binance account —
     used both for position sizing and for the heartbeat's balance snapshot.
     """
-    account = node.portfolio.account(BINANCE)
+    account = node.portfolio.account(BINANCE_VENUE)
     if account is None:
         raise RuntimeError(
             "No account available yet for venue BINANCE — the exec client may "

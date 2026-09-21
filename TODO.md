@@ -7,8 +7,15 @@
   - [X] ~~*Run real node locally*~~ [2026-09-18]
   - [X] ~~*Remove SecretManager and env from the nodes, retest locally*~~ [2026-09-21]
   - [X] ~~*Remove old files*~~ [2026-09-21]
-  - [ ] Build and Run api server locally, test endpoints
-  - [ ] Redesign the CI/CD pipeline
+  - [X] ~~*Build and Run api server locally*~~ [2026-09-21]
+  - [X] ~~*Test and debug /health endpoint locally*~~ [2026-09-21]
+  - [X] ~~*Update the EDR table*~~ [2026-09-21]
+  - [ ] Test and debug /balance/virtual endpoint locally
+  - [ ] Test and debug /balance/testnet endpoint locally
+  - [ ] Test and debug /balance/mainnet endpoint locally
+  - [ ] Test and debug /active_trades endpoint locally
+  - [ ] Test and debug /cancel/{trade_id} endpoint locally
+  - [ ] Proceed with CI/CD pipeline
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
   - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]
