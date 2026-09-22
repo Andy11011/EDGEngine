@@ -90,7 +90,7 @@ jobs:
   # --------------------------------------------------------------------------
   smoke_tests:
     name: Run Smoke tests (CodeBuild, ap-southeast-1)
-    if: false  # TEMP: all jobs disabled — remove this line to re-enable
+    #if: false  # TEMP: all jobs disabled — remove this line to re-enable
     needs: build_amd64
     runs-on: ubuntu-latest
     steps:
@@ -113,11 +113,12 @@ jobs:
           DB_USER: ${{ env.DB_USER }}
           DB_PASSWORD: ${{ env.DB_PASSWORD }}
           AWS_REGION: ${{ vars.AWS_REGION }}
-          SQS_TRADE_EVENTS_QUEUE_URL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL }}
+          SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL }}
+          SQS_TRADE_EVENTS_QUEUE_URL_REAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_REAL }}
         with:
           project-name: edgetrader-integration-tests
           buildspec-override: .github/codebuild/buildspec.yml
-          env-vars-for-codebuild: OWNER_LC,IMAGE_TAG,APP_PORT,DB_NAME,DB_USER,DB_PASSWORD,AWS_REGION,SQS_TRADE_EVENTS_QUEUE_URL
+          env-vars-for-codebuild: OWNER_LC,IMAGE_TAG,APP_PORT,DB_NAME,DB_USER,DB_PASSWORD,AWS_REGION,SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL,SQS_TRADE_EVENTS_QUEUE_URL_REAL
 
   # --------------------------------------------------------------------------
   # Stage 3: Multi-arch images, only on manual workflow_dispatch — unchanged.
@@ -132,9 +133,13 @@ jobs:
       matrix:
         include:
           - image_name: edge-scanner
-            dockerfile: Dockerfile.scanner
-          - image_name: edge-trader
-            dockerfile: Dockerfile.trader
+            dockerfile: docker/Dockerfile.scanner
+          - image_name: binance-virtual-mainnet-node
+            dockerfile: docker/Dockerfile.binance_virtual_mainnet
+          - image_name: binance-real-node
+            dockerfile: docker/Dockerfile.binance_real
+          - image_name: edge-point
+            dockerfile: docker/Dockerfile.api
     steps:
       - name: Checkout
         uses: actions/checkout@v4

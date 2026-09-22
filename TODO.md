@@ -14,7 +14,11 @@
   - [X] ~~*Test and debug /balance/mainnet endpoint locally*~~ [2026-09-22]
   - [X] ~~*Test and debug /active_trades endpoint locally*~~ [2026-09-22]
   - [X] ~~*Build all packages in CI/CD and remove old packages*~~ [2026-09-22]
-  - [ ] Proceed with CI/CD pipeline
+  - [X] ~~*Proceed with CI/CD pipeline*~~ [2026-09-22]
+  - [ ] CI/CD: Test health
+  - [ ] CI/CD: Test balances
+  - [ ] CI/CD: Test open and close
+  - [ ] Check all other TODOs
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
   - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]

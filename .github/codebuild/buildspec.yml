@@ -29,9 +29,15 @@ phases:
       - echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
       # OWNER_LC and IMAGE_TAG (commit sha) are passed in as environment
       # variable overrides from the GitHub Actions step that starts this build.
-      - IMAGE="ghcr.io/${OWNER_LC}/edge-trader:${IMAGE_TAG}"
-      - echo "Pulling $IMAGE"
-      - docker pull "$IMAGE"
+      - IMAGE_BINANCE_VIRTUAL="ghcr.io/${OWNER_LC}/binance-virtual-mainnet-node:${IMAGE_TAG}"
+      - IMAGE_BINANCE_REAL="ghcr.io/${OWNER_LC}/binance-real-node:${IMAGE_TAG}"
+      - IMAGE_EDGE_POINT="ghcr.io/${OWNER_LC}/edge-point:${IMAGE_TAG}"
+      - echo "Pulling $IMAGE_BINANCE_VIRTUAL"
+      - docker pull "$IMAGE_BINANCE_VIRTUAL"
+      - echo "Pulling $IMAGE_BINANCE_REAL"
+      - docker pull "$IMAGE_BINANCE_REAL"
+      - echo "Pulling $IMAGE_EDGE_POINT"
+      - docker pull "$IMAGE_EDGE_POINT"
       - docker pull postgres:16-alpine
       - docker network create edgetrader-net
 
@@ -46,32 +52,65 @@ phases:
           -e POSTGRES_PASSWORD="${DB_PASSWORD}" \
           postgres:16-alpine
       - timeout 30 sh -c 'until docker exec postgres-ci pg_isready -U "${DB_USER}" >/dev/null 2>&1; do sleep 1; done'
-      # TODO: confirm APP_PORT matches whatever Dockerfile.trader EXPOSEs / the
-      # app actually listens on, then pass it as an override too.
+
       - |
-        docker run -d --name edgetrader-ci --network edgetrader-net \
-          -p "${APP_PORT}:${APP_PORT}" \
-          -e PYTHONUNBUFFERED=1 \
-          -e TRADING_MODE=TEST1 \
-          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-          -e AWS_REGION="${AWS_REGION}" \
-          -e SQS_TRADE_EVENTS_QUEUE_URL="${SQS_TRADE_EVENTS_QUEUE_URL}" \
+        docker run -d --name binance-virtual-mainnet-node --network edgetrader-net \
+          -e BINANCE_API_KEY="${BINANCE_API_KEY}" \
+          -e BINANCE_API_SECRET="${BINANCE_API_SECRET}" \
+          -e SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL="${SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL}" \
           -e DB_NAME="${DB_NAME}" \
           -e DB_USER="${DB_USER}" \
           -e DB_PASSWORD="${DB_PASSWORD}" \
           -e DB_HOST=postgres-ci \
           -e DB_PORT=5432 \
-          "${IMAGE}"
+          "$IMAGE_BINANCE_VIRTUAL"
+
+      - |
+        docker run -d --name binance-real-node --network edgetrader-net \
+          -e BINANCE_API_KEY="${BINANCE_API_KEY}" \
+          -e BINANCE_API_SECRET="${BINANCE_API_SECRET}" \
+          -e BINANCE_ED25519_PUBLIC_KEY="${BINANCE_ED25519_PUBLIC_KEY}" \
+          -e BINANCE_ED25519_PRIVATE_KEY="${BINANCE_ED25519_PRIVATE_KEY}" \
+          -e SQS_TRADE_EVENTS_QUEUE_URL_REAL="${SQS_TRADE_EVENTS_QUEUE_URL_REAL}" \
+          -e DB_NAME="${DB_NAME}" \
+          -e DB_USER="${DB_USER}" \
+          -e DB_PASSWORD="${DB_PASSWORD}" \
+          -e DB_HOST=postgres-ci \
+          -e DB_PORT=5432 \
+          "$IMAGE_BINANCE_REAL"
+
+      # TODO: confirm APP_PORT matches whatever Dockerfile.api EXPOSEs / the
+      # app actually listens on, then pass it as an override too.
+      - |
+        docker run -d --name edge-point-ci --network edgetrader-net \
+          -p "${APP_PORT}:${APP_PORT}" \
+          -e PYTHONUNBUFFERED=1 \
+          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+          -e AWS_REGION="${AWS_REGION}" \
+          -e DB_NAME="${DB_NAME}" \
+          -e DB_USER="${DB_USER}" \
+          -e DB_PASSWORD="${DB_PASSWORD}" \
+          -e DB_HOST=postgres-ci \
+          -e DB_PORT=5432 \
+          "$IMAGE_EDGE_POINT"
+
       - sleep 5
-      - pytest -v tests/
+      - |
+        pytest -v \
+          tests/test_health.py \
+          tests/test_balances.py
 
   post_build:
     commands:
       - echo "--- docker ps -a ---"
       - docker ps -a
-      - echo "--- edgetrader-ci logs ---"
-      - docker logs edgetrader-ci || true
+      - echo "--- edge-point logs ---"
+      - docker logs edge-point || true
+      - echo "--- binance-virtual-mainnet-node logs ---"
+      - docker logs binance-virtual-mainnet-node || true
+      - echo "--- binance-real-node logs ---"
+      - docker logs binance-real-node || true
       - echo "--- postgres-ci logs ---"
       - docker logs postgres-ci || true
-      - docker rm -f edgetrader-ci postgres-ci || true
+      - docker rm -f edge-point binance-virtual-mainnet-node binance-real-node postgres-ci || true
