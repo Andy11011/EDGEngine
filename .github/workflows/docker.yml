@@ -26,16 +26,20 @@ jobs:
   # --------------------------------------------------------------------------
   build_amd64:
     name: Build amd64 images
-    if: false  # TEMP: all jobs disabled — remove this line to re-enable
+    #if: false  # TEMP: all jobs disabled — remove this line to re-enable
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - image_name: edge-scanner
-            dockerfile: Dockerfile.scanner
-          - image_name: edge-trader
-            dockerfile: Dockerfile.trader
+            dockerfile: docker/Dockerfile.scanner
+          - image_name: binance-virtual-mainnet-node
+            dockerfile: docker/Dockerfile.binance_virtual_mainnet
+          - image_name: binance-real
+            dockerfile: docker/Dockerfile.binance_real
+          - image_name: edge-point
+            dockerfile: docker/Dockerfile.api
     outputs:
       owner_lc: ${{ steps.prep.outputs.owner_lc }}
     steps:
