@@ -268,7 +268,7 @@ docker build -f docker/Dockerfile.binance_virtual_mainnet -t binance-virtual-mai
 For live trading node:
 
 ```powershell
-docker build -f docker/Dockerfile.binance_real -t binance-real:latest .
+docker build -f docker/Dockerfile.binance_real -t binance-real-node:latest .
 ```
 
 For api server:
@@ -290,7 +290,7 @@ docker run --rm --env-file .env.local binance-virtual-mainnet-node:latest
 For live trading node:
 
 ```powershell
-docker run --rm --env-file .env.local binance-real:latest
+docker run --rm --env-file .env.local binance-real-node:latest
 ```
 
 For api server:
