@@ -26,7 +26,6 @@ jobs:
   # --------------------------------------------------------------------------
   build_amd64:
     name: Build amd64 images
-    #if: false  # TEMP: all jobs disabled — remove this line to re-enable
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
