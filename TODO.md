@@ -13,7 +13,7 @@
   - [X] ~~*Test and debug /balance/virtual endpoint locally*~~ [2026-09-22]
   - [X] ~~*Test and debug /balance/mainnet endpoint locally*~~ [2026-09-22]
   - [X] ~~*Test and debug /active_trades endpoint locally*~~ [2026-09-22]
-  - [ ] Build all packages in CI/CD and remove old packages
+  - [X] ~~*Build all packages in CI/CD and remove old packages*~~ [2026-09-22]
   - [ ] Proceed with CI/CD pipeline
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
