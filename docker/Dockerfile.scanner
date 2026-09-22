@@ -14,7 +14,7 @@ RUN apt-get update \
 ARG NAUTILUS_WHEEL_URL=https://github.com/Andy11011/nautilus_trader/releases/download/fork-latest/nautilus_trader-1.228.0-cp312-cp312-manylinux_2_39_x86_64.whl
 RUN pip install --no-cache-dir "${NAUTILUS_WHEEL_URL}"
 
-COPY requirements-scanner.txt ./
+COPY docker/requirements-scanner.txt ./
 RUN pip install --no-cache-dir -r requirements-scanner.txt
 
 COPY EDGEScanner.py ./
