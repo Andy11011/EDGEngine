@@ -19,15 +19,9 @@ Everything it serves comes from Postgres:
   - /health           — node_heartbeats rows (written by the node processes
                          every ~15s) + a trivial DB ping.
   - /balance/virtual   — trades_config.virtual_balance_usdt (plain DB read).
-  - /balance/testnet   — static "disabled" response (unchanged).
   - /balance/mainnet   — the real node's latest heartbeat balance snapshot.
   - /active_trades     — derived from trade_events (Opened without a later
                          Closed/Cancelled), not in-memory process state.
-  - /cancel/{trade_id} — writes a row to cancel_requests; the owning node
-                         process (real or virtual, whichever the trade_id's
-                         `target` says) polls that table and calls
-                         strategy.request_cancel() itself. See
-                         node_common.cancel_requests_loop.
 """
 
 from __future__ import annotations
@@ -151,16 +145,6 @@ async def get_virtual_usdt_balance():
         return BalanceResponse(source="virtual", available=False, detail=str(e))
 
 
-@app.get("/balance/testnet", response_model=BalanceResponse)
-async def get_testnet_usdt_balance():
-    """TESTNET support is intentionally not built — MAINNET only."""
-    return BalanceResponse(
-        source="testnet",
-        available=False,
-        detail="TESTNET is disabled (ENABLE_TESTNET=false) — this deployment only connects to Binance MAINNET.",
-    )
-
-
 @app.get("/balance/mainnet", response_model=BalanceResponse)
 async def get_mainnet_usdt_balance():
     """Real node's latest balance snapshot, from its heartbeat row (edge-api
@@ -205,23 +189,3 @@ async def get_active_trades():
             print(f"⚠️ Error building TradeStatus for {ev.get('trade_id')}: {e}", file=sys.stderr)
     return result
 
-
-@app.post("/cancel/{trade_id}")
-async def cancel_trade(trade_id: str):
-    """
-    Writes a cancel_requests row for the node process that owns this trade
-    (determined from the trade's own recorded `target`) rather than calling
-    strategy.request_cancel() directly — edge-api has no process-memory
-    reference to the strategy object anymore.
-    """
-    db = await _get_db()
-    latest = await db.get_latest_event_for_trade(trade_id)
-    if latest is None:
-        raise HTTPException(404, f"Trade {trade_id} not found")
-    if latest["event_type"] in ("Closed", "Cancelled"):
-        raise HTTPException(409, f"Trade {trade_id} is already {latest['event_type'].lower()}")
-
-    target = latest["target"]
-    request_id = await db.enqueue_cancel_request(trade_id, target)
-    print(f"🛑 /cancel/{trade_id} -> cancel_requests row {request_id} (target={target})", file=sys.stderr)
-    return {"status": "cancel_requested", "target": target}

@@ -11,10 +11,9 @@
   - [X] ~~*Test and debug /health endpoint locally*~~ [2026-09-21]
   - [X] ~~*Update the EDR table*~~ [2026-09-21]
   - [ ] Test and debug /balance/virtual endpoint locally
-  - [ ] Test and debug /balance/testnet endpoint locally
   - [ ] Test and debug /balance/mainnet endpoint locally
   - [ ] Test and debug /active_trades endpoint locally
-  - [ ] Test and debug /cancel/{trade_id} endpoint locally
+  - [ ] Build all packages in CI/CD and remove old packages
   - [ ] Proceed with CI/CD pipeline
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
