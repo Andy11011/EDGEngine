@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
+import time
 from typing import Any, Callable, Dict, Optional
 
 from trades_db_async import TradeEventsDB
@@ -46,22 +48,62 @@ async def heartbeat_loop(
                      recorded in the `detail` column.
         interval_seconds: How often to write the heartbeat.
     """
+    print(
+        f"💓 heartbeat_loop starting for venue={VENUE} target={target} "
+        f"interval={interval_seconds}s balance_tracking={'on' if get_balance else 'off'}",
+        file=sys.stderr,
+    )
+    iteration = 0
     while True:
+        iteration += 1
+        loop_start = time.monotonic()
         is_running = bool(node.trader.is_running)
         balance: Optional[float] = None
         detail: Optional[str] = None
+
         if get_balance is not None:
             try:
                 result = get_balance()
                 if asyncio.iscoroutine(result):
                     result = await result
                 balance = float(result)
+                print(
+                    f"💰 [{target}] balance lookup ok (iteration={iteration}): {balance:.4f} USDT",
+                    file=sys.stderr,
+                )
             except Exception as e:
                 detail = f"balance lookup failed: {e}"
+                print(
+                    f"⚠️ [{target}] balance lookup failed (iteration={iteration}): "
+                    f"{type(e).__name__}: {e}",
+                    file=sys.stderr,
+                )
+
+        print(
+            f"💓 [{target}] heartbeat (iteration={iteration}): is_running={is_running} "
+            f"balance={balance if balance is not None else 'n/a'} detail={detail or 'none'}",
+            file=sys.stderr,
+        )
+
         try:
             await db.write_heartbeat(VENUE, target, is_running, balance_usdt=balance, detail=detail)
+            print(
+                f"✅ [{target}] heartbeat row written (iteration={iteration})",
+                file=sys.stderr,
+            )
         except Exception as e:
-            print(f"⚠️ Failed to write heartbeat for target={target}: {e}", file=sys.stderr)
+            print(
+                f"⚠️ Failed to write heartbeat for target={target} "
+                f"(iteration={iteration}): {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
+
+        elapsed = time.monotonic() - loop_start
+        print(
+            f"⏱️ [{target}] heartbeat iteration={iteration} took {elapsed:.3f}s, "
+            f"sleeping {interval_seconds}s",
+            file=sys.stderr,
+        )
         await asyncio.sleep(interval_seconds)
 
 
