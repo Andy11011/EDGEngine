@@ -1725,3 +1725,15 @@ BinanceClientError({'code': -1022, 'msg': 'Signature for this request is not val
 2026-09-23T03:18:19.365850394Z [WARN] EDGETRADER-REAL.TradingNode: Timed out (30.0s) waiting for engines to connect and initialize
 Status
 ------
+
+//********************************//
+
+1. Primary cause: missing AWS credentials on both containers.
+
+botocore.exceptions.NoCredentialsError: Unable to locate credentials
+
+appears in both binance-virtual-mainnet-node (line 4486) and binance-real-node (line 4850) logs,
+ right as sqs.receive_trade_events() tries to call AWS. Looking back at the buildspec.yml build
+  phase we wrote together, the docker run commands for those two containers never pass 
+  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION — only the edge-point container gets those. 
+  So boto3 inside both node containers has nothing to authenticate with.

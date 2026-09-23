@@ -55,6 +55,9 @@ phases:
 
       - |
         docker run -d --name binance-virtual-mainnet-node --network edgetrader-net \
+          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+          -e AWS_REGION="${AWS_REGION}" \
           -e BINANCE_API_KEY="${BINANCE_API_KEY}" \
           -e BINANCE_API_SECRET="${BINANCE_API_SECRET}" \
           -e SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL="${SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL}" \
@@ -67,6 +70,9 @@ phases:
 
       - |
         docker run -d --name binance-real-node --network edgetrader-net \
+          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+          -e AWS_REGION="${AWS_REGION}" \
           -e BINANCE_API_KEY="${BINANCE_API_KEY}" \
           -e BINANCE_API_SECRET="${BINANCE_API_SECRET}" \
           -e BINANCE_ED25519_PUBLIC_KEY="${BINANCE_ED25519_PUBLIC_KEY}" \
