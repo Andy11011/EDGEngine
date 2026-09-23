@@ -182,9 +182,20 @@ class TradeEventsDB:
                     is_running BOOLEAN NOT NULL,
                     balance_usdt NUMERIC,
                     detail VARCHAR,
+                    sqs_ok BOOLEAN,
+                    sqs_detail VARCHAR,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (venue, target)
                 )
+            """)
+            # Backfill for pre-existing tables created before sqs_ok/sqs_detail
+            # existed — CREATE TABLE IF NOT EXISTS above is a no-op on an
+            # already-deployed table, so add the columns here if missing.
+            await conn.execute("""
+                ALTER TABLE node_heartbeats ADD COLUMN IF NOT EXISTS sqs_ok BOOLEAN
+            """)
+            await conn.execute("""
+                ALTER TABLE node_heartbeats ADD COLUMN IF NOT EXISTS sqs_detail VARCHAR
             """)
 
             # 6. cancel_requests — how edge-api.py (DB-pool-only, no AWS
@@ -539,19 +550,24 @@ class TradeEventsDB:
         is_running: bool,
         balance_usdt: Optional[float] = None,
         detail: Optional[str] = None,
+        sqs_ok: Optional[bool] = None,
+        sqs_detail: Optional[str] = None,
     ) -> None:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO node_heartbeats (venue, target, is_running, balance_usdt, detail, updated_at)
-                VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+                INSERT INTO node_heartbeats
+                    (venue, target, is_running, balance_usdt, detail, sqs_ok, sqs_detail, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
                 ON CONFLICT (venue, target) DO UPDATE
                 SET is_running = EXCLUDED.is_running,
                     balance_usdt = EXCLUDED.balance_usdt,
                     detail = EXCLUDED.detail,
+                    sqs_ok = EXCLUDED.sqs_ok,
+                    sqs_detail = EXCLUDED.sqs_detail,
                     updated_at = EXCLUDED.updated_at
                 """,
-                venue, target, is_running, balance_usdt, detail,
+                venue, target, is_running, balance_usdt, detail, sqs_ok, sqs_detail,
             )
 
     async def get_heartbeat(self, venue: str, target: str) -> Optional[Dict[str, Any]]:

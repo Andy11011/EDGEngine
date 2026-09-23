@@ -108,8 +108,31 @@ async def health_check():
             "detail": hb.get("detail"),
         }
 
+    def sqs_status(hb: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Each node process reports its own SQS connectivity in its
+        heartbeat row (see sqs.get_sqs_status / common_tasks.heartbeat_loop)
+        — edge-api never talks to AWS itself, it just relays this."""
+        if hb is None:
+            return {"status": "unknown", "detail": "no heartbeat yet", "updated_at": None}
+        if _heartbeat_stale(hb):
+            return {
+                "status": "unknown",
+                "detail": "heartbeat is stale, sqs status may be outdated",
+                "updated_at": hb["updated_at"].isoformat(),
+            }
+        sqs_ok = hb.get("sqs_ok")
+        if sqs_ok is None:
+            return {"status": "unknown", "detail": "node has not reported sqs status yet", "updated_at": hb["updated_at"].isoformat()}
+        return {
+            "status": "connected" if sqs_ok else "disconnected",
+            "detail": hb.get("sqs_detail"),
+            "updated_at": hb["updated_at"].isoformat(),
+        }
+
     real_status = node_status(real_hb)
     virtual_status = node_status(virtual_hb)
+    sqs_real_status = sqs_status(real_hb)
+    sqs_virtual_status = sqs_status(virtual_hb)
 
     try:
         active_trades = await db.get_active_trades()
@@ -120,6 +143,8 @@ async def health_check():
     overall_ok = (
         real_status.get("trader_running") is True
         and virtual_status.get("trader_running") is True
+        and sqs_real_status.get("status") == "connected"
+        and sqs_virtual_status.get("status") == "connected"
     )
 
     return {
@@ -129,6 +154,8 @@ async def health_check():
             "postgres": postgres_status,
             "nautilus_real": real_status,
             "nautilus_virtual": virtual_status,
+            "sqs_real": sqs_real_status,
+            "sqs_virtual": sqs_virtual_status,
         },
     }
 

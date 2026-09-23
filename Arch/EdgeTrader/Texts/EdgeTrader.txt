@@ -1737,3 +1737,25 @@ appears in both binance-virtual-mainnet-node (line 4486) and binance-real-node (
   phase we wrote together, the docker run commands for those two containers never pass 
   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION — only the edge-point container gets those. 
   So boto3 inside both node containers has nothing to authenticate with.
+
+//********************************//
+
+tests/test_health.py::test_health_ok PASSED                              [ 25%]
+tests/test_health.py::test_health_structure FAILED                       [ 50%]
+tests/test_balances.py::test_virtual_balance_available PASSED            [ 75%]
+tests/test_balances.py::test_mainnet_balance_returns_a_real_number PASSED [100%]
+
+
+=================================== FAILURES ===================================
+____________________________ test_health_structure _____________________________
+
+    def test_health_structure():
+        resp = requests.get(HEALTH_URL)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "status" in data
+        assert "dependencies" in data
+        deps = data["dependencies"]
+        assert "postgres" in deps
+>       assert "sqs" in deps
+E       AssertionError: assert 'sqs' in {'postgres': {'status': 'connected', 'detail': None}, 'nautilus_real': {'status': 'running', 'trader_running': True, 'detail': None}, 'nautilus_virtual': {'status': 'running', 'trader_running': True, 'detail': None}}

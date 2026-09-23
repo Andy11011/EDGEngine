@@ -91,9 +91,6 @@ phases:
         docker run -d --name edge-point --network edgetrader-net \
           -p "${APP_PORT}:${APP_PORT}" \
           -e PYTHONUNBUFFERED=1 \
-          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-          -e AWS_REGION="${AWS_REGION}" \
           -e DB_NAME="${DB_NAME}" \
           -e DB_USER="${DB_USER}" \
           -e DB_PASSWORD="${DB_PASSWORD}" \

@@ -390,7 +390,11 @@ def main() -> None:
             await asyncio.gather(
                 node.run_async(),
                 listen_trade_events(node, db, sqs_client, queue_url, bar_interval),
-                heartbeat_loop(db, node, TARGET, get_balance=lambda: get_real_usdt_balance(node)),
+                heartbeat_loop(
+                    db, node, TARGET,
+                    get_balance=lambda: get_real_usdt_balance(node),
+                    get_sqs_status=sqs.get_sqs_status,
+                ),
                 cancel_requests_loop(db, TARGET, active_strategies),
             )
         except asyncio.CancelledError:

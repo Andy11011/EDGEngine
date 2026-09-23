@@ -30,5 +30,22 @@ def test_health_structure():
     assert "dependencies" in data
     deps = data["dependencies"]
     assert "postgres" in deps
-    assert "sqs" in deps
-    assert "nautilus" in deps
+    assert "nautilus_real" in deps
+    assert "nautilus_virtual" in deps
+    assert "sqs_real" in deps
+    assert "sqs_virtual" in deps
+
+
+def test_health_sqs_connected():
+    """Both nodes' own SQS connectivity (written via their heartbeat, see
+    sqs.get_sqs_status / common_tasks.heartbeat_loop) should report
+    'connected' once the pipeline is healthy."""
+    resp = requests.get(HEALTH_URL)
+    assert resp.status_code == 200
+    deps = resp.json()["dependencies"]
+
+    sqs_real = deps["sqs_real"]
+    sqs_virtual = deps["sqs_virtual"]
+
+    assert sqs_real["status"] == "connected", f"sqs_real not connected: {sqs_real}"
+    assert sqs_virtual["status"] == "connected", f"sqs_virtual not connected: {sqs_virtual}"

@@ -24,6 +24,25 @@ except ImportError:
 
 _sqs_client = None
 
+# Tracks the outcome of the most recent receive_trade_events call, so callers
+# (e.g. heartbeat_loop) can report SQS connectivity without receive_trade_events
+# needing to raise (it deliberately swallows errors and returns [] so the poll
+# loop keeps running).
+_last_sqs_ok: Optional[bool] = None
+_last_sqs_detail: Optional[str] = None
+
+
+def get_sqs_status() -> tuple[bool, Optional[str]]:
+    """Return (ok, detail) for the most recent SQS receive attempt.
+
+    Before any receive_trade_events call has happened yet, ok is False with
+    a "not polled yet" detail rather than None/None, so a heartbeat written
+    before the first poll doesn't get misread as "connected".
+    """
+    if _last_sqs_ok is None:
+        return False, "SQS not polled yet"
+    return _last_sqs_ok, _last_sqs_detail
+
 
 def get_sqs_client() -> boto3.client:
     """Return a cached SQS client (singleton)."""
@@ -46,6 +65,7 @@ async def receive_trade_events(
     Long‑poll SQS for messages. Returns a list of raw message dicts,
     or an empty list on error.
     """
+    global _last_sqs_ok, _last_sqs_detail
     loop = asyncio.get_running_loop()
     try:
         response = await loop.run_in_executor(
@@ -58,8 +78,12 @@ async def receive_trade_events(
             ),
         )
     except Exception as e:
+        _last_sqs_ok = False
+        _last_sqs_detail = f"{type(e).__name__}: {e}"
         print(f"❌ SQS receive error: {e}", file=sys.stderr)
         return []
+    _last_sqs_ok = True
+    _last_sqs_detail = None
     return response.get("Messages", [])
 
 

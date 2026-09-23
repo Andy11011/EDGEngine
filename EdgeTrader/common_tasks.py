@@ -34,6 +34,7 @@ async def heartbeat_loop(
     node: Any,                 # TradingNode from nautilus_trader.live.node
     target: str,
     get_balance: Optional[Callable[[], float]] = None,
+    get_sqs_status: Optional[Callable[[], Any]] = None,
     interval_seconds: float = 15.0,
 ) -> None:
     """
@@ -46,6 +47,11 @@ async def heartbeat_loop(
         get_balance: Optional zero‑arg callable (sync or async) that returns the
                      current free USDT balance as a float. Errors are caught and
                      recorded in the `detail` column.
+        get_sqs_status: Optional zero‑arg callable (sync or async) returning
+                         (ok: bool, detail: Optional[str]) — this target's own
+                         SQS connectivity, e.g. sqs.get_sqs_status. Written to
+                         node_heartbeats so edge-api's /health can report
+                         sqs_real / sqs_virtual without needing AWS creds itself.
         interval_seconds: How often to write the heartbeat.
     """
     print(
@@ -79,14 +85,41 @@ async def heartbeat_loop(
                     file=sys.stderr,
                 )
 
+        sqs_ok: Optional[bool] = None
+        sqs_detail: Optional[str] = None
+        if get_sqs_status is not None:
+            try:
+                result = get_sqs_status()
+                if asyncio.iscoroutine(result):
+                    result = await result
+                sqs_ok, sqs_detail = result
+                print(
+                    f"📡 [{target}] sqs status (iteration={iteration}): "
+                    f"ok={sqs_ok} detail={sqs_detail or 'none'}",
+                    file=sys.stderr,
+                )
+            except Exception as e:
+                sqs_ok = False
+                sqs_detail = f"sqs status lookup failed: {e}"
+                print(
+                    f"⚠️ [{target}] sqs status lookup failed (iteration={iteration}): "
+                    f"{type(e).__name__}: {e}",
+                    file=sys.stderr,
+                )
+
         print(
             f"💓 [{target}] heartbeat (iteration={iteration}): is_running={is_running} "
-            f"balance={balance if balance is not None else 'n/a'} detail={detail or 'none'}",
+            f"balance={balance if balance is not None else 'n/a'} detail={detail or 'none'} "
+            f"sqs_ok={sqs_ok if sqs_ok is not None else 'n/a'}",
             file=sys.stderr,
         )
 
         try:
-            await db.write_heartbeat(VENUE, target, is_running, balance_usdt=balance, detail=detail)
+            await db.write_heartbeat(
+                VENUE, target, is_running,
+                balance_usdt=balance, detail=detail,
+                sqs_ok=sqs_ok, sqs_detail=sqs_detail,
+            )
             print(
                 f"✅ [{target}] heartbeat row written (iteration={iteration})",
                 file=sys.stderr,
