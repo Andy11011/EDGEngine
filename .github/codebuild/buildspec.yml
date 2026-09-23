@@ -6,8 +6,8 @@ env:
   secrets-manager:
     GHCR_USERNAME: "edgetrader/ghcr-creds:GHCR_USERNAME"
     GHCR_TOKEN: "edgetrader/ghcr-creds:GHCR_TOKEN"
-    BINANCE_SANDBOX_API_KEY: "edgetrader/trading-secrets:BINANCE_SANDBOX_API_KEY"
-    BINANCE_SANDBOX_API_SECRET: "edgetrader/trading-secrets:BINANCE_SANDBOX_API_SECRET"
+    BINANCE_API_KEY: "edgetrader/trading-secrets:BINANCE_API_KEY"
+    BINANCE_API_SECRET: "edgetrader/trading-secrets:BINANCE_API_SECRET"
     BINANCE_ED25519_PUBLIC_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PUBLIC_KEY"
     BINANCE_ED25519_PRIVATE_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PRIVATE_KEY"
     AWS_ACCESS_KEY_ID: "edgetrader/trading-secrets:AWS_ACCESS_KEY_ID"
@@ -82,7 +82,7 @@ phases:
       # TODO: confirm APP_PORT matches whatever Dockerfile.api EXPOSEs / the
       # app actually listens on, then pass it as an override too.
       - |
-        docker run -d --name edge-point-ci --network edgetrader-net \
+        docker run -d --name edge-point --network edgetrader-net \
           -p "${APP_PORT}:${APP_PORT}" \
           -e PYTHONUNBUFFERED=1 \
           -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
