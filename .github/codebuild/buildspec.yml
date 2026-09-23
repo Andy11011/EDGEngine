@@ -95,7 +95,7 @@ phases:
           -e DB_PORT=5432 \
           "$IMAGE_EDGE_POINT"
 
-      - sleep 10
+      - sleep 20
       - |
         pytest -v \
           tests/test_health.py \

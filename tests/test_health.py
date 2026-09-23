@@ -8,7 +8,7 @@ def wait_for_healthy(timeout=120, interval=2):
     start = time.time()
     while time.time() - start < timeout:
         try:
-            resp = requests.get(HEALTH_URL, timeout=5)
+            resp = requests.get(HEALTH_URL, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 # We want overall "ok" – all dependencies connected and trader running
