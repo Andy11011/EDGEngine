@@ -1710,3 +1710,18 @@ Error response from daemon: No such container: edge-point
 
 
 //********************************//
+
+
+2026-09-23T03:17:49.546934425Z [ERROR] EDGETRADER-REAL.BinanceSpotInstrumentProvider: Cannot load instruments: API key authentication failed (this is needed to request the applicable account fee tier). {'code': -1022, 'msg': 'Signature for this request is not valid.'}
+2026-09-23T03:17:49.546955979Z [WARN] EDGETRADER-REAL.BinanceSpotInstrumentProvider: No instruments were loaded, verify config if this is unexpected
+2026-09-23T03:17:49.546959406Z [INFO] EDGETRADER-REAL.BinanceSpotInstrumentProvider: Initialized instruments
+2026-09-23T03:17:49.628667348Z [ERROR] EDGETRADER-REAL.ExecClient-BINANCE: Error on '_connect'
+BinanceClientError({'code': -1022, 'msg': 'Signature for this request is not valid.'})
+
+2026-09-23T03:17:53.586317947Z [INFO] EDGETRADER-REAL.BinanceSpotInstrumentProvider: Loaded 3707 instruments
+2026-09-23T03:17:53.586337861Z [INFO] EDGETRADER-REAL.BinanceSpotInstrumentProvider: Initialized instruments
+2026-09-23T03:17:53.594947568Z [INFO] EDGETRADER-REAL.DataClient-BINANCE: Connected
+2026-09-23T03:18:04.369900124Z [ERROR] EDGETRADER-REAL.Portfolio: Cannot get account: no account registered for venue=Venue('BINANCE') and account_id=None
+2026-09-23T03:18:19.365850394Z [WARN] EDGETRADER-REAL.TradingNode: Timed out (30.0s) waiting for engines to connect and initialize
+Status
+------
