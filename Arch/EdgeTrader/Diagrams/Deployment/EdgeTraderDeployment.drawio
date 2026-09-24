@@ -177,8 +177,8 @@
             <mxPoint x="170" y="-513.95" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="mVqDDJl4U2Vz1Un9n3he-73" value="&lt;span style=&quot;color: rgb(204, 204, 204); font-family: &amp;quot;Segoe WPC&amp;quot;, &amp;quot;Segoe UI&amp;quot;, sans-serif; font-size: 13px; text-wrap: nowrap; background-color: rgb(18, 19, 20);&quot;&gt;Publish attr: venue=&amp;lt;value&amp;gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(204, 204, 204); font-family: &amp;quot;Segoe WPC&amp;quot;, &amp;quot;Segoe UI&amp;quot;, sans-serif; font-size: 13px; text-wrap: nowrap; background-color: rgb(18, 19, 20);&quot;&gt;binance-real,binance-virtual&lt;/span&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
-          <mxGeometry x="200" y="-548.95" width="160" height="45" as="geometry" />
+        <mxCell id="mVqDDJl4U2Vz1Un9n3he-73" value="&lt;span style=&quot;color: rgb(204, 204, 204); font-family: &amp;quot;Segoe WPC&amp;quot;, &amp;quot;Segoe UI&amp;quot;, sans-serif; font-size: 13px; text-wrap: nowrap; background-color: rgb(18, 19, 20);&quot;&gt;Publish attr: venue=&amp;lt;value&amp;gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(204, 204, 204); font-family: &amp;quot;Segoe WPC&amp;quot;, &amp;quot;Segoe UI&amp;quot;, sans-serif; font-size: 13px; text-wrap: nowrap; background-color: rgb(18, 19, 20);&quot;&gt;binance-real,binance-virtual-mainnet&lt;/span&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="200" y="-548.95" width="230" height="45" as="geometry" />
         </mxCell>
         <mxCell id="mVqDDJl4U2Vz1Un9n3he-74" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;elbow=vertical;startArrow=none;endFill=1;strokeColor=#545B64;rounded=0;exitX=1;exitY=0.25;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="mVqDDJl4U2Vz1Un9n3he-53" target="mVqDDJl4U2Vz1Un9n3he-67" edge="1">
           <mxGeometry width="100" relative="1" as="geometry">

@@ -15,10 +15,14 @@
   - [X] ~~*Test and debug /active_trades endpoint locally*~~ [2026-09-22]
   - [X] ~~*Build all packages in CI/CD and remove old packages*~~ [2026-09-22]
   - [X] ~~*Proceed with CI/CD pipeline*~~ [2026-09-22]
-  - [ ] CI/CD: Test health
-  - [ ] CI/CD: Test balances
+  - [X] ~~*CI/CD: Test health*~~ [2026-09-23]
+  - [X] ~~*CI/CD: Test balances*~~ [2026-09-23]
+  - [X] ~~*Correct ER diagram*~~ [2026-09-24]
   - [ ] CI/CD: Test open and close
+  - [ ] Correct SM and Flow Diagrams
   - [ ] Check all other TODOs
+  - [ ] CI/CD: Sending Multiple Duplicates
+  - [ ] CI/CD: Open and Close Multiple Trades
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
   - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]

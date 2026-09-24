@@ -1,0 +1,64 @@
+📡 [virtual] sqs status (iteration=25): ok=True detail=none
+💓 [virtual] heartbeat (iteration=25): is_running=True balance=500.0 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=25)
+⏱️ [virtual] heartbeat iteration=25 took 0.012s, sleeping 15.0s
+📡 [poll #20] Long-polling SQS (virtual)...
+💰 [virtual] balance lookup ok (iteration=26): 500.0000 USDT
+📡 [virtual] sqs status (iteration=26): ok=True detail=none
+💓 [virtual] heartbeat (iteration=26): is_running=True balance=500.0 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=26)
+⏱️ [virtual] heartbeat iteration=26 took 0.013s, sleeping 15.0s
+2026-09-24T05:29:59.294600121Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: READY
+2026-09-24T05:29:59.297622114Z [INFO] EDGETRADER-VIRTUAL.ExecEngine: Registered OMS.UNSPECIFIED for Strategy ATMUSDT.BINANCE_20260807T100000123_virtual-000
+2026-09-24T05:29:59.297765552Z [INFO] EDGETRADER-VIRTUAL.EDGETRADER-VIRTUAL: Registered Strategy ATMUSDT.BINANCE_20260807T100000123_virtual-000
+2026-09-24T05:29:59.297902758Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: self.config.oms_type=None
+2026-09-24T05:29:59.297951519Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: self.config.external_order_claims=None
+2026-09-24T05:29:59.297957223Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: self.config.manage_gtd_expiry=False
+2026-09-24T05:29:59.298126649Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: Set ClientOrderIdGenerator client_order_id count to 0
+2026-09-24T05:29:59.298402776Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: Set ClientOrderIdGenerator order_list_id count to 0
+2026-09-24T05:29:59.298517663Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: 🚀 TradeStrategy started for ATMUSDT.BINANCE_20260807T100000123_virtual (instrument=ATMUSDT.BINANCE)
+2026-09-24T05:29:59.299519238Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: [CMD]--> SubscribeBars(bar_type=ATMUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL, client_id=None, venue=BINANCE)
+2026-09-24T05:29:59.301116000Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: <--[EVT] OrderInitialized(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry, side=BUY, type=LIMIT, quantity=45.45000000, time_in_force=GTC, post_only=False, reduce_only=False, quote_quantity=False, options={'price': '1.59800000', 'display_qty': None, 'expire_time_ns': 0}, emulation_trigger=NO_TRIGGER, trigger_instrument_id=None, contingency_type=NO_CONTINGENCY, order_list_id=None, linked_order_ids=None, parent_order_id=None, exec_algorithm_id=None, exec_algorithm_params=None, exec_spawn_id=None, tags=None)
+2026-09-24T05:29:59.301532134Z [INFO] EDGETRADER-VIRTUAL.TradeStrategy: [CMD]--> [Risk] SubmitOrder(order=LimitOrder(BUY 45.45000000 ATMUSDT.BINANCE LIMIT @ 1.59800000 GTC, status=INITIALIZED, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry, venue_order_id=None, position_id=None, tags=None), position_id=None)
+2026-09-24T05:29:59.301634487Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: 📈 Entry order submitted for ATMUSDT.BINANCE_20260807T100000123_virtual side=BUY client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry
+2026-09-24T05:29:59.301689015Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: RUNNING
+🚀 [msg 8750e83e-e4fd-4851-868e-666b5d2ee563] Started strategy for trade ATMUSDT.BINANCE_20260807T100000123_virtual
+2026-09-24T05:29:59.307639921Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: <--[EVT] OrderSubmitted(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry, account_id=BINANCE-001, ts_event=1790227429235587571)
+2026-09-24T05:29:59.308070939Z [INFO] EDGETRADER-VIRTUAL.Portfolio: Updated AccountState(account_id=BINANCE-001, account_type=CASH, base_currency=None, is_reported=False, balances=[AccountBalance(total=10_000.00000000 USDT, locked=72.62910000 USDT, free=9_927.37090000 USDT), AccountBalance(total=1.00000000 BTC, locked=0.00000000 BTC, free=1.00000000 BTC)], margins=[], event_id=d5ccdf9c-516f-4141-96ad-17ce556492f1)
+2026-09-24T05:29:59.308120420Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: <--[EVT] OrderAccepted(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry, venue_order_id=BINANCE-1229-001, account_id=BINANCE-001, ts_event=1790227429235587571)
+2026-09-24T05:29:59.308155268Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: ✅ Entry order accepted, awaiting fill (trade=ATMUSDT.BINANCE_20260807T100000123_virtual)
+2026-09-24T05:29:59.322547853Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: 📝 Logged Opened event for ATMUSDT.BINANCE_20260807T100000123_virtual (target=virtual)
+🗑️ [msg 8750e83e-e4fd-4851-868e-666b5d2ee563] Acked
+📡 [poll #21] Long-polling SQS (virtual)...
+2026-09-24T05:30:03.161095910Z [INFO] EDGETRADER-VIRTUAL.BinanceWebSocketClient: ws-client 0: Connected to wss://stream.binance.com:9443
+2026-09-24T05:30:03.161180689Z [INFO] EDGETRADER-VIRTUAL.DataClient-BINANCE: Subscribed ATMUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL bars
+💰 [virtual] balance lookup ok (iteration=27): 500.0000 USDT
+📡 [virtual] sqs status (iteration=27): ok=True detail=none
+💓 [virtual] heartbeat (iteration=27): is_running=True balance=500.0 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=27)
+⏱️ [virtual] heartbeat iteration=27 took 0.011s, sleeping 15.0s
+📡 [poll #22] Long-polling SQS (virtual)...
+💰 [virtual] balance lookup ok (iteration=28): 500.0000 USDT
+📡 [virtual] sqs status (iteration=28): ok=True detail=none
+💓 [virtual] heartbeat (iteration=28): is_running=True balance=500.0 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=28)
+⏱️ [virtual] heartbeat iteration=28 took 0.011s, sleeping 15.0s
+🛑 [msg f6704f54-57f6-4cab-8393-28e773f61f13] Cancel requested for ATMUSDT.BINANCE_20260807T100000123_virtual
+2026-09-24T05:30:31.998185269Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: <--[EVT] OrderPendingCancel(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry, venue_order_id=BINANCE-1229-001, account_id=BINANCE-001, ts_event=1790227831998044163)
+2026-09-24T05:30:31.998296266Z [INFO] EDGETRADER-VIRTUAL.TradeStrategy: [CMD]--> [Execution] CancelOrder(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry, venue_order_id=BINANCE-1229-001)
+2026-09-24T05:30:31.998317985Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: Cancelling entry order for ATMUSDT.BINANCE_20260807T100000123_virtual
+2026-09-24T05:30:31.999021774Z [INFO] EDGETRADER-VIRTUAL.Portfolio: Updated AccountState(account_id=BINANCE-001, account_type=CASH, base_currency=None, is_reported=False, balances=[AccountBalance(total=10_000.00000000 USDT, locked=0.00000000 USDT, free=10_000.00000000 USDT), AccountBalance(total=1.00000000 BTC, locked=0.00000000 BTC, free=1.00000000 BTC)], margins=[], event_id=0203fc4c-7cc2-45f8-be56-cbf2eb4ecf44)
+2026-09-24T05:30:31.999088112Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: <--[EVT] OrderCanceled(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry, venue_order_id=BINANCE-1229-001, account_id=BINANCE-001, ts_event=1790227429235587571)
+🧹 Removed strategy for trade ATMUSDT.BINANCE_20260807T100000123_virtual
+2026-09-24T05:30:31.999118532Z [WARN] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: 🚫 Order canceled: edge-ATMUSDT.BINANCE_20260807T100000123_virtual-entry
+2026-09-24T05:30:31.999181582Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: Trade ATMUSDT.BINANCE_20260807T100000123_virtual reached terminal state TradeState.CANCELING; stopping
+2026-09-24T05:30:31.999212241Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: 🛑 TradeStrategy stopped for ATMUSDT.BINANCE_20260807T100000123_virtual
+2026-09-24T05:30:31.999259335Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: STOPPED
+2026-09-24T05:30:32.007267556Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20260807T100000123_virtual: 📝 Logged Cancelled event for ATMUSDT.BINANCE_20260807T100000123_virtual (target=virtual)
+🗑️ [msg f6704f54-57f6-4cab-8393-28e773f61f13] Acked
+📡 [poll #23] Long-polling SQS (virtual)...
+💰 [virtual] balance lookup ok (iteration=29): 500.0000 USDT
+📡 [virtual] sqs status (iteration=29): ok=True detail=none
+💓 [virtual] heartbeat (iteration=29): is_running=True balance=500.0 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=29)
+⏱️ [virtual] heartbeat iteration=29 took 0.009s, sleeping 15.0s

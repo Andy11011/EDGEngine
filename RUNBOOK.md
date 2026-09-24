@@ -7,7 +7,7 @@
 - [Reset Docker Images on Reboot](#reset-docker-images-on-reboot)
 - [Query PostgreSQL Database](#query-postgresql-database)
 - [Local Deploy](#local-deploy)
-- [Testing with AWS SQS](#testing-with-aws-sqs)
+- [Testing with AWS SNS](#testing-with-aws-sns)
 
 ---
 
@@ -391,21 +391,55 @@ $env:BINANCE_ED25519_PRIVATE_KEY = Get-Content -Raw C:\path\to\ed25519_private_k
 
 Preferred for Docker runs: put these in `.env.local` (add to `.gitignore`) and use `docker run --rm --env-file .env.local edgetrader`.
 
-## Testing with AWS SQS
+## Testing with AWS SNS
 
-This section covers the commands to send test trade-event messages, verify queue depth, purge the queue, and reset the deduplication state – all useful for integration testing.
+This section covers the commands to send test trade-event messages, verify queue depth, purge the queues, and reset the deduplication state – all useful for integration testing.
 
-**Sending a test Open message:**  
-Use the AWS CLI to send an **Open** event. The consumer expects the new schema with `ticker`, `event_type` (open/cancel), and `occurred_at` as the deduplication key.
+**Architecture note:** We are no longer sending directly to a single SQS queue. Per the deployment diagram, there's a central SNS topic (`trade-events`) that fans out to **two** per-venue SQS queues via subscription filter policies on a `venue` message attribute:
+
+| `venue` attribute value | Routed to queue |
+| --- | --- |
+| `binance-real` | `binance-real-trade-events` |
+| `binance-virtual-mainnet` | `binance-virtual-trade-events` |
+
+Each node process still polls its own SQS queue exactly as before (nothing changes on the consumer side) — only how messages get *into* the right queue changes: publish once to SNS with the correct `venue` attribute, and the filter policy on each queue's subscription routes it to the right place.
+
+**Sending a test Open message:**
+Use the AWS CLI to publish to the SNS topic, with a `venue` message attribute so the filter policy routes it to the right queue. The consumer still expects the same schema — `ticker`, `event_type` (open/cancel), and `occurred_at` as the deduplication key.
 
 ```bash
-aws sqs send-message \
-  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" \
-  --region ap-southeast-1 \
-  --message-body file://open_message.json
+aws sns publish `
+  --topic-arn "arn:aws:sns:ap-southeast-1:298724921728:trade-events" `
+  --region ap-southeast-1 `
+  --message file://open_message.json `
+  --message-attributes file://virtual_message_attrs.json
 ```
 
-Sample `open_message.json`:
+```bash
+aws sns publish `
+  --topic-arn "arn:aws:sns:ap-southeast-1:298724921728:trade-events" `
+  --region ap-southeast-1 `
+  --message file://cancel_message.json `
+  --message-attributes file://virtual_message_attrs.json
+```
+
+```bash
+aws sns publish `
+  --topic-arn "arn:aws:sns:ap-southeast-1:298724921728:trade-events" `
+  --region ap-southeast-1 `
+  --message file://open_message.json `
+  --message-attributes file://real_message_attrs.json
+```
+
+```bash
+aws sns publish `
+  --topic-arn "arn:aws:sns:ap-southeast-1:298724921728:trade-events" `
+  --region ap-southeast-1 `
+  --message file://cancel_message.json `
+  --message-attributes file://real_message_attrs.json
+```
+
+Sample `open_message.json` (unchanged from before):
 
 ```json
 {
@@ -413,7 +447,6 @@ Sample `open_message.json`:
   "event_type": "open",
   "occurred_at": "2026-08-07T10:00:00.123Z",
   "side": "BUY",
-  "size": 45.455,
   "ep": 1.598,
   "sl": 1.587,
   "tp": 1.618
@@ -430,26 +463,37 @@ For a **Cancel** message (no extra parameters):
 }
 ```
 
-**Checking queue depth** – to see how many messages are waiting:
+⚠️ **Get the `venue` attribute value exactly right.** It must match the subscription filter policy string exactly (`binance-real` or `binance-virtual-mainnet`) — a typo or the wrong value means SNS silently drops the message for that subscription (no error, it just never reaches either queue). If a test message seems to vanish, this is the first thing to check.
+
+**Checking queue depth** – to see how many messages are waiting on each per-venue queue:
 
 ```bash
 aws sqs get-queue-attributes \
-  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/binance-real-trade-events" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible \
+  --region ap-southeast-1
+
+aws sqs get-queue-attributes \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/binance-virtual-trade-events" \
   --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible \
   --region ap-southeast-1
 ```
 
-**Pruning the SQS queue (delete all messages):**  
-To completely empty the queue, including in-flight messages, use `purge-queue`. This is irreversible and takes up to 60 seconds.
+**Pruning the SQS queues (delete all messages):**
+To completely empty a queue, including in-flight messages, use `purge-queue`. This is irreversible and takes up to 60 seconds. Run it per queue — purging one does not affect the other.
 
 ```bash
 aws sqs purge-queue \
-  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/trade-events-queue" \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/binance-real-trade-events" \
+  --region ap-southeast-1
+
+aws sqs purge-queue \
+  --queue-url "https://sqs.ap-southeast-1.amazonaws.com/298724921728/binance-virtual-trade-events" \
   --region ap-southeast-1
 ```
 
-**Resetting the deduplication ledger (`claimed_events`):**  
-Even after purging the queue, the consumer will skip messages whose `(ticker, event_type, occurred_at)` keys are already stored in the `claimed_events` table. To allow reprocessing (e.g., after a bug fix or for repeated tests), truncate or conditionally delete from that table:
+**Resetting the deduplication ledger (`claimed_events`):**
+Even after purging the queues, the consumer will skip messages whose `(ticker, event_type, occurred_at)` keys are already stored in the `claimed_events` table. To allow reprocessing (e.g., after a bug fix or for repeated tests), truncate or conditionally delete from that table:
 
 ```bash
 # Truncate the entire table (clears all claimed keys)
@@ -459,10 +503,10 @@ docker exec -it postgres psql -U user -d postgres -c "TRUNCATE TABLE claimed_eve
 docker exec -it postgres psql -U user -d postgres -c "DELETE FROM claimed_events WHERE ticker = 'ATMUSDT.BINANCE';"
 ```
 
-⚠️ **Caution**: Truncating or deleting from `claimed_events` will cause **all** messages still in the queue (or redelivered from DLQ) to be processed again – safe for testing but not for production.
+⚠️ **Caution**: Truncating or deleting from `claimed_events` will cause **all** messages still in either queue (or redelivered from a DLQ) to be processed again – safe for testing but not for production.
 
-**Viewing messages in the AWS Console:**  
-Navigate to the SQS queue in the console, click **“Send and receive messages”**, then **“Poll for messages”** to inspect up to 10 visible messages. Expand a message to see its full body and attributes.
+**Viewing messages in the AWS Console:**
+Messages are still consumed from SQS, so use the SQS console as before — navigate to the relevant queue (`binance-real-trade-events` or `binance-virtual-trade-events`), click **"Send and receive messages"**, then **"Poll for messages"** to inspect up to 10 visible messages. Expand a message to see its full body and attributes. To check the SNS side (e.g. confirm a subscription's filter policy, or see delivery failures), go to the SNS console, open the `trade-events` topic, and check its **Subscriptions** tab.
 
-**Message retry and Dead‑Letter Queue:**  
-If the consumer fails to process a message (e.g., throws an exception), the message is **not deleted** and becomes visible again after the visibility timeout (default 30 seconds). After `maxReceiveCount` failures, it moves to the configured Dead‑Letter Queue (DLQ). You can manually move messages from the DLQ back to the main queue via the console or CLI for re‑testing.
+**Message retry and Dead‑Letter Queue:**
+Unchanged — this happens at the SQS level, per queue, regardless of whether the message arrived via SNS or a direct send. If the consumer fails to process a message (e.g., throws an exception), the message is **not deleted** and becomes visible again after the visibility timeout (default 30 seconds). After `maxReceiveCount` failures, it moves to that queue's configured Dead‑Letter Queue (DLQ). You can manually move messages from the DLQ back to the main queue via the console or CLI for re‑testing.

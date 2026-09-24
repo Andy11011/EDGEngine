@@ -21,6 +21,7 @@ from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.events import (
     OrderAccepted,
     OrderCanceled,
+    OrderDenied,
     OrderFilled,
     OrderRejected,
     OrderSubmitted,
@@ -468,6 +469,31 @@ class TradeStrategy(Strategy):
             # a human/ops process should reconcile the resulting position
             # manually (this SM has no automatic retry logic yet).
             self.sm.force_cancel(reason=f"order_rejected:{event.client_order_id}")
+            self._finalize_and_stop()
+
+    def on_order_denied(self, event: OrderDenied) -> None:
+        """Called when an order is denied by Nautilus's own risk engine
+        before ever reaching the venue (e.g. NOTIONAL_LESS_THAN_MIN_FOR_INSTRUMENT).
+
+        This is distinct from on_order_rejected, which fires for a
+        venue-side rejection — OrderDenied never even leaves the client.
+        Without this handler the strategy was left running forever (never
+        reaching a terminal state, never removed from active_strategies),
+        and no Opened/Cancelled event ever got logged for the trade, which
+        left downstream Cancel messages for that ticker unable to find an
+        active trade and retrying indefinitely. Treat it the same as a
+        rejected entry order: cancel and finalize.
+        """
+        self.log.warning(f"🚫 Order denied: {event.client_order_id} ({event.reason})")
+
+        if self._is_entry_order(event):
+            self.sm.entry_rejected(reason=event.reason)
+            self._finalize_and_stop()
+        else:
+            # A protection or close order got denied mid-flight — same
+            # reasoning as the equivalent branch in on_order_rejected: treat
+            # it as an emergency cancel rather than leaving the trade stuck.
+            self.sm.force_cancel(reason=f"order_denied:{event.client_order_id}")
             self._finalize_and_stop()
 
     def on_order_canceled(self, event: OrderCanceled) -> None:

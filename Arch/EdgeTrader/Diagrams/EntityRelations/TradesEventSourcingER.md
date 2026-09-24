@@ -60,6 +60,8 @@ erDiagram
         boolean is_running "node.trader.is_running, written every ~15s"
         numeric balance_usdt "nullable, latest free-USDT snapshot"
         varchar detail "nullable, e.g. balance lookup failure reason"
+        boolean sqs_ok "nullable, this target's own SQS connectivity, from sqs.get_sqs_status()"
+        varchar sqs_detail "nullable, e.g. SQS receive error reason"
         timestamp updated_at "staleness check: now() - updated_at > 60s => treated as not running"
     }
 ```

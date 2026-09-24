@@ -147,7 +147,12 @@ async def listen_trade_events(
     print("✅ TradingNode RUNNING; processing trade events (target=virtual)", file=sys.stderr)
 
     def make_close_callback(trade_id: str):
-        def callback() -> None:
+        # trade_strategy.py's TradeStrategy._finalize_and_stop() always calls
+        # self._close_callback(self.config.trade_id) — one positional arg —
+        # so this must accept it, even though trade_id is already captured
+        # via closure below. Accepting-but-ignoring keeps the two callsites
+        # in sync without depending on which trade_id happens to match.
+        def callback(_trade_id: str) -> None:
             strategy = active_strategies.pop(trade_id, None)
             if strategy is not None:
                 try:

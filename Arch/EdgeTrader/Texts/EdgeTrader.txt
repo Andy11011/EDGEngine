@@ -1759,3 +1759,34 @@ ____________________________ test_health_structure _____________________________
         assert "postgres" in deps
 >       assert "sqs" in deps
 E       AssertionError: assert 'sqs' in {'postgres': {'status': 'connected', 'detail': None}, 'nautilus_real': {'status': 'running', 'trader_running': True, 'detail': None}, 'nautilus_virtual': {'status': 'running', 'trader_running': True, 'detail': None}}
+
+//********************************//
+
+tests/test_health.py::test_health_ok PASSED                              [ 20%]
+tests/test_health.py::test_health_structure PASSED                       [ 40%]
+tests/test_health.py::test_health_sqs_connected PASSED                   [ 60%]
+tests/test_balances.py::test_virtual_balance_available PASSED            [ 80%]
+tests/test_balances.py::test_mainnet_balance_returns_a_real_number PASSED [100%]
+
+//********************************//
+
+Yes, this confirms the fix worked. Compare to the previous log:
+
+OrderCanceled fires → 🧹 Removed strategy for trade ATMUSDT.BINANCE_20260807T100000123_virtual — the callback ran cleanly this time, no TypeError
+TradeStrategy stopped → STOPPED → 📝 Logged Cancelled event (target=virtual) — the strategy reached its terminal state and got logged, instead of crashing partway through
+The SQS message (f6704f54-...) got Acked right after, and polling (poll #23) resumed normally
+Heartbeats kept flowing the whole time (is_running=True, sqs_ok=True) with no gap or restart
+
+//********************************//
+
+1. The Open was denied — expected, given the account balance.
+
+RiskEngine: SubmitOrder ... DENIED: NOTIONAL_LESS_THAN_MIN_FOR_INSTRUMENT: min_notional=5.00000000 USDT,
+ notional=0.12784000 USDT
+
+
+2. The real bug: TradeStrategy has no on_order_denied handler, so the denial is silently swallowed.
+
+Looking at trade_strategy.py, it overrides on_order_submitted, on_order_accepted, on_order_filled, on_order_rejected, and on_order_canceled — 
+but not on_order_denied. Nautilus treats OrderDenied (a pre-flight risk rejection, like this one) as a distinct event from OrderRejected 
+(a venue-side rejection). Since nothing overrides it, _finalize_and_stop() never runs for a denial, which means:

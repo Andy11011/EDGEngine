@@ -1,0 +1,64 @@
+📡 [poll #25] Long-polling SQS (real)...
+💰 [real] balance lookup ok (iteration=35): 0.9299 USDT
+📡 [real] sqs status (iteration=35): ok=True detail=none
+💓 [real] heartbeat (iteration=35): is_running=True balance=0.92986683 detail=none sqs_ok=True
+✅ [real] heartbeat row written (iteration=35)
+⏱️ [real] heartbeat iteration=35 took 0.007s, sleeping 15.0s
+📡 [poll #26] Long-polling SQS (real)...
+2026-09-24T05:32:38.712748443Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: READY
+2026-09-24T05:32:38.714070692Z [INFO] EDGETRADER-REAL.ExecEngine: Registered OMS.UNSPECIFIED for Strategy ATMUSDT.BINANCE_20260807T100000123_real-000
+2026-09-24T05:32:38.714119599Z [INFO] EDGETRADER-REAL.EDGETRADER-REAL: Registered Strategy ATMUSDT.BINANCE_20260807T100000123_real-000
+2026-09-24T05:32:38.714135262Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: self.config.oms_type=None
+2026-09-24T05:32:38.714136858Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: self.config.external_order_claims=None
+2026-09-24T05:32:38.714138696Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: self.config.manage_gtd_expiry=False
+2026-09-24T05:32:38.714164287Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: Set ClientOrderIdGenerator client_order_id count to 0
+2026-09-24T05:32:38.714167085Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: Set ClientOrderIdGenerator order_list_id count to 0
+2026-09-24T05:32:38.714198607Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: 🚀 TradeStrategy started for ATMUSDT.BINANCE_20260807T100000123_real (instrument=ATMUSDT.BINANCE)
+2026-09-24T05:32:38.714687255Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: [CMD]--> SubscribeBars(bar_type=ATMUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL, client_id=None, venue=BINANCE)
+2026-09-24T05:32:38.716508985Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: <--[EVT] OrderInitialized(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_real-entry, side=BUY, type=LIMIT, quantity=0.08000000, time_in_force=GTC, post_only=False, reduce_only=False, quote_quantity=False, options={'price': '1.59800000', 'display_qty': None, 'expire_time_ns': 0}, emulation_trigger=NO_TRIGGER, trigger_instrument_id=None, contingency_type=NO_CONTINGENCY, order_list_id=None, linked_order_ids=None, parent_order_id=None, exec_algorithm_id=None, exec_algorithm_params=None, exec_spawn_id=None, tags=None)
+2026-09-24T05:32:38.717069632Z [INFO] EDGETRADER-REAL.TradeStrategy: [CMD]--> [Risk] SubmitOrder(order=LimitOrder(BUY 0.08000000 ATMUSDT.BINANCE LIMIT @ 1.59800000 GTC, status=INITIALIZED, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_real-entry, venue_order_id=None, position_id=None, tags=None), position_id=None)
+2026-09-24T05:32:38.717161801Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: 📈 Entry order submitted for ATMUSDT.BINANCE_20260807T100000123_real side=BUY client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_real-entry
+2026-09-24T05:32:38.717229925Z [INFO] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: RUNNING
+🚀 [msg 902a648b-5ee8-4d6a-a424-ad9759ea5d21] Started strategy for trade ATMUSDT.BINANCE_20260807T100000123_real
+2026-09-24T05:32:38.718707818Z [WARN] EDGETRADER-REAL.RiskEngine: SubmitOrder for edge-ATMUSDT.BINANCE_20260807T100000123_real-entry DENIED: NOTIONAL_LESS_THAN_MIN_FOR_INSTRUMENT: min_notional=5.00000000 USDT , notional=0.12784000 USDT
+2026-09-24T05:32:38.730473856Z [WARN] EDGETRADER-REAL.ATMUSDT.BINANCE_20260807T100000123_real: <--[EVT] OrderDenied(instrument_id=ATMUSDT.BINANCE, client_order_id=edge-ATMUSDT.BINANCE_20260807T100000123_real-entry, reason='NOTIONAL_LESS_THAN_MIN_FOR_INSTRUMENT: min_notional=5.00000000 USDT , notional=0.12784000 USDT')
+🗑️ [msg 902a648b-5ee8-4d6a-a424-ad9759ea5d21] Acked
+📡 [poll #27] Long-polling SQS (real)...
+💰 [real] balance lookup ok (iteration=36): 0.9299 USDT
+📡 [real] sqs status (iteration=36): ok=True detail=none
+💓 [real] heartbeat (iteration=36): is_running=True balance=0.92986683 detail=none sqs_ok=True
+✅ [real] heartbeat row written (iteration=36)
+⏱️ [real] heartbeat iteration=36 took 0.007s, sleeping 15.0s
+2026-09-24T05:32:41.039987862Z [INFO] EDGETRADER-REAL.BinanceWebSocketClient: ws-client 0: Connected to wss://stream.binance.com:9443
+2026-09-24T05:32:41.040079336Z [INFO] EDGETRADER-REAL.DataClient-BINANCE: Subscribed ATMUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL bars
+💰 [real] balance lookup ok (iteration=37): 0.9299 USDT
+📡 [real] sqs status (iteration=37): ok=True detail=none
+💓 [real] heartbeat (iteration=37): is_running=True balance=0.92986683 detail=none sqs_ok=True
+✅ [real] heartbeat row written (iteration=37)
+⏱️ [real] heartbeat iteration=37 took 0.008s, sleeping 15.0s
+📡 [poll #28] Long-polling SQS (real)...
+💰 [real] balance lookup ok (iteration=38): 0.9299 USDT
+📡 [real] sqs status (iteration=38): ok=True detail=none
+💓 [real] heartbeat (iteration=38): is_running=True balance=0.92986683 detail=none sqs_ok=True
+✅ [real] heartbeat row written (iteration=38)
+⏱️ [real] heartbeat iteration=38 took 0.004s, sleeping 15.0s
+📡 [poll #29] Long-polling SQS (real)...
+💰 [real] balance lookup ok (iteration=39): 0.9299 USDT
+📡 [real] sqs status (iteration=39): ok=True detail=none
+💓 [real] heartbeat (iteration=39): is_running=True balance=0.92986683 detail=none sqs_ok=True
+✅ [real] heartbeat row written (iteration=39)
+⏱️ [real] heartbeat iteration=39 took 0.004s, sleeping 15.0s
+💰 [real] balance lookup ok (iteration=40): 0.9299 USDT
+📡 [real] sqs status (iteration=40): ok=True detail=none
+💓 [real] heartbeat (iteration=40): is_running=True balance=0.92986683 detail=none sqs_ok=True
+✅ [real] heartbeat row written (iteration=40)
+⏱️ [real] heartbeat iteration=40 took 0.005s, sleeping 15.0s
+📡 [poll #30] Long-polling SQS (real)...
+⚠️ [msg 6c3c8064-e3c5-4fe6-a3eb-f9dedf445624] No active trade; unclaiming
+⚠️ [msg 6c3c8064-e3c5-4fe6-a3eb-f9dedf445624] Not processed; message retained for retry
+📡 [poll #31] Long-polling SQS (real)...
+💰 [real] balance lookup ok (iteration=41): 0.9299 USDT
+📡 [real] sqs status (iteration=41): ok=True detail=none
+💓 [real] heartbeat (iteration=41): is_running=True balance=0.92986683 detail=none sqs_ok=True
+✅ [real] heartbeat row written (iteration=41)
+⏱️ [real] heartbeat iteration=41 took 0.005s, sleeping 15.0s
