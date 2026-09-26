@@ -1,0 +1,50 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.12.13/bin/python3.12
+cachedir: .pytest_cache
+rootdir: /codebuild/output/src1533756065/src/github.com/***/EDGEngine
+collecting ... collected 6 items
+
+tests/test_health.py::test_health_ok PASSED                              [ 16%]
+tests/test_health.py::test_health_structure PASSED                       [ 33%]
+tests/test_health.py::test_health_sqs_connected PASSED                   [ 50%]
+tests/test_balances.py::test_virtual_balance_available PASSED            [ 66%]
+tests/test_balances.py::test_mainnet_balance_returns_a_real_number PASSED [ 83%]
+tests/test_open_and_close_virtual.py::test_open_then_cancel_trade_lifecycle_virtual FAILED [100%]
+
+=================================== FAILURES ===================================
+________________ test_open_then_cancel_trade_lifecycle_virtual _________________
+
+    def test_open_then_cancel_trade_lifecycle_virtual():
+        assert wait_for_healthy(), "Virtual node did not become healthy before starting the trade lifecycle test"
+    
+        occurred_at_open = iso_ms_now()
+        trade_id = expected_trade_id(TEST_TICKER, occurred_at_open, TARGET)
+    
+        # ---- open ----
+        publish_event({
+            "ticker": TEST_TICKER,
+            "event_type": "open",
+            "occurred_at": occurred_at_open,
+            "side": TEST_SIDE,
+            "ep": TEST_EP,
+            "sl": TEST_SL,
+            "tp": TEST_TP,
+        })
+    
+        logs = wait_for_logs([
+            f"Started strategy for trade {trade_id}",
+            f"TradeStrategy started for {trade_id}",
+            f"Entry order accepted, awaiting fill (trade={trade_id})",
+            f"Logged Opened event for {trade_id} (target={TARGET})",
+        ])
+        assert f"Started strategy for trade {trade_id}" in logs, \
+            f"Strategy for {trade_id} never started; logs:\n{logs[-3000:]}"
+    
+        resp = requests.get(HEALTH_URL, timeout=5)
+        assert resp.status_code == 200
+        assert resp.json()["active_trades_count"] >= 1
+    
+        trade = wait_for_trade_state(trade_id, "AWAITING_FILL")
+>       assert trade is not None, f"{trade_id} never reached AWAITING_FILL in /active_trades"
+E       AssertionError: ATMUSDT.BINANCE_20260926T063436148_virtual never reached AWAITING_FILL in /active_trades
+E       assert None is not None

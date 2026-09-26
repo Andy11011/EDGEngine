@@ -2,7 +2,8 @@
 test_open_and_close_virtual.py — end-to-end lifecycle test for the VIRTUAL
 node: publish an Open trade-event via SNS (routed to the virtual node's own
 SQS queue via the 'venue' message attribute), confirm the strategy starts,
-reaches AWAITING_FILL, is visible via /active_trades, then publish a Cancel
+reaches AWAITING_FILL internally, is visible via /active_trades (reported
+as state="Opened" — see note below on why), then publish a Cancel
 and confirm clean teardown (strategy removed, Cancelled event logged, trade
 gone from /active_trades) with no regression of the double-stop bug.
 
@@ -238,8 +239,16 @@ def test_open_then_cancel_trade_lifecycle_virtual():
     assert resp.status_code == 200
     assert resp.json()["active_trades_count"] >= 1
 
-    trade = wait_for_trade_state(trade_id, "AWAITING_FILL")
-    assert trade is not None, f"{trade_id} never reached AWAITING_FILL in /active_trades"
+    # main-api.py's get_active_trades() hardcodes state="Opened" for every
+    # row — it derives active trades purely from trade_events (an Opened
+    # row with no later Closed/Cancelled), and has no visibility into
+    # trade_strategy.py's in-memory state machine (AWAITING_FILL,
+    # IN_POSITION, etc.), which lives only inside the running node process.
+    # So "AWAITING_FILL" is never a value this endpoint can return — the
+    # node reaching AWAITING_FILL internally is instead confirmed above via
+    # the "Entry order accepted, awaiting fill" log line.
+    trade = wait_for_trade_state(trade_id, "Opened")
+    assert trade is not None, f"{trade_id} never appeared as an active (Opened) trade in /active_trades"
     assert trade["instrument"] == TEST_TICKER
     assert trade["side"] == TEST_SIDE
     # Size is computed by the node from trades_config (risk_ratio /

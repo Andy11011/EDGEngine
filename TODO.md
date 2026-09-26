@@ -20,6 +20,7 @@
   - [X] ~~*Correct ER diagram*~~ [2026-09-24]
   - [ ] CI/CD: Test open and close
   - [ ] Check all other TODOs
+  - [ ] CI/CD: Create Testing Infra (test queues and SNS filter)
   - [ ] CI/CD: Sending Multiple Duplicates
   - [ ] CI/CD: Open and Close Multiple Trades
   - [ ] CI/CD: Develop new manually triggered test for full cycle trade
