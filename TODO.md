@@ -18,8 +18,8 @@
   - [X] ~~*CI/CD: Test health*~~ [2026-09-23]
   - [X] ~~*CI/CD: Test balances*~~ [2026-09-23]
   - [X] ~~*Correct ER diagram*~~ [2026-09-24]
-  - [ ] CI/CD: Test open and close
-  - [ ] Check all other TODOs
+  - [X] ~~*CI/CD: Test open and close*~~ [2026-09-26]
+  - [X] ~~*Check all other TODOs*~~ [2026-09-26]
   - [ ] CI/CD: Create Testing Infra (test queues and SNS filter)
   - [ ] CI/CD: Sending Multiple Duplicates
   - [ ] CI/CD: Open and Close Multiple Trades

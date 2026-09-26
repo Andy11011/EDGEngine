@@ -1813,4 +1813,25 @@ How it works:
 5. Never publishes anything itself. It only writes files and prints the computed prices — you review the numbers, then run the aws sns publish command yourself. For --venue binance-real it also prints an explicit warning before you do.
 
 
-market data is real (live prices/bars from Binance's public feed, so the simulation reacts to genuine market movement), but execution is entirely local — Nautilus's simulated exchange fills the order against that live data internally, no order ever gets sent to Binance's actual order-entry API. That's why binance-virtual-mainnet-node only needs the BINANCE_SANDBOX_* HMAC credentials (per the RUNBOOK's credentials table) rather than the Ed25519 keys the real node needs — it's not authenticating for order placement at all, since there's no real order to place.
+market data is real (live prices/bars from Binance's public feed, so the simulation reacts to genuine market movement), but execution is entirely local — Nautilus's simulated exchange fills the order against that live data internally,
+no order ever gets sent to Binance's actual order-entry API. That's why binance-virtual-mainnet-node only needs the BINANCE_SANDBOX_* HMAC credentials (per the RUNBOOK's credentials table) rather than the Ed25519 keys the real node 
+needs — it's not authenticating for order placement at all, since there's no real order to place.
+
+//********************************//
+
+Open:
+
+🚀 [msg ...] Started strategy for trade ATMUSDT... ✓
+🚀 TradeStrategy started for ATMUSDT... ✓
+✅ Entry order accepted, awaiting fill (trade=ATMUSDT...) ✓
+📝 Logged Opened event for ATMUSDT... (target=virtual) ✓
+
+Cancel (fired ~5s later, matching the test's time.sleep(3) plus SNS/SQS round-trip):
+
+🛑 [msg ...] Cancel requested for ATMUSDT... ✓
+Cancelling entry order for ATMUSDT... ✓
+🚫 Order canceled: edge-ATMUSDT...-entry ✓
+Trade ATMUSDT... reached terminal state TradeState.CANCELING; stopping ✓
+🛑 TradeStrategy stopped for ATMUSDT... ✓
+🧹 Removed strategy for trade ATMUSDT... ✓ — confirms the earlier callback-signature fix is holding
+📝 Logged Cancelled event for ATMUSDT... (target=virtual) ✓
