@@ -19,10 +19,12 @@
   - [X] ~~*CI/CD: Test balances*~~ [2026-09-23]
   - [X] ~~*Correct ER diagram*~~ [2026-09-24]
   - [ ] CI/CD: Test open and close
-  - [ ] Correct SM and Flow Diagrams
   - [ ] Check all other TODOs
   - [ ] CI/CD: Sending Multiple Duplicates
   - [ ] CI/CD: Open and Close Multiple Trades
+  - [ ] CI/CD: Develop new manually triggered test for full cycle trade
+  - [ ] Integrate Telegram Lambda
+  - [ ] Integrate Google Sheet Lambda
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
   - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]
@@ -60,6 +62,7 @@
 - [ ] Improve volume for Z-Score
 - [ ] Old outdated sl, ep, tp - price <= sl, price >= tp
 - [ ] Two different orders if price <= ep and price>=ep
+- [ ] Edge-trader: Correct SM and Flow Diagrams
 - [X] ~~*Edge-trader: Fix close error*~~ [2026-08-27]
 - [X] ~~*Edge-trader: Add open and close in CI/CD*~~ [2026-08-27]
 - [X] ~~*Edge-trader: Check open and close locally*~~ [2026-08-26]

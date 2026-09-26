@@ -1790,3 +1790,27 @@ RiskEngine: SubmitOrder ... DENIED: NOTIONAL_LESS_THAN_MIN_FOR_INSTRUMENT: min_n
 Looking at trade_strategy.py, it overrides on_order_submitted, on_order_accepted, on_order_filled, on_order_rejected, and on_order_canceled — 
 but not on_order_denied. Nautilus treats OrderDenied (a pre-flight risk rejection, like this one) as a distinct event from OrderRejected 
 (a venue-side rejection). Since nothing overrides it, _finalize_and_stop() never runs for a denial, which means:
+
+//********************************//
+
+"does the strategy correctly progress Opened → Filled → Protected → Finished/Cancelled, 
+does it submit OCO/stop-limit protection orders correctly, does SL/TP trigger the right transition"
+
+//********************************//
+
+Here's a script that builds the Open message dynamically off the live price instead of hardcoded values:
+
+How it works:
+
+1. Fetches the live bid/ask for your symbol from Binance's public REST API (no auth needed — it's public market data).
+
+2. Computes an entry price that crosses the spread (--cross-spread-pct, default 0.02%) so the LIMIT order is marketable and actually fills promptly, instead of sitting at the current touch price hoping to get hit.
+
+3. Computes SL/TP at a configurable percentage from entry (--risk-pct, default 0.15%) — small enough that normal BTC volatility resolves it in minutes, without you having to guess a price level manually.
+
+4. Writes open_message.json and open_message_attrs.json — the same two files from the SNS-publish pattern we set up in the RUNBOOK, ready to feed straight into aws sns publish --message file://... --message-attributes file://....
+
+5. Never publishes anything itself. It only writes files and prints the computed prices — you review the numbers, then run the aws sns publish command yourself. For --venue binance-real it also prints an explicit warning before you do.
+
+
+market data is real (live prices/bars from Binance's public feed, so the simulation reacts to genuine market movement), but execution is entirely local — Nautilus's simulated exchange fills the order against that live data internally, no order ever gets sent to Binance's actual order-entry API. That's why binance-virtual-mainnet-node only needs the BINANCE_SANDBOX_* HMAC credentials (per the RUNBOOK's credentials table) rather than the Ed25519 keys the real node needs — it's not authenticating for order placement at all, since there's no real order to place.

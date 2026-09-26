@@ -115,10 +115,11 @@ jobs:
           AWS_REGION: ${{ vars.AWS_REGION }}
           SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL }}
           SQS_TRADE_EVENTS_QUEUE_URL_REAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_REAL }}
+          SNS_TRADE_EVENTS_TOPIC_ARN: ${{ vars.SNS_TRADE_EVENTS_TOPIC_ARN }}
         with:
           project-name: edgetrader-integration-tests
           buildspec-override: .github/codebuild/buildspec.yml
-          env-vars-for-codebuild: OWNER_LC,IMAGE_TAG,APP_PORT,DB_NAME,DB_USER,DB_PASSWORD,AWS_REGION,SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL,SQS_TRADE_EVENTS_QUEUE_URL_REAL
+          env-vars-for-codebuild: OWNER_LC,IMAGE_TAG,APP_PORT,DB_NAME,DB_USER,DB_PASSWORD,AWS_REGION,SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL,SQS_TRADE_EVENTS_QUEUE_URL_REAL,SNS_TRADE_EVENTS_TOPIC_ARN
 
   # --------------------------------------------------------------------------
   # Stage 3: Multi-arch images, only on manual workflow_dispatch — unchanged.
