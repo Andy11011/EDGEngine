@@ -1835,3 +1835,23 @@ Trade ATMUSDT... reached terminal state TradeState.CANCELING; stopping ✓
 🛑 TradeStrategy stopped for ATMUSDT... ✓
 🧹 Removed strategy for trade ATMUSDT... ✓ — confirms the earlier callback-signature fix is holding
 📝 Logged Cancelled event for ATMUSDT... (target=virtual) ✓
+
+
+
+
+What I'd actually recommend: extend the same attribute-based split you already have, one level deeper.
+
+You already solved this problem once — venue (binance-real / binance-virtual-mainnet) routes one topic to two queues via subscription filter policies. Do the same thing again with an env attribute (prod / test), so the filter policy on each subscription checks both attributes:
+
+{"venue": ["binance-real"], "env": ["prod"]}   → binance-real-trade-events
+{"venue": ["binance-virtual-mainnet"], "env": ["prod"]}  → binance-virtual-trade-events
+
+{"venue": ["binance-real"], "env": ["test"]}   → binance-real-trade-events-test
+{"venue": ["binance-virtual-mainnet"], "env": ["test"]}  → binance-virtual-trade-events-test
+
+That's 4 queues total instead of 2 — more than you have now, yes, but I'd push back gently on "overhead" as
+the framing. SQS queues cost nothing to have sitting idle (you pay per request, not per queue), so the overhead
+here is purely one line in Terraform/CloudFormation/console setup, not runtime cost or operational burden. 
+The thing that actually creates overhead is a dedicated topic per environment (doubling your SNS infrastructure too) 
+— I'd avoid that unless you have a specific reason to want blast-radius isolation at the topic level, since the 
+queue-level split already gets you the isolation that matters.

@@ -20,12 +20,12 @@
   - [X] ~~*Correct ER diagram*~~ [2026-09-24]
   - [X] ~~*CI/CD: Test open and close*~~ [2026-09-26]
   - [X] ~~*Check all other TODOs*~~ [2026-09-26]
-  - [ ] CI/CD: Create Testing Infra (test queues and SNS filter)
-  - [ ] CI/CD: Sending Multiple Duplicates
-  - [ ] CI/CD: Open and Close Multiple Trades
+  - [X] ~~*CI/CD: Create Testing Infra (test queues and SNS filter)*~~ [2026-09-27]
   - [ ] CI/CD: Develop new manually triggered test for full cycle trade
   - [ ] Integrate Telegram Lambda
   - [ ] Integrate Google Sheet Lambda
+  - [ ] CI/CD: Sending Multiple Duplicates
+  - [ ] CI/CD: Open and Close Multiple Trades
 - [ ] Edge-trader: Add position sizing to the backend
   - [X] ~~*Update ER diagram*~~ [2026-08-28]
   - [X] ~~*Remove size from SQS processing*~~ [2026-08-28]
