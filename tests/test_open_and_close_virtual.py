@@ -1,7 +1,8 @@
 """
 test_open_and_close_virtual.py — end-to-end lifecycle test for the VIRTUAL
 node: publish an Open trade-event via SNS (routed to the virtual node's own
-SQS queue via the 'venue' message attribute), confirm the strategy starts,
+TEST SQS queue via the 'venue' + 'env' message attributes — see
+edgetrader-aws-infra-v3.yaml), confirm the strategy starts,
 reaches AWAITING_FILL internally, is visible via /active_trades (reported
 as state="Opened" — see note below on why), then publish a Cancel
 and confirm clean teardown (strategy removed, Cancelled event logged, trade
@@ -12,8 +13,9 @@ WHAT THIS TEST CHECKS, END TO END:
      running, virtual node's own SQS connectivity reported ok) before doing
      anything else.
   2. Publishing an Open message via SNS with venue=binance-virtual-mainnet
-     reaches the virtual node (proves the SNS topic's subscription filter
-     policy is correctly routing to the virtual queue).
+     and env=test reaches the virtual node's TEST queue (proves the SNS
+     topic's subscription filter policy is correctly routing to it, and
+     not to the prod queue).
   3. The node builds the expected trade_id (ticker + stripped timestamp +
      '_virtual' target suffix), starts a TradeStrategy for it, and the
      entry order is accepted (awaiting fill).
@@ -61,6 +63,12 @@ TOPIC_ARN = os.environ["SNS_TRADE_EVENTS_TOPIC_ARN"]
 
 TARGET = "virtual"
 VENUE_ATTR_VALUE = "binance-virtual-mainnet"  # must match the SNS subscription filter policy exactly
+# NOTE: as of the prod/test queue split in edgetrader-aws-infra-v3.yaml,
+# every subscription's FilterPolicy requires BOTH venue and env to match —
+# a message with only venue set matches nothing and is silently dropped
+# (no error, no delivery). CI must always publish with env=test so this
+# routes to the *-test queues rather than the prod ones (or nowhere).
+ENV_ATTR_VALUE = "test"
 CONTAINER_NAME = "binance-virtual-mainnet-node"
 
 TEST_TICKER = "ATMUSDT.BINANCE"
@@ -193,17 +201,20 @@ def expected_trade_id(ticker, occurred_at, target):
 
 
 def publish_event(body):
-    """Publish to the SNS topic with the venue attribute set to this
-    target's value, so the topic's subscription filter policy routes it
-    to the virtual node's SQS queue. See RUNBOOK.md's "Testing with AWS
-    SNS" section — this is the boto3 equivalent of the aws sns publish
-    CLI examples there."""
+    """Publish to the SNS topic with the venue AND env attributes set, so
+    the topic's subscription filter policy routes it to the virtual node's
+    TEST queue (binance-virtual-trade-events-test), not the prod one. See
+    RUNBOOK.md's "Testing with AWS SNS" section and
+    edgetrader-aws-infra-v3.yaml's FilterPolicy definitions — both venue
+    and env must be present or the message matches no subscription and is
+    silently never delivered anywhere."""
     sns = boto3.client("sns", region_name=AWS_REGION)
     resp = sns.publish(
         TopicArn=TOPIC_ARN,
         Message=json.dumps(body),
         MessageAttributes={
-            "venue": {"DataType": "String", "StringValue": VENUE_ATTR_VALUE}
+            "venue": {"DataType": "String", "StringValue": VENUE_ATTR_VALUE},
+            "env": {"DataType": "String", "StringValue": ENV_ATTR_VALUE},
         },
     )
     return resp["MessageId"]
