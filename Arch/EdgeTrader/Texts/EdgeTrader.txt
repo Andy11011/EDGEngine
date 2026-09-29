@@ -1855,3 +1855,156 @@ here is purely one line in Terraform/CloudFormation/console setup, not runtime c
 The thing that actually creates overhead is a dedicated topic per environment (doubling your SNS infrastructure too) 
 — I'd avoid that unless you have a specific reason to want blast-radius isolation at the topic level, since the 
 queue-level split already gets you the isolation that matters.
+
+//********************************//
+
+API Gateway → VPC Link. The link is an ENI-based tunnel into your VPC's subnets. 
+It cannot point straight at an EC2 instance. For an HTTP API it must target an ALB, 
+an NLB, or a Cloud Map service. For a REST API it must target an NLB.
+
+
+Load balancer (internal) → EC2:port → edge-point. This needs an internal ALB or NLB with the instance as a target,
+ plus a security group rule allowing that port from the load balancer or VPC Link only.
+
+
+1) The API, an integration, a route and a stage
+
+2) The VPC Link, with subnet IDs and its own security group
+
+3) An internal load balancer, target group and listener 
+(or a Cloud Map service, if you want to skip the load balancer cost)
+
+4) -p 8000:8000 (or whatever port edge-point listens on) on the container
+
+5) An ingress rule on EdgeTraderSecurityGroup for that port, scoped to the VPC Link or load balancer
+
+6) A real VPC. VpcId: !Ref AWS::NoValue currently falls back to the default VPC, but the VPC Link 
+and load balancer need explicit VPC and subnet IDs, so you'd want those as parameters or a small VPC resource.
+
+I'd suggest an HTTP API (cheaper and simpler than REST) with a VPC Link to an internal ALB. 
+That also lets you do path routing and health checks on edge-point. If you'd rather avoid the 
+ALB's fixed cost, Cloud Map is possible with a single instance, but it's more fiddly.
+
+The VPC Link only gives API Gateway a network path into the VPC. It doesn't tell 
+API Gateway where inside the VPC to send the request. The integration has to name a target,
+ and AWS only accepts a few kinds:
+
+An ALB listener
+An NLB listener
+A Cloud Map service (HTTP APIs only)
+
+
+Load balancer: a real proxy. API Gateway sends the request to the listener, 
+and the balancer forwards it to a healthy registered instance on the port you configured.
+Cloud Map: a directory, not a proxy. API Gateway asks Cloud Map which 
+are registered for the service, gets back IP and port, and connects directly.
+You have to register the instance yourself, and Cloud Map won't health-check an 
+EC2 instance for you the way a load balancer would.
+
+//********************************//
+
+HTTP API and REST API are two separate API Gateway products, with different features, 
+different prices and different resource types in CloudFormation (AWS::ApiGatewayV2::* 
+for HTTP, AWS::ApiGateway::* for REST). You choose one when you create the API, and you can't switch later.
+
+Neither is limited to GET. Both support GET, POST, PUT, DELETE, PATCH and the rest. The name "HTTP API" just means the newer, leaner product.
+
+For a small API with low load, HTTP API is the better fit. You'd only need REST API for things like API keys with usage plans or WAF directly on the API.
+
+//********************************//
+
+
+Create an HTTP-type Cloud Map namespace and a service.
+Register your EC2 instance in that service with its private IP and the edge-point port. CloudFormation can do this with AWS::ServiceDiscovery::Instance.
+Create the HTTP API with a VPC Link (in your subnets, with a security group), and an integration pointing at the Cloud Map service.
+Open the edge-point port on the instance's security group, allowing only the VPC Link's security group.
+
+//********************************//
+
+Cloud Map: an HTTP namespace (edgetrader), a service (edge-point), 
+and an instance registration using the EC2 private IP and the port.
+
+HTTP API: an API with a VPC Link, an HTTP_PROXY integration pointing at the Cloud Map service,
+a $default route (all paths and methods go to edge-point), and an auto-deployed stage.
+
+Security groups: a new VPC Link security group whose only egress is the edge-point port to the instance.
+ The instance security group now allows that port from the VPC Link group only. SSH is unchanged.
+
+Host changes: edge-point now publishes its port with -p, and the port is opened in firewalld.
+
+Output: EdgeApiUrl gives the public HTTPS URL.
+
+//********************************//
+
+VpcId, InstanceSubnetId and VpcLinkSubnetIds are new. The VPC Link needs real subnet IDs, 
+and the instance now goes into a specific subnet instead of the implicit default. 
+The instance subnet needs a public IP or a NAT so it can pull from ghcr.io. 
+Use two subnets in different AZs for the VPC Link.
+
+EdgePointPort defaults to 8000, which is a guess. Change it to the real port. 
+The template publishes the same port on the host as inside the container (-p 8000:8000).
+If the container listens on a different internal port, the -p mapping needs adjusting.
+
+
+//********************************//
+
+The API is open to the internet. The default route has no authorizer, 
+so anyone who finds the URL can call edge-point. For a trading backend,
+add authentication either in edge-point itself or as a JWT or IAM authorizer on the route.
+
+
+//********************************//
+
+ECR doesn't remove the need for outbound internet. The host has to reach Binance's API,
+which is outside AWS, so it needs a public IP or a NAT regardless. The new parameters
+aren't extra work in practice, because you can pass your default VPC ID and its default 
+subnet IDs. If you'd rather not supply any IDs, I can instead create a small VPC with public 
+subnets inside the template.
+
+//********************************//
+
+Yes, the default VPC has internet access. It comes with an internet gateway and public subnets
+that hand out public IPs automatically, so the host can reach Binance and ghcr.io (or ECR) there.
+You don't need a different VPC, and I made this sound more complicated than it is.
+
+//********************************//
+
+Now: the VPC Link is the reason it changed. It requires explicit subnet IDs, and its security
+ group must be created in a specific VPC. CloudFormation has no built-in way to look up 
+ "the default VPC", so it has to be told.
+
+
+You just paste in the IDs of the default VPC and its subnets. To find them:
+
+//********************************//
+
+A middle path is keeping cloud-init but managing the containers with systemd units, 
+plus a small script or CloudWatch alarm that restarts a container failing its health
+check. It closes the health check gap without a rewrite, but the secrets and
+update issues remain.
+
+//********************************//
+
+ECR repositories for the three images, with the instance role allowed to pull from them (no GitHub token on the host).
+A small deploy script on the host that takes a container name, pulls the image, and recreates that one container. 
+It re-reads the secrets from Secrets Manager each time, so a secret rotation gets picked up on the next deploy.
+Version tags like the git commit SHA instead of :latest, so each deploy names an exact image and rollback means 
+redeploying the previous tag.
+
+//********************************//
+
+
+Option A: ECR push → EventBridge → SSM Run Command. Every image push to ECR fires an event, 
+and EventBridge tells the instance to run the deploy script. Fully event-driven and fully 
+defined in the template. Downside: it updates on every push, including the real trading node,
+unless you filter by repository or tag.
+
+
+Option B: CI-triggered deploy. Your build pipeline pushes to ECR and then calls SSM Run Command itself
+(using an OIDC role, no stored AWS keys). Nothing is watching ECR. You decide per service, and a deploy 
+can wait for a manual approval step. This is the one I'd pick for binance-real-node. It needs the least
+AWS infrastructure (no EventBridge rule).
+
+Option C: a poller on the host. A systemd timer checks ECR every few minutes and updates when it finds a new digest.
+It's the closest equivalent to Watchtower, and it removes the Docker socket exposure, but it's still polling and
+less controlled than A or B.

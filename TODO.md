@@ -22,8 +22,9 @@
   - [X] ~~*Check all other TODOs*~~ [2026-09-26]
   - [X] ~~*CI/CD: Create Testing Infra (test queues and SNS filter)*~~ [2026-09-27]
   - [ ] Deploy an EdgeTrader backend
-    - [ ] Explain how Gateway API work
-    - [ ] Watchtower - find and alternative
+    - [X] ~~*Explain how Gateway API work*~~ [2026-09-29]
+    - [X] ~~*Watchtower - find and alternative*~~ [2026-09-29]
+    - [X] ~~*Check how containers will be provisioned (ECS)*~~ [2026-09-29]
   - [ ] Integrate Telegram Lambda
   - [ ] Integrate Google Sheet Lambda
   - [ ] CI/CD: Develop new manually triggered test for full cycle trade
