@@ -2008,3 +2008,24 @@ AWS infrastructure (no EventBridge rule).
 Option C: a poller on the host. A systemd timer checks ECR every few minutes and updates when it finds a new digest.
 It's the closest equivalent to Watchtower, and it removes the Docker socket exposure, but it's still polling and
 less controlled than A or B.
+
+//********************************//
+
+1. An SSM document, defined in the template. It's a fixed script that takes the three image tags as parameters, 
+logs into ECR, and pulls all three images first. If a tag is missing, it fails before touching anything running.
+It then recreates the containers one at a time. After each start it checks the container is running and hasn't 
+restarted, and if not, it starts the previous image again and fails the deploy.
+
+2. A new role, github-actions-deploy. GitHub assumes it via OIDC, on main only. It can run only that one document, 
+only on instances tagged Name=EdgeTrader-Server. It can't run arbitrary shell, and the tag parameters are 
+pattern-validated so they can't inject commands.
+
+3. A deploy job in the workflow that sends the command with the commit SHA, then polls until it succeeds or fails.
+
+//********************************//
+
+1. Deploy new ECR
+2. Run new GitHub pipeline, check the ECR images
+3. Delete infra stack, deploy new EdgeTrader stack
+4. If successfull rerun the GitHub pipeline
+5. If successfull push Deploy button
