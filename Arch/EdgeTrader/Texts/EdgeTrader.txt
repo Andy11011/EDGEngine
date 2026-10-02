@@ -2025,7 +2025,52 @@ pattern-validated so they can't inject commands.
 //********************************//
 
 1. Deploy new ECR + 
-2. Run new GitHub pipeline, check the ECR images
-3. Delete infra stack, deploy new EdgeTrader stack
+2. Run new GitHub pipeline, check the ECR images +
+3. Delete infra stack, deploy new EdgeTrader stack +
 4. If successfull rerun the GitHub pipeline
 5. If successfull push Deploy button
+
+//********************************//
+
+[ec2-user@ip-10-0-1-54 ~]$ docker ps
+CONTAINER ID   IMAGE                                                                                              COMMAND                  CREATED         STATUS         PORTS                                       NAMES
+95776ec9d6a0   298724921728.dkr.ecr.ap-southeast-1.amazonaws.com/edgetrader/edge-point:latest                     "python edge-point.py"   2 minutes ago   Up 2 minutes   0.0.0.0:8000->8000/tcp, :::8000->8000/tcp   edge-point
+235fb415e66e   298724921728.dkr.ecr.ap-southeast-1.amazonaws.com/edgetrader/binance-real-node:latest              "python binance_real…"   2 minutes ago   Up 2 minutes                                               binance-real-node
+1ac0966af70a   298724921728.dkr.ecr.ap-southeast-1.amazonaws.com/edgetrader/binance-virtual-mainnet-node:latest   "python binance_virt…"   2 minutes ago   Up 2 minutes                                               binance-virtual-mainnet-node
+ae7a239a4112   postgres:15-alpine                                                                                 "docker-entrypoint.s…"   3 minutes ago   Up 3 minutes   127.0.0.1:5432->5432/tcp                    postgres
+
+//********************************//
+
+https://q9i57gyua5.execute-api.ap-southeast-1.amazonaws.com/health
+
+
+{
+  "status": "ok",
+  "active_trades_count": 0,
+  "dependencies": {
+    "postgres": {
+      "status": "connected",
+      "detail": null
+    },
+    "nautilus_real": {
+      "status": "running",
+      "trader_running": true,
+      "detail": null
+    },
+    "nautilus_virtual": {
+      "status": "running",
+      "trader_running": true,
+      "detail": null
+    },
+    "sqs_real": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-10-02T06:18:00.177956"
+    },
+    "sqs_virtual": {
+      "status": "connected",
+      "detail": null,
+      "updated_at": "2026-10-02T06:17:58.141975"
+    }
+  }
+}
