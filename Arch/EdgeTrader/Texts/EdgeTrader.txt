@@ -2027,7 +2027,7 @@ pattern-validated so they can't inject commands.
 1. Deploy new ECR + 
 2. Run new GitHub pipeline, check the ECR images +
 3. Delete infra stack, deploy new EdgeTrader stack +
-4. If successfull rerun the GitHub pipeline
+4. If successfull rerun the GitHub pipeline +
 5. If successfull push Deploy button
 
 //********************************//
