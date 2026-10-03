@@ -2074,3 +2074,9 @@ https://q9i57gyua5.execute-api.ap-southeast-1.amazonaws.com/health
     }
   }
 }
+
+//********************************//
+
+Error: Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity
+
+Found it. In edgetrader-aws-v4.yaml, line 706, the deploy role's trust policy has a placeholder that was never filled in:

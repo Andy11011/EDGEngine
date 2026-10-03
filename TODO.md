@@ -21,7 +21,7 @@
   - [X] ~~*CI/CD: Test open and close*~~ [2026-09-26]
   - [X] ~~*Check all other TODOs*~~ [2026-09-26]
   - [X] ~~*CI/CD: Create Testing Infra (test queues and SNS filter)*~~ [2026-09-27]
-  - [ ] Deploy an EdgeTrader backend
+  - [X] ~~*Deploy an EdgeTrader backend*~~ [2026-10-03]
     - [X] ~~*Explain how Gateway API work*~~ [2026-09-29]
     - [X] ~~*Watchtower - find and alternative*~~ [2026-09-29]
     - [X] ~~*Check how containers will be provisioned (ECS)*~~ [2026-09-29]
