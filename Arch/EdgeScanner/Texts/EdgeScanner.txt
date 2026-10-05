@@ -1,0 +1,75 @@
+1. Webhooky gives each user a personal endpoint URL, hosted on the developer's servers. 
+Each user receives their own secure endpoint URL.
+
+2. Your service (Stripe, Shopify, n8n, your own code, etc.) 
+sends the webhook or HTTP request to that URL.
+
+
+3. Webhooky's cloud backend receives it and transforms every webhook,
+ REST API call, or HTTP request into an instant push notification.
+
+4. The backend sends the notification through Apple's push service (APNs) to your device, 
+since it's an iOS app. Android apps like this one would use FCM.
+
+//********************************//
+
+
+Backend (the cloud part):
+
+ - API Gateway (or a Lambda Function URL) gives each user a public URL like 
+https://api.yourdomain.com/hook/{userToken}.
+
+ - Lambda receives the request, looks up the user, optionally reshapes the 
+payload into a title and body, and sends the push.
+
+ - DynamoDB maps each userToken to that user's device token(s).
+
+ - SNS Mobile Push delivers to APNs for iOS and FCM for Android. Alternatively, 
+skip SNS and call Firebase Cloud Messaging directly, which can reach both 
+platforms and is often simpler.
+
+- You can define all of this with AWS SAM or CDK. Searching for "API Gateway Lambda
+SNS mobile push" will give you starter templates for the pieces, \
+and you wire them together.
+
+
+Client on the device
+
+You still need a real app, because only an app registered with Apple or
+ Google can receive pushes. It can be very thin:
+
+
+1. Ask the user for notification permission.
+2. Get the device token from APNs or FCM.
+3. Send that token to your backend, which creates the user's personal endpoint URL.
+4. Show the URL so the user can copy it into Stripe, n8n, and so on.
+5. Optionally show a history list of received events.
+
+
+You can write it in Swift for iOS, Kotlin for Android, or Flutter or React Native for both.
+For iOS you need an Apple Developer account (about $99/year) to get APNs credentials,
+and a physical device to test pushes properly.
+
+//********************************//
+
+If it's just you (or one team) building both backends, start with A. It's simpler. If they'll be deployed separately or owned by different people, use B.
+
+Option A: one API, two routes
+
+You create one API. Inside it you define two routes:
+
+API "my-api"
+ ├─ /edge-trader/*   → edge-trader backend
+ └─ /edge-scanner/*  → edge-scanner backend
+
+
+What you need
+
+One VPC Link. It's a connection from API Gateway into your VPC (subnets plus security group). Both backends can share it, so you don't need one per backend.
+One Cloud Map namespace (for example internal.local), created in the same Region.
+One Cloud Map service per backend, for example edge-trader and edge-scanner. This is probably what you mean by "2 records".
+Instances registered in each service, each with the backend's IP address and port. The IP and port attributes are what API Gateway resolves.
+Two integrations in your API, each of type HTTP proxy with the private connection set to your VPC Link, and the integration URI set to the Cloud Map service ARN (not a URL).
+
+/edge-trader/*   → integration → VPC Link → Cloud Map "edge-trader"  → instance IPs
+/edge-scanner/*  → integration → VPC Link → Cloud Map "edge-scanner" → instance IPs
