@@ -1,7 +1,7 @@
 """Live RSI crossover signal detector for Binance using NautilusTrader.
 
 This module loads Binance API credentials from AWS Secrets Manager
-and runs a live strategy that monitors RSI and writes to Redis when
+and runs a live strategy that monitors RSI and logs a signal when
 overbought (RSI > OB) or oversold (RSI < OS) crossovers occur.
 Historical bars (configurable lookback, e.g., 3000 15min candles) are also
 processed for crossover detection.
@@ -13,7 +13,6 @@ import os
 import sys
 import json
 import re
-import redis
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -122,31 +121,6 @@ class RSISignalStrategy(Strategy):
         self._historical_bar_count = 0   # for debug logging
 
     def on_start(self) -> None:
-        # Redis connection
-        redis_host = os.getenv("REDIS_HOST", "localhost")
-        redis_port = int(os.getenv("REDIS_PORT", 6379))
-        self.log.info(
-            f"Connecting to Redis at {redis_host}:{redis_port} ...",
-            color=LogColor.BLUE,
-        )
-        self.redis_client = redis.Redis(
-            host=redis_host,
-            port=redis_port,
-            decode_responses=True,
-        )
-        try:
-            pong = self.redis_client.ping()
-            if pong:
-                self.log.info(
-                    f"✅ Redis connection OK ({redis_host}:{redis_port})",
-                    color=LogColor.GREEN,
-                )
-            else:
-                self.log.warning(f"⚠️ Redis ping unexpected: {pong}", color=LogColor.YELLOW)
-        except Exception as e:
-            self.log.error(f"❌ Redis connection FAILED ({redis_host}:{redis_port}): {e}")
-
-        
         # Register RSI to automatically receive bars
         self.register_indicator_for_bars(self.config.bar_type, self.rsi)
 
@@ -187,19 +161,9 @@ class RSISignalStrategy(Strategy):
             color=LogColor.GREEN,
         )
 
-    def _write_signal_to_redis(self, bar: Bar, signal_type: str, rsi_value: float) -> None:
-        """Write crossover signal to Redis stream 'signals:{symbol}'."""
-        # Compute millisecond timestamp (rounded)
-        ts_ns = bar.ts_event
-        ts_ms = round(ts_ns / 1_000_000)
-        
-        # Log the conversion for debugging
-        self.log.info(
-            f"📝 Preparing signal: type={signal_type}, rsi={rsi_value:.3f}, "
-            f"close={bar.close}, ts_ns={ts_ns}, ts_ms={ts_ms}",
-            color=LogColor.BLUE
-        )
-        
+    def _log_signal(self, bar: Bar, signal_type: str, rsi_value: float) -> None:
+        """Log a crossover signal."""
+        ts_ms = round(bar.ts_event / 1_000_000)
         payload = {
             "symbol": str(self.config.instrument_id),
             "type": signal_type,
@@ -207,18 +171,10 @@ class RSISignalStrategy(Strategy):
             "close": float(bar.close),
             "timestamp": ts_ms,
         }
-        try:
-            self.redis_client.xadd(
-                f"signals:{self.config.instrument_id.symbol}",
-                {"data": json.dumps(payload)},
-                maxlen=1000,
-            )
-            self.log.info(f"✅ Signal written to Redis with timestamp {ts_ms} ms", color=LogColor.GREEN)
-        except Exception as e:
-            self.log.error(f"❌ Redis write failed: {e}")
+        self.log.info(f"📝 Signal: {json.dumps(payload)}", color=LogColor.GREEN)
 
     def _check_crossovers(self, bar: Bar, rsi_val: float) -> None:
-        """Detect OB/OS crossovers and write signals."""
+        """Detect OB/OS crossovers and log signals."""
         if self._prev_rsi is None:
             return
 
@@ -228,7 +184,7 @@ class RSISignalStrategy(Strategy):
                 f"🚨 OVERBOUGHT CROSS (RSI {self._prev_rsi:.1f} -> {rsi_val:.1f} > {self.config.overbought_threshold}) 🚨",
                 color=LogColor.MAGENTA,
             )
-            self._write_signal_to_redis(bar, "OB_CROSS", rsi_val)
+            self._log_signal(bar, "OB_CROSS", rsi_val)
 
         # Oversold crossover (crosses below OS threshold)
         if self._prev_rsi >= self.config.oversold_threshold and rsi_val < self.config.oversold_threshold:
@@ -236,7 +192,7 @@ class RSISignalStrategy(Strategy):
                 f"🚨 OVERSOLD CROSS (RSI {self._prev_rsi:.1f} -> {rsi_val:.1f} < {self.config.oversold_threshold}) 🚨",
                 color=LogColor.CYAN,
             )
-            self._write_signal_to_redis(bar, "OS_CROSS", rsi_val)
+            self._log_signal(bar, "OS_CROSS", rsi_val)
 
     def on_historical_data(self, data: Bar) -> None:
         # The framework automatically updates self.rsi because it's registered.

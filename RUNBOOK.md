@@ -277,6 +277,12 @@ For api server:
 docker build -f docker/Dockerfile.api -t edge-point:latest .
 ```
 
+For edge scanner:
+
+```powershell
+docker build -f docker/Dockerfile.scanner -t edge-scanner:latest .
+```
+
 Run from the directory containing `EdgeTrader/`, since `COPY EdgeTrader/...` paths are relative to the build context.
 
 ### Run
@@ -297,6 +303,12 @@ For api server:
 
 ```powershell
 docker run --rm --env-file .env.local -p 8000:8000 edge-point:latest
+```
+
+For edge-scanner:
+
+```powershell
+docker run --rm --env-file .env.local edge-scanner:latest
 ```
 
 `--env-file` is required — host-shell env vars (`export`/`$env:`) are **not** automatically passed into the container.

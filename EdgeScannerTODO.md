@@ -3,8 +3,12 @@
 ## Top Priority
 
 - [X] ~~*Develop a deployment diagram*~~ [2026-10-05]
-- [ ] implement travis-scanner
 - [ ] implement edge-scanner
+  - [ ] Remove Redis Connection
+  - [ ] Credentials from env only - no secret manager connection
+  - [ ] Add SQS connection
+  - [ ] Create a new stack with SQS
+- [ ] implement travis-scanner
 - [ ] implement scanner-point
 - [ ] Think over shared infrastructure
 - [ ] Deploy on AWS

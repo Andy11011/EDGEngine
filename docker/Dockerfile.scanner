@@ -17,5 +17,5 @@ RUN pip install --no-cache-dir "${NAUTILUS_WHEEL_URL}"
 COPY docker/requirements-scanner.txt ./
 RUN pip install --no-cache-dir -r requirements-scanner.txt
 
-COPY EDGEScanner.py ./
+COPY EdgeScanner/EDGEScanner.py ./
 CMD ["python", "EDGEScanner.py"]
