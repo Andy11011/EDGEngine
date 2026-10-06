@@ -1,6 +1,6 @@
 """Live RSI crossover signal detector for Binance using NautilusTrader.
 
-This module loads Binance API credentials from AWS Secrets Manager
+This module loads Binance API credentials from environment variables
 and runs a live strategy that monitors RSI and logs a signal when
 overbought (RSI > OB) or oversold (RSI < OS) crossovers occur.
 Historical bars (configurable lookback, e.g., 3000 15min candles) are also
@@ -38,44 +38,22 @@ from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.indicators import RelativeStrengthIndex
 
 # -----------------------------------------------------------------------------
-# AWS Secrets Manager credential loader
+# Environment credential loader
 # -----------------------------------------------------------------------------
-try:
-    import boto3
-    from botocore.exceptions import BotoCoreError, ClientError
-except ImportError:
-    print("❌ boto3 not installed. Run: pip install boto3", file=sys.stderr)
-    sys.exit(1)
-
-
-def load_credentials_from_aws(
-    region: str = "ap-southeast-1",
-    sandbox: bool = False,
-) -> tuple[str, str]:
-    """Load Binance API key and secret from AWS Secrets Manager."""
-    key_secret_name = "binance-sandbox-api-key" if sandbox else "binance-api-key"
-    secret_secret_name = "binance-sandbox-api-secret" if sandbox else "binance-api-secret"
+def load_credentials_from_env(sandbox: bool = False) -> tuple[str, str]:
+    """Load Binance API key and secret from environment variables."""
+    key_var = "BINANCE_SANDBOX_API_KEY" if sandbox else "BINANCE_API_KEY"
+    secret_var = "BINANCE_SANDBOX_API_SECRET" if sandbox else "BINANCE_API_SECRET"
 
     if sandbox:
-        print("🏖️ Using sandbox credentials from AWS...", file=sys.stderr)
+        print("🏖️ Using sandbox credentials from environment...", file=sys.stderr)
 
-    session = boto3.session.Session()
-    client = session.client("secretsmanager", region_name=region)
+    api_key = os.getenv(key_var, "").strip()
+    api_secret = os.getenv(secret_var, "").strip()
 
-    def get_secret(name: str) -> str:
-        try:
-            response = client.get_secret_value(SecretId=name)
-            if "SecretString" not in response:
-                raise ValueError(f"Secret {name} has no string value")
-            return response["SecretString"]
-        except (BotoCoreError, ClientError) as e:
-            raise RuntimeError(f"Failed to fetch AWS secret {name}: {e}")
-
-    api_key = get_secret(key_secret_name)
-    api_secret = get_secret(secret_secret_name)
-
-    if not api_key or not api_secret:
-        raise RuntimeError("AWS secrets returned empty values")
+    missing = [name for name, val in ((key_var, api_key), (secret_var, api_secret)) if not val]
+    if missing:
+        raise RuntimeError(f"Missing required environment variable(s): {', '.join(missing)}")
     return api_key, api_secret
 
 
@@ -328,10 +306,10 @@ def main():
     historical_bars = int(os.getenv("HISTORICAL_BARS", "3000"))
 
     try:
-        api_key, api_secret = load_credentials_from_aws(region=aws_region, sandbox=sandbox)
-        print("✅ Credentials loaded from AWS Secrets Manager", file=sys.stderr)
+        api_key, api_secret = load_credentials_from_env(sandbox=sandbox)
+        print("✅ Credentials loaded from environment", file=sys.stderr)
     except Exception as e:
-        print(f"❌ Failed to load credentials from AWS: {e}", file=sys.stderr)
+        print(f"❌ Failed to load credentials: {e}", file=sys.stderr)
         sys.exit(1)
 
     account_type = BinanceAccountType.SPOT

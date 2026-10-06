@@ -4,8 +4,12 @@
 
 - [X] ~~*Develop a deployment diagram*~~ [2026-10-05]
 - [ ] implement edge-scanner
-  - [ ] Remove Redis Connection
-  - [ ] Credentials from env only - no secret manager connection
+  - [X] ~~*Remove Redis Connection*~~ [2026-10-06]
+  - [X] ~~*Credentials from env only - no secret manager connection*~~ [2026-10-06]
+  - [X] ~~*1 day instead of 30 days ??? (MLMI needs warm up)*~~ [2026-10-06]
+  - [ ] Multiple pairs
+  - [ ] Pairs from Postgres db
+  - [ ] MLMI instead of simple RSI
   - [ ] Add SQS connection
   - [ ] Create a new stack with SQS
 - [ ] implement travis-scanner
