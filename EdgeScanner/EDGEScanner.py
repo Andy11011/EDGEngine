@@ -1,7 +1,7 @@
 """Live RSI crossover signal detector for Binance using NautilusTrader.
 
 This module loads Binance API credentials from environment variables
-and runs a live strategy that monitors RSI and logs a signal when
+and runs one live strategy per symbol that monitors RSI and logs a signal when
 overbought (RSI > OB) or oversold (RSI < OS) crossovers occur.
 Historical bars (configurable lookback, e.g., 3000 15min candles) are also
 processed for crossover detection.
@@ -36,6 +36,22 @@ from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.indicators import RelativeStrengthIndex
+
+# -----------------------------------------------------------------------------
+# Symbols to scan (all Binance Spot USDT pairs; duplicates are dropped)
+# -----------------------------------------------------------------------------
+SYMBOLS: list[str] = list(dict.fromkeys([
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "TRXUSDT",   # TRON's ticker is TRX
+    "BNBUSDT",
+    "XRPUSDT",
+    "ZECUSDT",
+    "LINKUSDT",
+    "ADAUSDT",
+]))
+
 
 # -----------------------------------------------------------------------------
 # Environment credential loader
@@ -96,9 +112,16 @@ class RSISignalStrategy(Strategy):
         self.rsi = RelativeStrengthIndex(period=config.rsi_period)
         self._prev_rsi: Optional[float] = None
         self._warming_up: bool = True
-        self._historical_bar_count = 0   # for debug logging
 
     def on_start(self) -> None:
+        # Fail loudly (and skip this symbol) if the instrument was not loaded
+        if self.cache.instrument(self.config.instrument_id) is None:
+            self.log.error(
+                f"Instrument {self.config.instrument_id} not found "
+                f"(bad or delisted symbol?). Not subscribing."
+            )
+            return
+
         # Register RSI to automatically receive bars
         self.register_indicator_for_bars(self.config.bar_type, self.rsi)
 
@@ -139,7 +162,7 @@ class RSISignalStrategy(Strategy):
             color=LogColor.GREEN,
         )
 
-    def _log_signal(self, bar: Bar, signal_type: str, rsi_value: float) -> None:
+    def _log_signal(self, bar: Bar, signal_type: str, rsi_value: float, live: bool) -> None:
         """Log a crossover signal."""
         ts_ms = round(bar.ts_event / 1_000_000)
         payload = {
@@ -148,29 +171,32 @@ class RSISignalStrategy(Strategy):
             "rsi": rsi_value,
             "close": float(bar.close),
             "timestamp": ts_ms,
+            "source": "live" if live else "historical",
         }
         self.log.info(f"📝 Signal: {json.dumps(payload)}", color=LogColor.GREEN)
 
-    def _check_crossovers(self, bar: Bar, rsi_val: float) -> None:
+    def _check_crossovers(self, bar: Bar, rsi_val: float, live: bool) -> None:
         """Detect OB/OS crossovers and log signals."""
         if self._prev_rsi is None:
             return
 
         # Overbought crossover (crosses above OB threshold)
         if self._prev_rsi <= self.config.overbought_threshold and rsi_val > self.config.overbought_threshold:
-            self.log.warning(
-                f"🚨 OVERBOUGHT CROSS (RSI {self._prev_rsi:.1f} -> {rsi_val:.1f} > {self.config.overbought_threshold}) 🚨",
-                color=LogColor.MAGENTA,
-            )
-            self._log_signal(bar, "OB_CROSS", rsi_val)
+            if live:
+                self.log.warning(
+                    f"🚨 OVERBOUGHT CROSS (RSI {self._prev_rsi:.3f} -> {rsi_val:.3f} > {self.config.overbought_threshold}) 🚨",
+                    color=LogColor.MAGENTA,
+                )
+            self._log_signal(bar, "OB_CROSS", rsi_val, live)
 
         # Oversold crossover (crosses below OS threshold)
         if self._prev_rsi >= self.config.oversold_threshold and rsi_val < self.config.oversold_threshold:
-            self.log.warning(
-                f"🚨 OVERSOLD CROSS (RSI {self._prev_rsi:.1f} -> {rsi_val:.1f} < {self.config.oversold_threshold}) 🚨",
-                color=LogColor.CYAN,
-            )
-            self._log_signal(bar, "OS_CROSS", rsi_val)
+            if live:
+                self.log.warning(
+                    f"🚨 OVERSOLD CROSS (RSI {self._prev_rsi:.3f} -> {rsi_val:.3f} < {self.config.oversold_threshold}) 🚨",
+                    color=LogColor.CYAN,
+                )
+            self._log_signal(bar, "OS_CROSS", rsi_val, live)
 
     def on_historical_data(self, data: Bar) -> None:
         # The framework automatically updates self.rsi because it's registered.
@@ -179,13 +205,9 @@ class RSISignalStrategy(Strategy):
             return
 
         rsi_val = self.rsi.value
-        # Debug: log every 100th bar or when crossing thresholds
-        self._historical_bar_count += 1
-        if self._historical_bar_count % 100 == 0 or rsi_val > 0.68 or rsi_val < 0.32:
-            self.log.info(f"Historical bar #{self._historical_bar_count}: RSI={rsi_val:.3f} (×100={rsi_val*100:.1f}) close={data.close}")
 
         # Detect crossover on this historical bar
-        self._check_crossovers(data, rsi_val)
+        self._check_crossovers(data, rsi_val, live=False)
 
         # Store current RSI for next bar's crossover detection
         self._prev_rsi = rsi_val
@@ -199,7 +221,7 @@ class RSISignalStrategy(Strategy):
             return
 
         rsi_val = self.rsi.value
-        self._check_crossovers(bar, rsi_val)
+        self._check_crossovers(bar, rsi_val, live=True)
         self._prev_rsi = rsi_val
 
     def on_stop(self) -> None:
@@ -268,10 +290,11 @@ def build_data_only_node(
 
 def run_data_node(
     node: TradingNode,
-    strategy: Strategy,
+    strategies: list[Strategy],
     register_data_client_factories: callable,
 ) -> None:
-    node.trader.add_strategy(strategy)
+    for strategy in strategies:
+        node.trader.add_strategy(strategy)
     register_data_client_factories(node)
     node.build()
     try:
@@ -293,7 +316,6 @@ def register_binance_data_client_factory(node: TradingNode) -> None:
 # Main
 # -----------------------------------------------------------------------------
 def main():
-    symbol = os.getenv("BINANCE_SYMBOL", "BTCUSDT")
     trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
@@ -313,15 +335,15 @@ def main():
         sys.exit(1)
 
     account_type = BinanceAccountType.SPOT
-    instrument_id = InstrumentId.from_str(f"{symbol}.{BINANCE}")
-    bar_type = BarType.from_str(f"{instrument_id}-{bar_interval}-LAST-EXTERNAL")
+    instrument_ids = [InstrumentId.from_str(f"{sym}.{BINANCE}") for sym in SYMBOLS]
+    print(f"📡 Scanning {len(instrument_ids)} pairs: {', '.join(SYMBOLS)}", file=sys.stderr)
 
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
     binance_client_config = BinanceDataClientConfig(
         api_key=api_key,
         api_secret=api_secret,
         account_type=account_type,
-        instrument_provider=InstrumentProviderConfig(load_ids=frozenset([instrument_id])),
+        instrument_provider=InstrumentProviderConfig(load_ids=frozenset(instrument_ids)),
         **binance_config_kwargs,
     )
 
@@ -331,18 +353,22 @@ def main():
         log_level=log_level,
     )
 
-    strategy = RSISignalStrategy(
-        RSISignalConfig(
-            instrument_id=instrument_id,
-            bar_type=bar_type,
-            rsi_period=rsi_period,
-            overbought_threshold=overbought,
-            oversold_threshold=oversold,
-            historical_bars=historical_bars,
+    strategies = [
+        RSISignalStrategy(
+            RSISignalConfig(
+                instrument_id=iid,
+                bar_type=BarType.from_str(f"{iid}-{bar_interval}-LAST-EXTERNAL"),
+                rsi_period=rsi_period,
+                overbought_threshold=overbought,
+                oversold_threshold=oversold,
+                historical_bars=historical_bars,
+                order_id_tag=iid.symbol.value,  # unique strategy id per symbol
+            )
         )
-    )
+        for iid in instrument_ids
+    ]
 
-    run_data_node(node, strategy, register_binance_data_client_factory)
+    run_data_node(node, strategies, register_binance_data_client_factory)
 
 
 if __name__ == "__main__":
