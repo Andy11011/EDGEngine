@@ -5,3 +5,4 @@ redis
 asyncpg
 uvicorn
 fastapi
+aiohttp

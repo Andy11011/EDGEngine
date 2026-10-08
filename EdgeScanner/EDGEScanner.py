@@ -28,6 +28,7 @@ import sys
 import json
 import re
 import time
+import aiohttp
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -115,16 +116,33 @@ _TRANSIENT_DB_ERRORS = (
 
 class SignalSink:
     """
-    Strategies call submit() (sync, non-blocking). A single writer task drains
-    the queue into Postgres. If the DB is down the writer retries forever with
-    backoff (signals are kept in memory meanwhile); non-transient errors drop
-    only the offending signal so one bad row can't block the queue.
+    Strategies call submit() (sync, non-blocking). Two independent writer tasks
+    drain their queues:
+
+      - DB queue -> Postgres, retries forever on transient errors (signals are
+        kept in memory meanwhile); non-transient errors drop only the offending
+        signal so one bad row can't block the queue.
+      - Webhook queue -> HTTP POST, best-effort: bounded retries with backoff,
+        then drop + log. Kept separate so a hung webhook endpoint can't stall
+        DB writes (and vice versa).
     """
 
-    def __init__(self, loop: asyncio.AbstractEventLoop, ttl_hours: int):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        ttl_hours: int,
+        *,
+        webhook_url: Optional[str] = None,
+        webhook_timeout: float = 10.0,
+        webhook_max_retries: int = 3,
+    ):
         self._loop = loop
         self._queue: asyncio.Queue = asyncio.Queue()
+        self._webhook_queue: asyncio.Queue = asyncio.Queue()
         self.ttl_hours = ttl_hours
+        self._webhook_url = webhook_url
+        self._webhook_timeout = webhook_timeout
+        self._webhook_max_retries = webhook_max_retries
 
     def min_bar_ts_ms(self) -> int:
         """Historical signals older than this are not persisted (outside TTL)."""
@@ -133,14 +151,23 @@ class SignalSink:
     def submit(self, item: dict) -> None:
         # call_soon_threadsafe: safe whether or not the caller is on the loop thread
         self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+        if self._webhook_url:
+            self._loop.call_soon_threadsafe(self._webhook_queue.put_nowait, item)
 
     async def run(self) -> None:
         db = await SignalsDB.get_instance()
+        tasks = [asyncio.create_task(self._db_worker(db), name="signal-db")]
+        if self._webhook_url:
+            tasks.append(asyncio.create_task(self._webhook_worker(), name="signal-webhook"))
+        await asyncio.gather(*tasks)
+
+    # ---- DB writer (unchanged semantics) ----
+    async def _db_worker(self, db: SignalsDB) -> None:
         while True:
             item = await self._queue.get()
-            await self._write(db, item)
+            await self._write_db(db, item)
 
-    async def _write(self, db: SignalsDB, item: dict) -> None:
+    async def _write_db(self, db: SignalsDB, item: dict) -> None:
         delay = 2.0
         while True:
             try:
@@ -154,17 +181,74 @@ class SignalSink:
                 log(f"❌ Dropping signal {item.get('symbol')} {item.get('signal_type')}: {e!r}")
                 return
 
+    # ---- Webhook writer ----
+    async def _webhook_worker(self) -> None:
+        async with aiohttp.ClientSession() as session:
+            while True:
+                item = await self._webhook_queue.get()
+                await self._post_webhook(session, item)
+
+    async def _post_webhook(self, session: aiohttp.ClientSession, item: dict) -> None:
+        # Payload shape you send to webhooky. Tweak to whatever your endpoint expects.
+        payload = {
+            "symbol": item["symbol"],
+            "signal_type": item["signal_type"],
+            "timeframe": item["timeframe"],
+            "bar_time_ms": item["bar_time_ms"],
+            "rsi": item["rsi"],
+            "close": item["close"],
+            "source": item["source"],
+        }
+        delay = 1.0
+        for attempt in range(1, self._webhook_max_retries + 1):
+            try:
+                async with session.post(
+                    self._webhook_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=self._webhook_timeout),
+                ) as resp:
+                    if 200 <= resp.status < 300:
+                        return
+                    body = await resp.text()
+                    log(f"⚠️ Webhook -> {resp.status}: {body[:200]!r}")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log(
+                    f"⚠️ Webhook attempt {attempt}/{self._webhook_max_retries} "
+                    f"failed for {item['symbol']} {item['signal_type']}: {e!r}"
+                )
+            if attempt < self._webhook_max_retries:
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 15.0)
+        log(
+            f"❌ Dropping webhook for {item['symbol']} {item['signal_type']} "
+            f"after {self._webhook_max_retries} attempts"
+        )
+
+    # ---- shutdown flush ----
     async def drain(self, timeout: float = 10.0) -> None:
         db = await SignalsDB.get_instance()
 
-        async def _flush() -> None:
+        async def _flush_db() -> None:
             while not self._queue.empty():
-                await self._write(db, self._queue.get_nowait())
+                await self._write_db(db, self._queue.get_nowait())
+
+        async def _flush_webhooks() -> None:
+            if not self._webhook_url:
+                return
+            async with aiohttp.ClientSession() as session:
+                while not self._webhook_queue.empty():
+                    await self._post_webhook(session, self._webhook_queue.get_nowait())
 
         try:
-            await asyncio.wait_for(_flush(), timeout)
+            await asyncio.wait_for(
+                asyncio.gather(_flush_db(), _flush_webhooks()),
+                timeout,
+            )
         except asyncio.TimeoutError:
-            log(f"⚠️ {self._queue.qsize()} signal(s) not flushed before shutdown")
+            remaining = self._queue.qsize() + self._webhook_queue.qsize()
+            log(f"⚠️ {remaining} signal(s) not flushed before shutdown")
 
 
 # -----------------------------------------------------------------------------
@@ -545,6 +629,10 @@ def main():
     ttl_hours = int(os.getenv("SIGNAL_TTL_HOURS", "48"))
     purge_interval = float(os.getenv("SIGNAL_PURGE_INTERVAL_SECONDS", "3600"))
 
+    webhook_url = os.getenv("WEBHOOK_URL", "").strip() or None
+    webhook_timeout = float(os.getenv("WEBHOOK_TIMEOUT_SECONDS", "10"))
+    webhook_max_retries = int(os.getenv("WEBHOOK_MAX_RETRIES", "3"))
+
     try:
         api_key, api_secret = load_credentials_from_env(sandbox=sandbox)
         print("✅ Credentials loaded from environment", file=sys.stderr)
@@ -570,7 +658,14 @@ def main():
         log_level=log_level,
     )
 
-    sink = SignalSink(node.get_event_loop(), ttl_hours=ttl_hours)
+    sink = SignalSink(
+        node.get_event_loop(),
+        ttl_hours=ttl_hours,
+        webhook_url=webhook_url,
+        webhook_timeout=webhook_timeout,
+        webhook_max_retries=webhook_max_retries,
+    )
+
     strategy = RSISignalStrategy(
         RSISignalConfig(
             bar_interval=bar_interval,
