@@ -1,20 +1,37 @@
 """Live RSI crossover signal detector for Binance using NautilusTrader.
 
-This module loads Binance API credentials from environment variables
-and runs one live strategy per symbol that monitors RSI and logs a signal when
-overbought (RSI > OB) or oversold (RSI < OS) crossovers occur.
-Historical bars (configurable lookback, e.g., 3000 15min candles) are also
-processed for crossover detection.
+Pairs are no longer hard-coded: they are read from travis-scanner's
+`scanner_results_l1` table and re-checked periodically. Pairs are added
+to / removed from the running Nautilus node as the pair set changes.
+(A single multi-pair strategy is used: Nautilus can't add strategies to a running
+trader, but subscribe_bars / unsubscribe_bars work at runtime.)
+
+Every crossover signal (live, plus historical ones inside the TTL window) is
+written to the `edge_signals` table via signals_db_async.SignalsDB, which is
+what travis' dashboard reads. Rows older than SIGNAL_TTL_HOURS are purged.
+
+Environment (new in this version):
+    PAIR_TYPES                    filtered,newcomer   which travis pair_types to scan
+    PAIR_POLL_SECONDS             300                 how often to re-read travis' table
+    PAIR_REMOVE_AFTER_MISSES      2                   drop a pair only after N consecutive polls without it
+    PAIR_ADD_STAGGER_SECONDS      1.0                 delay between adding pairs (Binance backfill rate limits)
+    SIGNAL_TTL_HOURS              48
+    SIGNAL_PURGE_INTERVAL_SECONDS 3600
+    DB_* / DB_POOL_MAX_SIZE       same as trades_db_async.py
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import json
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+import asyncpg
 
 from nautilus_trader.adapters.binance import (
     BINANCE,
@@ -37,20 +54,11 @@ from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.indicators import RelativeStrengthIndex
 
-# -----------------------------------------------------------------------------
-# Symbols to scan (all Binance Spot USDT pairs; duplicates are dropped)
-# -----------------------------------------------------------------------------
-SYMBOLS: list[str] = list(dict.fromkeys([
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
-    "TRXUSDT",   # TRON's ticker is TRX
-    "BNBUSDT",
-    "XRPUSDT",
-    "ZECUSDT",
-    "LINKUSDT",
-    "ADAUSDT",
-]))
+from signals_db_async import SignalsDB
+
+
+def log(msg: str) -> None:
+    print(msg, file=sys.stderr, flush=True)
 
 
 # -----------------------------------------------------------------------------
@@ -90,83 +98,158 @@ def _parse_interval_minutes(interval_str: str) -> int:
         return value * 60
     elif unit == "DAY":
         return value * 1440
-    else:
-        raise ValueError(f"Unknown interval unit: {unit}")
+    raise ValueError(f"Unknown interval unit: {unit}")
 
 
 # -----------------------------------------------------------------------------
-# RSI Crossover Signal Strategy
+# Signal sink: strategy callbacks -> queue -> Postgres
+# -----------------------------------------------------------------------------
+_TRANSIENT_DB_ERRORS = (
+    OSError,
+    ConnectionError,
+    asyncpg.PostgresConnectionError,
+    asyncpg.InterfaceError,
+    asyncpg.CannotConnectNowError,
+)
+
+
+class SignalSink:
+    """
+    Strategies call submit() (sync, non-blocking). A single writer task drains
+    the queue into Postgres. If the DB is down the writer retries forever with
+    backoff (signals are kept in memory meanwhile); non-transient errors drop
+    only the offending signal so one bad row can't block the queue.
+    """
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, ttl_hours: int):
+        self._loop = loop
+        self._queue: asyncio.Queue = asyncio.Queue()
+        self.ttl_hours = ttl_hours
+
+    def min_bar_ts_ms(self) -> int:
+        """Historical signals older than this are not persisted (outside TTL)."""
+        return int((time.time() - self.ttl_hours * 3600) * 1000)
+
+    def submit(self, item: dict) -> None:
+        # call_soon_threadsafe: safe whether or not the caller is on the loop thread
+        self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+
+    async def run(self) -> None:
+        db = await SignalsDB.get_instance()
+        while True:
+            item = await self._queue.get()
+            await self._write(db, item)
+
+    async def _write(self, db: SignalsDB, item: dict) -> None:
+        delay = 2.0
+        while True:
+            try:
+                await db.insert_signal(**item)
+                return
+            except _TRANSIENT_DB_ERRORS as e:
+                log(f"⚠️ DB unavailable ({e!r}); retrying in {delay:.0f}s")
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 60.0)
+            except Exception as e:
+                log(f"❌ Dropping signal {item.get('symbol')} {item.get('signal_type')}: {e!r}")
+                return
+
+    async def drain(self, timeout: float = 10.0) -> None:
+        db = await SignalsDB.get_instance()
+
+        async def _flush() -> None:
+            while not self._queue.empty():
+                await self._write(db, self._queue.get_nowait())
+
+        try:
+            await asyncio.wait_for(_flush(), timeout)
+        except asyncio.TimeoutError:
+            log(f"⚠️ {self._queue.qsize()} signal(s) not flushed before shutdown")
+
+
+# -----------------------------------------------------------------------------
+# RSI Crossover Signal Strategy (ONE strategy, many pairs)
+#
+# Nautilus refuses to add strategies to a running trader, so a single strategy
+# is registered before the node starts and pairs are watched / unwatched at
+# runtime via subscribe_bars / unsubscribe_bars (allowed while running).
 # -----------------------------------------------------------------------------
 class RSISignalConfig(StrategyConfig, frozen=True):
-    instrument_id: InstrumentId
-    bar_type: BarType
+    bar_interval: str = "15-MINUTE"
     rsi_period: int = 14
     overbought_threshold: float = 0.7
     oversold_threshold: float = 0.3
     historical_bars: int = 3000  # number of past bars to fetch for historical signals
 
 
+class _PairState:
+    __slots__ = ("bar_type", "rsi", "prev_rsi", "warming_up")
+
+    def __init__(self, bar_type: BarType, rsi_period: int):
+        self.bar_type = bar_type
+        self.rsi = RelativeStrengthIndex(period=rsi_period)
+        self.prev_rsi: Optional[float] = None
+        self.warming_up: bool = True
+
+
 class RSISignalStrategy(Strategy):
-    def __init__(self, config: RSISignalConfig):
+    def __init__(self, config: RSISignalConfig, sink: Optional[SignalSink] = None):
         super().__init__(config)
-        self.rsi = RelativeStrengthIndex(period=config.rsi_period)
-        self._prev_rsi: Optional[float] = None
-        self._warming_up: bool = True
+        self._sink = sink
+        self._states: dict[InstrumentId, _PairState] = {}
+        self._minutes_per_bar = _parse_interval_minutes(config.bar_interval)
 
-    def on_start(self) -> None:
-        # Fail loudly (and skip this symbol) if the instrument was not loaded
-        if self.cache.instrument(self.config.instrument_id) is None:
-            self.log.error(
-                f"Instrument {self.config.instrument_id} not found "
-                f"(bad or delisted symbol?). Not subscribing."
-            )
-            return
+    # ---- runtime pair management (called by PairReconciler) ----
+    @property
+    def watched(self) -> set[str]:
+        return {iid.symbol.value for iid in self._states}
 
-        # Register RSI to automatically receive bars
-        self.register_indicator_for_bars(self.config.bar_type, self.rsi)
+    def watch(self, instrument_id: InstrumentId) -> bool:
+        if instrument_id in self._states:
+            return True
+        if self.cache.instrument(instrument_id) is None:
+            self.log.error(f"Instrument {instrument_id} not found (bad or delisted symbol?). Not subscribing.")
+            return False
 
-        # ---- HISTORICAL BACKFILL ----
-        # Calculate start date based on desired number of bars and bar interval
-        bar_interval_str = str(self.config.bar_type).split("-")[1] + "-" + str(self.config.bar_type).split("-")[2]
-        # e.g., "BTCUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL" -> extract "15-MINUTE"
-        # Simpler: use the bar_type's string representation and parse
-        # Actually the BarType has .resolution property, but we can parse from env again
-        # Re-parse from config's bar_type string
-        type_str = str(self.config.bar_type)
-        # Expected format: SYMBOL-INTERVAL-LAST-EXTERNAL
-        parts = type_str.split("-")
-        if len(parts) >= 3:
-            interval_str = f"{parts[1]}-{parts[2]}"  # e.g., "15-MINUTE"
-        else:
-            interval_str = "15-MINUTE"  # fallback
-        minutes_per_bar = _parse_interval_minutes(interval_str)
+        bar_type = BarType.from_str(f"{instrument_id}-{self.config.bar_interval}-LAST-EXTERNAL")
+        self._states[instrument_id] = _PairState(bar_type, self.config.rsi_period)
 
-        lookback_bars = self.config.historical_bars
-        # Add a small buffer (10 bars) to ensure we have enough for warmup
-        total_bars_needed = lookback_bars + self.config.rsi_period
-        days_needed = (total_bars_needed * minutes_per_bar) / (24 * 60)
+        total_bars_needed = self.config.historical_bars + self.config.rsi_period
+        days_needed = (total_bars_needed * self._minutes_per_bar) / (24 * 60)
         start_dt = datetime.now(timezone.utc) - timedelta(days=days_needed + 1)
 
         self.log.info(
-            f"Requesting ~{lookback_bars} historical bars (since {start_dt.date()}) to compute historical signals...",
+            f"{instrument_id}: requesting ~{self.config.historical_bars} historical bars (since {start_dt.date()})",
             color=LogColor.BLUE,
         )
-        self.request_bars(self.config.bar_type, start=start_dt)
+        self.request_bars(bar_type, start=start_dt)
+        self.subscribe_bars(bar_type)
+        return True
 
-        # Subscribe to live bars
-        self.subscribe_bars(self.config.bar_type)
+    def unwatch(self, instrument_id: InstrumentId) -> None:
+        state = self._states.pop(instrument_id, None)
+        if state is None:
+            return
+        self.unsubscribe_bars(state.bar_type)   # late historical bars for it are ignored (no state)
 
+    # ---- lifecycle ----
+    def on_start(self) -> None:
         self.log.info(
-            f"RSI Signal Strategy started for {self.config.instrument_id} | "
-            f"RSI period={self.config.rsi_period}, OB={self.config.overbought_threshold}, OS={self.config.oversold_threshold}",
+            f"RSI Signal Strategy started | interval={self.config.bar_interval}, "
+            f"RSI period={self.config.rsi_period}, OB={self.config.overbought_threshold}, "
+            f"OS={self.config.oversold_threshold}",
             color=LogColor.GREEN,
         )
 
-    def _log_signal(self, bar: Bar, signal_type: str, rsi_value: float, live: bool) -> None:
-        """Log a crossover signal."""
+    def on_stop(self) -> None:
+        self.log.info("RSI Signal Strategy stopped", color=LogColor.YELLOW)
+
+    # ---- signals ----
+    def _log_signal(self, instrument_id: InstrumentId, bar: Bar, signal_type: str, rsi_value: float, live: bool) -> None:
+        """Log a crossover signal and hand it to the DB sink."""
         ts_ms = round(bar.ts_event / 1_000_000)
         payload = {
-            "symbol": str(self.config.instrument_id),
+            "symbol": str(instrument_id),
             "type": signal_type,
             "rsi": rsi_value,
             "close": float(bar.close),
@@ -175,57 +258,167 @@ class RSISignalStrategy(Strategy):
         }
         self.log.info(f"📝 Signal: {json.dumps(payload)}", color=LogColor.GREEN)
 
-    def _check_crossovers(self, bar: Bar, rsi_val: float, live: bool) -> None:
-        """Detect OB/OS crossovers and log signals."""
-        if self._prev_rsi is None:
-            return
+        # Persist: all live signals, and historical ones only inside the TTL window
+        if self._sink is not None and (live or ts_ms >= self._sink.min_bar_ts_ms()):
+            self._sink.submit({
+                "symbol": instrument_id.symbol.value,   # "BTCUSDT" (same format as travis)
+                "signal_type": signal_type,
+                "timeframe": self.config.bar_interval,
+                "bar_time_ms": ts_ms,
+                "rsi": rsi_value,
+                "close": float(bar.close),
+                "source": payload["source"],
+                "payload": payload,
+            })
 
-        # Overbought crossover (crosses above OB threshold)
-        if self._prev_rsi <= self.config.overbought_threshold and rsi_val > self.config.overbought_threshold:
+    def _check_crossovers(self, instrument_id: InstrumentId, state: _PairState, bar: Bar, rsi_val: float, live: bool) -> None:
+        """Detect OB/OS crossovers and log signals."""
+        prev = state.prev_rsi
+        if prev is None:
+            return
+        ob = self.config.overbought_threshold
+        os_ = self.config.oversold_threshold
+
+        if prev <= ob and rsi_val > ob:
             if live:
                 self.log.warning(
-                    f"🚨 OVERBOUGHT CROSS (RSI {self._prev_rsi:.3f} -> {rsi_val:.3f} > {self.config.overbought_threshold}) 🚨",
+                    f"🚨 {instrument_id} OVERBOUGHT CROSS (RSI {prev:.3f} -> {rsi_val:.3f} > {ob}) 🚨",
                     color=LogColor.MAGENTA,
                 )
-            self._log_signal(bar, "OB_CROSS", rsi_val, live)
+            self._log_signal(instrument_id, bar, "OB_CROSS", rsi_val, live)
 
-        # Oversold crossover (crosses below OS threshold)
-        if self._prev_rsi >= self.config.oversold_threshold and rsi_val < self.config.oversold_threshold:
+        if prev >= os_ and rsi_val < os_:
             if live:
                 self.log.warning(
-                    f"🚨 OVERSOLD CROSS (RSI {self._prev_rsi:.3f} -> {rsi_val:.3f} < {self.config.oversold_threshold}) 🚨",
+                    f"🚨 {instrument_id} OVERSOLD CROSS (RSI {prev:.3f} -> {rsi_val:.3f} < {os_}) 🚨",
                     color=LogColor.CYAN,
                 )
-            self._log_signal(bar, "OS_CROSS", rsi_val, live)
+            self._log_signal(instrument_id, bar, "OS_CROSS", rsi_val, live)
 
-    def on_historical_data(self, data: Bar) -> None:
-        # The framework automatically updates self.rsi because it's registered.
-        # We just need to detect crossovers using the updated value.
-        if not self.rsi.initialized:
+    def on_historical_data(self, data) -> None:
+        if not isinstance(data, Bar):
+            return
+        iid = data.bar_type.instrument_id
+        state = self._states.get(iid)
+        if state is None:           # pair was unwatched while history was in flight
             return
 
-        rsi_val = self.rsi.value
+        state.rsi.handle_bar(data)  # per-pair indicator is updated manually
+        if not state.rsi.initialized:
+            return
 
-        # Detect crossover on this historical bar
-        self._check_crossovers(data, rsi_val, live=False)
+        rsi_val = state.rsi.value
+        self._check_crossovers(iid, state, data, rsi_val, live=False)
+        state.prev_rsi = rsi_val
 
-        # Store current RSI for next bar's crossover detection
-        self._prev_rsi = rsi_val
-
-        if self._warming_up:
-            self._warming_up = False
-            self.log.info(f"Warmup complete. First RSI={rsi_val:.2f}")
+        if state.warming_up:
+            state.warming_up = False
+            self.log.info(f"{iid}: warmup complete. First RSI={rsi_val:.2f}")
 
     def on_bar(self, bar: Bar) -> None:
-        if self._warming_up or not self.rsi.initialized:
+        iid = bar.bar_type.instrument_id
+        state = self._states.get(iid)
+        if state is None or state.warming_up:
             return
 
-        rsi_val = self.rsi.value
-        self._check_crossovers(bar, rsi_val, live=True)
-        self._prev_rsi = rsi_val
+        state.rsi.handle_bar(bar)
+        if not state.rsi.initialized:
+            return
 
-    def on_stop(self) -> None:
-        self.log.info("RSI Signal Strategy stopped", color=LogColor.YELLOW)
+        rsi_val = state.rsi.value
+        self._check_crossovers(iid, state, bar, rsi_val, live=True)
+        state.prev_rsi = rsi_val
+
+
+# -----------------------------------------------------------------------------
+# Pair reconciler: keep watched pairs in sync with travis' latest scan
+# -----------------------------------------------------------------------------
+class PairReconciler:
+    def __init__(
+        self,
+        strategy: RSISignalStrategy,
+        *,
+        pair_types: tuple[str, ...],
+        poll_seconds: float,
+        remove_after_misses: int,
+        add_stagger_seconds: float,
+    ):
+        self._strategy = strategy
+        self._pair_types = pair_types
+        self._poll = poll_seconds
+        self._remove_after = remove_after_misses
+        self._stagger = add_stagger_seconds
+
+        self._misses: dict[str, int] = {}
+        self._last_scan_id: Optional[int] = None
+
+    async def run(self) -> None:
+        # Wait until the node has connected the data client (instruments are in
+        # the cache) and started the strategy.
+        while not self._strategy.is_running:
+            await asyncio.sleep(1)
+
+        db = await SignalsDB.get_instance()
+        while True:
+            try:
+                await self._reconcile_once(db)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log(f"❌ Pair reconcile failed: {e!r}")
+            await asyncio.sleep(self._poll)
+
+    async def _reconcile_once(self, db: SignalsDB) -> None:
+        snap = await db.get_target_pairs(self._pair_types)
+        if snap is None or not snap.pairs:
+            # Never tear everything down just because travis has nothing (yet)
+            log(f"ℹ️ No pairs from travis-scanner yet; keeping current set ({len(self._strategy.watched)} active)")
+            return
+
+        if snap.scan_id != self._last_scan_id:
+            log(f"📥 travis scan #{snap.scan_id} @ {snap.scanned_at}: {len(snap.pairs)} pairs")
+            self._last_scan_id = snap.scan_id
+
+        desired = set(snap.pairs)
+        watched = self._strategy.watched
+
+        # ---- add ----
+        for sym in snap.pairs:
+            self._misses.pop(sym, None)
+            if sym in watched:
+                continue
+            try:
+                iid = InstrumentId.from_str(f"{sym}.{BINANCE}")
+            except Exception:
+                log(f"⚠️ Skipping invalid symbol from travis: {sym!r}")
+                continue
+            if self._strategy.watch(iid):
+                log(f"➕ Watching {sym} ({len(self._strategy.watched)} active)")
+                await asyncio.sleep(self._stagger)   # be gentle with Binance kline requests
+            else:
+                log(f"⚠️ {sym} not available on Binance spot; will retry next poll")
+
+        # ---- remove (grace period so a pair that flaps out for one scan isn't churned) ----
+        for sym in self._strategy.watched - desired:
+            self._misses[sym] = self._misses.get(sym, 0) + 1
+            if self._misses[sym] >= self._remove_after:
+                self._strategy.unwatch(InstrumentId.from_str(f"{sym}.{BINANCE}"))
+                self._misses.pop(sym, None)
+                log(f"➖ Stopped watching {sym} ({len(self._strategy.watched)} active)")
+
+
+async def purge_loop(ttl_hours: int, interval_seconds: float) -> None:
+    db = await SignalsDB.get_instance()
+    while True:
+        try:
+            deleted = await db.purge_expired(ttl_hours)
+            if deleted:
+                log(f"🧹 Purged {deleted} expired signal(s) (> {ttl_hours}h)")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log(f"❌ Signal purge failed: {e!r}")
+        await asyncio.sleep(interval_seconds)
 
 
 # -----------------------------------------------------------------------------
@@ -288,20 +481,38 @@ def build_data_only_node(
     return TradingNode(config=config)
 
 
+async def _shutdown_background(tasks: list, sink: SignalSink) -> None:
+    for t in tasks:
+        t.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    await sink.drain()                       # flush signals still queued
+    db = await SignalsDB.get_instance()
+    await db.close()
+
+
 def run_data_node(
     node: TradingNode,
-    strategies: list[Strategy],
+    strategy: Strategy,
     register_data_client_factories: callable,
+    make_background_tasks: callable,
+    sink: SignalSink,
 ) -> None:
-    for strategy in strategies:
-        node.trader.add_strategy(strategy)
+    node.trader.add_strategy(strategy)       # must happen BEFORE the node runs
     register_data_client_factories(node)
     node.build()
+
+    loop = node.get_event_loop()
+    tasks = make_background_tasks(loop)      # scheduled now, they start once node.run() spins the loop
+
     try:
         node.run()
     except KeyboardInterrupt:
         pass
     finally:
+        try:
+            loop.run_until_complete(_shutdown_background(tasks, sink))
+        except Exception as e:
+            log(f"⚠️ Background shutdown incomplete: {e!r}")
         try:
             node.stop()
         finally:
@@ -327,6 +538,13 @@ def main():
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
     historical_bars = int(os.getenv("HISTORICAL_BARS", "3000"))
 
+    pair_types = tuple(t.strip() for t in os.getenv("PAIR_TYPES", "filtered,newcomer").split(",") if t.strip())
+    poll_seconds = float(os.getenv("PAIR_POLL_SECONDS", "300"))
+    remove_after = int(os.getenv("PAIR_REMOVE_AFTER_MISSES", "2"))
+    add_stagger = float(os.getenv("PAIR_ADD_STAGGER_SECONDS", "1.0"))
+    ttl_hours = int(os.getenv("SIGNAL_TTL_HOURS", "48"))
+    purge_interval = float(os.getenv("SIGNAL_PURGE_INTERVAL_SECONDS", "3600"))
+
     try:
         api_key, api_secret = load_credentials_from_env(sandbox=sandbox)
         print("✅ Credentials loaded from environment", file=sys.stderr)
@@ -334,16 +552,15 @@ def main():
         print(f"❌ Failed to load credentials: {e}", file=sys.stderr)
         sys.exit(1)
 
-    account_type = BinanceAccountType.SPOT
-    instrument_ids = [InstrumentId.from_str(f"{sym}.{BINANCE}") for sym in SYMBOLS]
-    print(f"📡 Scanning {len(instrument_ids)} pairs: {', '.join(SYMBOLS)}", file=sys.stderr)
-
+    # The pair list is dynamic now, so we can't pre-declare load_ids. Load all
+    # Binance spot instruments once at startup (one exchangeInfo call); any pair
+    # travis hands us later is then already in the instrument cache.
     binance_config_kwargs = _resolve_binance_config_kwargs(environment)
     binance_client_config = BinanceDataClientConfig(
         api_key=api_key,
         api_secret=api_secret,
-        account_type=account_type,
-        instrument_provider=InstrumentProviderConfig(load_ids=frozenset(instrument_ids)),
+        account_type=BinanceAccountType.SPOT,
+        instrument_provider=InstrumentProviderConfig(load_all=True),
         **binance_config_kwargs,
     )
 
@@ -353,22 +570,33 @@ def main():
         log_level=log_level,
     )
 
-    strategies = [
-        RSISignalStrategy(
-            RSISignalConfig(
-                instrument_id=iid,
-                bar_type=BarType.from_str(f"{iid}-{bar_interval}-LAST-EXTERNAL"),
-                rsi_period=rsi_period,
-                overbought_threshold=overbought,
-                oversold_threshold=oversold,
-                historical_bars=historical_bars,
-                order_id_tag=iid.symbol.value,  # unique strategy id per symbol
-            )
-        )
-        for iid in instrument_ids
-    ]
+    sink = SignalSink(node.get_event_loop(), ttl_hours=ttl_hours)
+    strategy = RSISignalStrategy(
+        RSISignalConfig(
+            bar_interval=bar_interval,
+            rsi_period=rsi_period,
+            overbought_threshold=overbought,
+            oversold_threshold=oversold,
+            historical_bars=historical_bars,
+        ),
+        sink=sink,
+    )
+    reconciler = PairReconciler(
+        strategy,
+        pair_types=pair_types,
+        poll_seconds=poll_seconds,
+        remove_after_misses=remove_after,
+        add_stagger_seconds=add_stagger,
+    )
 
-    run_data_node(node, strategies, register_binance_data_client_factory)
+    def make_background_tasks(loop: asyncio.AbstractEventLoop) -> list:
+        return [
+            loop.create_task(sink.run(), name="signal-sink"),
+            loop.create_task(reconciler.run(), name="pair-reconciler"),
+            loop.create_task(purge_loop(ttl_hours, purge_interval), name="signal-purge"),
+        ]
+
+    run_data_node(node, strategy, register_binance_data_client_factory, make_background_tasks, sink)
 
 
 if __name__ == "__main__":

@@ -18,4 +18,5 @@ COPY docker/requirements-scanner.txt ./
 RUN pip install --no-cache-dir -r requirements-scanner.txt
 
 COPY EdgeScanner/EDGEScanner.py ./
+COPY EdgeScanner/signals_db_async.py ./
 CMD ["python", "EDGEScanner.py"]

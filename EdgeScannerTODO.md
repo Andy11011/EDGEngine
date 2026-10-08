@@ -7,17 +7,18 @@
   - [X] ~~*Remove Redis Connection*~~ [2026-10-06]
   - [X] ~~*Credentials from env only - no secret manager connection*~~ [2026-10-06]
   - [X] ~~*1 day instead of 30 days ??? (MLMI needs warm up)*~~ [2026-10-06]
-  - [ ] Multiple pairs
+  - [X] ~~*Multiple pairs*~~ [2026-10-08]
   - [ ] Pairs from Postgres db
+  - [ ] Send signals to the webhooky
   - [ ] MLMI instead of simple RSI
-  - [ ] Add SQS connection
+  - [ ] Send signals to the SQS
   - [ ] Create a new stack with SQS
 - [ ] implement travis-scanner
-- [ ] implement scanner-point
-- [ ] Think over shared infrastructure
+  - [ ] Signals in the dashboard
+  - [ ] Configuration (webhooky URL)
+- [X] ~~*Think over shared infrastructure*~~ [2026-10-08]
 - [ ] Deploy on AWS
-- [ ] implement edge-board
-  - [ ] docker-compose file
+- [X] ~~*docker-compose file*~~ [2026-10-08]
 
 ## New Features
 
