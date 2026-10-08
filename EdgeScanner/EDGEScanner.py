@@ -151,7 +151,7 @@ class SignalSink:
     def submit(self, item: dict) -> None:
         # call_soon_threadsafe: safe whether or not the caller is on the loop thread
         self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
-        if self._webhook_url:
+        if self._webhook_url and item.get("source") == "live":
             self._loop.call_soon_threadsafe(self._webhook_queue.put_nowait, item)
 
     async def run(self) -> None:
@@ -189,15 +189,21 @@ class SignalSink:
                 await self._post_webhook(session, item)
 
     async def _post_webhook(self, session: aiohttp.ClientSession, item: dict) -> None:
-        # Payload shape you send to webhooky. Tweak to whatever your endpoint expects.
+        # Human-friendly crossover label for the receiver.
+        cross = "OVERBOUGHT" if item["signal_type"] == "OB_CROSS" else "OVERSOLD"
+
         payload = {
-            "symbol": item["symbol"],
-            "signal_type": item["signal_type"],
-            "timeframe": item["timeframe"],
-            "bar_time_ms": item["bar_time_ms"],
+            "symbol": item["symbol"],            # e.g. "BTCUSDT"
+            "signal_type": item["signal_type"],  # "OB_CROSS" / "OS_CROSS"
+            "crossover": cross,                  # "OVERBOUGHT" / "OVERSOLD"
+            "timeframe": item["timeframe"],      # e.g. "15-MINUTE"
             "rsi": item["rsi"],
             "close": item["close"],
-            "source": item["source"],
+            "bar_time_ms": item["bar_time_ms"],
+            "message": (
+                f"{item['symbol']} {item['timeframe']} RSI crossover "
+                f"{cross} ({item['rsi']:.2f}) @ {item['close']}"
+            ),
         }
         delay = 1.0
         for attempt in range(1, self._webhook_max_retries + 1):
@@ -239,7 +245,10 @@ class SignalSink:
                 return
             async with aiohttp.ClientSession() as session:
                 while not self._webhook_queue.empty():
-                    await self._post_webhook(session, self._webhook_queue.get_nowait())
+                    item = self._webhook_queue.get_nowait()
+                    if item.get("source") != "live":
+                        continue
+                    await self._post_webhook(session, item)
 
         try:
             await asyncio.wait_for(

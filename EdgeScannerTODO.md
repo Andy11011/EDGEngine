@@ -8,8 +8,8 @@
   - [X] ~~*Credentials from env only - no secret manager connection*~~ [2026-10-06]
   - [X] ~~*1 day instead of 30 days ??? (MLMI needs warm up)*~~ [2026-10-06]
   - [X] ~~*Multiple pairs*~~ [2026-10-08]
-  - [ ] Pairs from Postgres db
-  - [ ] Send signals to the webhooky
+  - [X] ~~*Pairs from Postgres db*~~ [2026-10-08]
+  - [X] ~~*Send signals to the webhooky*~~ [2026-10-08]
   - [ ] MLMI instead of simple RSI
   - [ ] Send signals to the SQS
   - [ ] Create a new stack with SQS
@@ -19,6 +19,7 @@
 - [X] ~~*Think over shared infrastructure*~~ [2026-10-08]
 - [ ] Deploy on AWS
 - [X] ~~*docker-compose file*~~ [2026-10-08]
+- [ ] implement Push Reciever
 
 ## New Features
 
