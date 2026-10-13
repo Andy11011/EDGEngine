@@ -46,6 +46,7 @@
   - [ ] Fix balance tests
   - [ ] Update ER files
   - [ ] Virtual balance should be from config table
+- [ ] Small dashboard for showing current trades state
 - [ ] Edge-trader: Check open and close locally for multiple trades
 - [ ] Edge-trader: Add open and close for multiple trades in CI/CD
 - [ ] Edge-trader: endpoint to read all the history

@@ -54,12 +54,14 @@ class SignalsDB:
         async with cls._init_lock:
             if cls._instance is None:
                 print("Connecting to Postgres (edge_signals)...", file=sys.stderr)
+                # Same connection string travis-scanner uses (PSM.py), so both
+                # services always talk to the same database. No built-in defaults:
+                # a missing variable fails loudly instead of using stale credentials.
+                dsn = os.getenv("DATABASE_URL")
+                if not dsn:
+                    raise RuntimeError("DATABASE_URL is not set")
                 pool = await asyncpg.create_pool(
-                    database=os.getenv("DB_NAME", "postgres"),
-                    user=os.getenv("DB_USER", "user"),
-                    password=os.getenv("DB_PASSWORD", "pass"),
-                    host=os.getenv("DB_HOST", "productiondb"),
-                    port=int(os.getenv("DB_PORT", "5432")),
+                    dsn=dsn,
                     min_size=1,
                     max_size=int(os.getenv("DB_POOL_MAX_SIZE", "5")),
                 )

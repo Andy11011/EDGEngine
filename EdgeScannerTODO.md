@@ -18,6 +18,8 @@
   - [ ] Configuration (webhooky URL)
 - [X] ~~*Think over shared infrastructure*~~ [2026-10-08]
 - [ ] Deploy on AWS
+  - [ ] Push scanner-L1 image to ECR
+  - [ ] Implement Rolling Updates
 - [X] ~~*docker-compose file*~~ [2026-10-08]
 - [ ] implement Push Reciever
 
