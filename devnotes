@@ -1121,3 +1121,12 @@ Receiving Live Updates: The logic is the same for the WebSocket stream. The klin
 
 
 You’re absolutely right to question that – the documentation says the default is True (close time), yet your observed data (only 1 ms difference from the Binance open time) clearly shows that ts_event is not the close time.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+docker run -d --name edge-signals-db -e POSTGRES_USER=user -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=edge_signals -p 5432:5432 postgres:latest
+
+
+DATABASE_URL=postgresql://user:pass@localhost:5432/edge_signals

@@ -10,19 +10,22 @@
   - [X] ~~*Multiple pairs*~~ [2026-10-08]
   - [X] ~~*Pairs from Postgres db*~~ [2026-10-08]
   - [X] ~~*Send signals to the webhooky*~~ [2026-10-08]
-  - [ ] MLMI instead of simple RSI
+  - [X] ~~*MLMI instead of simple RSI*~~ [2026-10-14]
   - [ ] Send signals to the SQS
   - [ ] Create a new stack with SQS
   - [ ] Move reconsiler to a dedicated file
   - [ ] Supertrend
   - [ ] Z-Score Volume with CVD Clustering
+- [ ] MLMI
+  - [ ] UTC timestamp in messages 
+  - [ ] Make sure it matches with the TV
 - [ ] implement travis-scanner
   - [ ] Signals in the dashboard
   - [ ] Configuration (webhooky URL)
 - [X] ~~*Think over shared infrastructure*~~ [2026-10-08]
-- [ ] Deploy on AWS
-  - [ ] Push scanner-L1 image to ECR
-  - [ ] Implement Rolling Updates
+- [X] ~~*Deploy on AWS*~~ [2026-10-14]
+  - [X] ~~*Push scanner-L1 image to ECR*~~ [2026-10-14]
+  - [X] ~~*Implement Rolling Updates*~~ [2026-10-14]
 - [X] ~~*docker-compose file*~~ [2026-10-08]
 - [ ] implement Push Reciever
 
