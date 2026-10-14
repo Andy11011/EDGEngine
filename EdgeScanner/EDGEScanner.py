@@ -1,4 +1,4 @@
-"""Live RSI crossover signal detector for Binance using NautilusTrader.
+"""Live MLMI (Machine Learning Momentum Index) signal detector for Binance using NautilusTrader.
 
 Pairs are no longer hard-coded: they are read from travis-scanner's
 `scanner_results_l1` table and re-checked periodically. Pairs are added
@@ -6,11 +6,21 @@ to / removed from the running Nautilus node as the pair set changes.
 (A single multi-pair strategy is used: Nautilus can't add strategies to a running
 trader, but subscribe_bars / unsubscribe_bars work at runtime.)
 
-Every crossover signal (live, plus historical ones inside the TTL window) is
+Every MLMI signal (live, plus historical ones inside the TTL window) is
 written to the `edge_signals` table via signals_db_async.SignalsDB, which is
 what travis' dashboard reads. Rows older than SIGNAL_TTL_HOURS are purged.
 
+The indicator lives in mlmi.py, the pair reconciler in pair_reconciler.py.
+
 Environment (new in this version):
+    MLMI_K                        200                 k of the k-NN vote
+    MLMI_MOMENTUM_WINDOW          20                  WMA smoothing of the two RSIs
+    MLMI_BAND_WINDOW              2000                lookback of the adaptive prediction bands
+    MLMI_BAND_MIN_BARS            200                 predictions required before signals fire
+    MLMI_ZONE_THRESHOLD           0.0                 exit level of buy / sell zones
+    MLMI_CONFIRM_THRESHOLD        0.0                 end of the confirmation zone
+    MLMI_ALIGNED_LABELS           0                   1 = label each sample with its own outcome (see mlmi.py)
+    MLMI_SIGNALS                  OB_CROSS,OS_CROSS   any of OB_CROSS,OB_EXIT,OS_CROSS,OS_EXIT,MID_UP,MID_DOWN,MA_UP,MA_DOWN
     PAIR_TYPES                    filtered,newcomer   which travis pair_types to scan
     PAIR_POLL_SECONDS             300                 how often to re-read travis' table
     PAIR_REMOVE_AFTER_MISSES      2                   drop a pair only after N consecutive polls without it
@@ -53,8 +63,9 @@ from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
-from nautilus_trader.indicators import RelativeStrengthIndex
 
+from mlmi import MLMI, MLMIResult, SIGNAL_TYPES
+from pair_reconciler import PairReconciler
 from signals_db_async import SignalsDB
 
 
@@ -105,6 +116,8 @@ def _parse_interval_minutes(interval_str: str) -> int:
 # -----------------------------------------------------------------------------
 # Signal sink: strategy callbacks -> queue -> Postgres
 # -----------------------------------------------------------------------------
+_CROSS_LABELS = {"OB_CROSS": "OVERBOUGHT", "OS_CROSS": "OVERSOLD"}
+
 _TRANSIENT_DB_ERRORS = (
     OSError,
     ConnectionError,
@@ -190,19 +203,20 @@ class SignalSink:
 
     async def _post_webhook(self, session: aiohttp.ClientSession, item: dict) -> None:
         # Human-friendly crossover label for the receiver.
-        cross = "OVERBOUGHT" if item["signal_type"] == "OB_CROSS" else "OVERSOLD"
+        cross = _CROSS_LABELS.get(item["signal_type"], item["signal_type"])
 
         payload = {
             "symbol": item["symbol"],            # e.g. "BTCUSDT"
-            "signal_type": item["signal_type"],  # "OB_CROSS" / "OS_CROSS"
-            "crossover": cross,                  # "OVERBOUGHT" / "OVERSOLD"
+            "signal_type": item["signal_type"],  # "OB_CROSS" / "OS_CROSS" / ...
+            "crossover": cross,                  # "OVERBOUGHT" / "OVERSOLD" / signal name
             "timeframe": item["timeframe"],      # e.g. "15-MINUTE"
-            "rsi": item["rsi"],
+            "mlmi": item["rsi"],                 # MLMI prediction
+            "rsi": item["rsi"],                  # legacy alias of "mlmi" for existing receivers
             "close": item["close"],
             "bar_time_ms": item["bar_time_ms"],
             "message": (
-                f"{item['symbol']} {item['timeframe']} RSI crossover "
-                f"{cross} ({item['rsi']:.2f}) @ {item['close']}"
+                f"{item['symbol']} {item['timeframe']} MLMI "
+                f"{cross} ({item['rsi']:.1f}) @ {item['close']}"
             ),
         }
         delay = 1.0
@@ -261,36 +275,58 @@ class SignalSink:
 
 
 # -----------------------------------------------------------------------------
-# RSI Crossover Signal Strategy (ONE strategy, many pairs)
+# MLMI Signal Strategy (ONE strategy, many pairs)
 #
 # Nautilus refuses to add strategies to a running trader, so a single strategy
 # is registered before the node starts and pairs are watched / unwatched at
 # runtime via subscribe_bars / unsubscribe_bars (allowed while running).
+#
+# The indicator itself lives in mlmi.py (one MLMI instance per pair).
 # -----------------------------------------------------------------------------
-class RSISignalConfig(StrategyConfig, frozen=True):
+class MLMISignalConfig(StrategyConfig, frozen=True):
     bar_interval: str = "15-MINUTE"
-    rsi_period: int = 14
-    overbought_threshold: float = 0.7
-    oversold_threshold: float = 0.3
-    historical_bars: int = 3000  # number of past bars to fetch for historical signals
+    num_neighbors: int = 200            # k of the k-NN vote
+    momentum_window: int = 20           # WMA smoothing of the two RSIs
+    band_window: int = 2000             # lookback for the adaptive prediction bands
+    band_min_bars: int = 200            # predictions needed before signals may fire
+    zone_threshold: float = 0.0
+    confirmation_threshold: float = 0.0
+    aligned_labels: bool = False        # False = exact Pine behaviour (see mlmi.py)
+    enabled_signals: tuple[str, ...] = ("OB_CROSS", "OS_CROSS")
+    historical_bars: int = 3000         # signal-eligible past bars (warm-up is added on top)
 
 
 class _PairState:
-    __slots__ = ("bar_type", "rsi", "prev_rsi", "warming_up")
+    __slots__ = ("bar_type", "mlmi", "warming_up")
 
-    def __init__(self, bar_type: BarType, rsi_period: int):
+    def __init__(self, bar_type: BarType, mlmi: MLMI):
         self.bar_type = bar_type
-        self.rsi = RelativeStrengthIndex(period=rsi_period)
-        self.prev_rsi: Optional[float] = None
+        self.mlmi = mlmi
         self.warming_up: bool = True
 
 
-class RSISignalStrategy(Strategy):
-    def __init__(self, config: RSISignalConfig, sink: Optional[SignalSink] = None):
+class MLMISignalStrategy(Strategy):
+    def __init__(self, config: MLMISignalConfig, sink: Optional[SignalSink] = None):
         super().__init__(config)
+        unknown = set(config.enabled_signals) - set(SIGNAL_TYPES)
+        if unknown:
+            raise ValueError(f"Unknown MLMI signal(s) {sorted(unknown)}; valid: {SIGNAL_TYPES}")
+        self._enabled = frozenset(config.enabled_signals)
         self._sink = sink
         self._states: dict[InstrumentId, _PairState] = {}
         self._minutes_per_bar = _parse_interval_minutes(config.bar_interval)
+
+    def _new_mlmi(self) -> MLMI:
+        c = self.config
+        return MLMI(
+            num_neighbors=c.num_neighbors,
+            momentum_window=c.momentum_window,
+            band_window=c.band_window,
+            band_min_bars=c.band_min_bars,
+            zone_threshold=c.zone_threshold,
+            confirmation_threshold=c.confirmation_threshold,
+            aligned_labels=c.aligned_labels,
+        )
 
     # ---- runtime pair management (called by PairReconciler) ----
     @property
@@ -305,14 +341,15 @@ class RSISignalStrategy(Strategy):
             return False
 
         bar_type = BarType.from_str(f"{instrument_id}-{self.config.bar_interval}-LAST-EXTERNAL")
-        self._states[instrument_id] = _PairState(bar_type, self.config.rsi_period)
+        mlmi = self._new_mlmi()
+        self._states[instrument_id] = _PairState(bar_type, mlmi)
 
-        total_bars_needed = self.config.historical_bars + self.config.rsi_period
+        total_bars_needed = self.config.historical_bars + mlmi.bars_to_ready
         days_needed = (total_bars_needed * self._minutes_per_bar) / (24 * 60)
         start_dt = datetime.now(timezone.utc) - timedelta(days=days_needed + 1)
 
         self.log.info(
-            f"{instrument_id}: requesting ~{self.config.historical_bars} historical bars (since {start_dt.date()})",
+            f"{instrument_id}: requesting ~{total_bars_needed} historical bars (since {start_dt.date()})",
             color=LogColor.BLUE,
         )
         self.request_bars(bar_type, start=start_dt)
@@ -327,24 +364,35 @@ class RSISignalStrategy(Strategy):
 
     # ---- lifecycle ----
     def on_start(self) -> None:
+        c = self.config
         self.log.info(
-            f"RSI Signal Strategy started | interval={self.config.bar_interval}, "
-            f"RSI period={self.config.rsi_period}, OB={self.config.overbought_threshold}, "
-            f"OS={self.config.oversold_threshold}",
+            f"MLMI Signal Strategy started | interval={c.bar_interval}, k={c.num_neighbors}, "
+            f"momentum_window={c.momentum_window}, band_window={c.band_window}, "
+            f"signals={sorted(self._enabled)}, aligned_labels={c.aligned_labels}",
             color=LogColor.GREEN,
         )
 
     def on_stop(self) -> None:
-        self.log.info("RSI Signal Strategy stopped", color=LogColor.YELLOW)
+        self.log.info("MLMI Signal Strategy stopped", color=LogColor.YELLOW)
 
     # ---- signals ----
-    def _log_signal(self, instrument_id: InstrumentId, bar: Bar, signal_type: str, rsi_value: float, live: bool) -> None:
-        """Log a crossover signal and hand it to the DB sink."""
+    def _log_signal(self, instrument_id: InstrumentId, bar: Bar, signal_type: str, res: MLMIResult, live: bool) -> None:
+        """Log an MLMI signal and hand it to the DB sink."""
         ts_ms = round(bar.ts_event / 1_000_000)
         payload = {
             "symbol": str(instrument_id),
             "type": signal_type,
-            "rsi": rsi_value,
+            "rsi": res.prediction,          # legacy key/column name: now carries the MLMI prediction
+            "mlmi": {
+                "prediction": res.prediction,
+                "prediction_ma": res.prediction_ma,
+                "upper": res.upper,
+                "lower": res.lower,
+                "ob_level": res.ob_level,
+                "os_level": res.os_level,
+                "zone": res.zone,
+                "confirmation_zone": res.confirmation_zone,
+            },
             "close": float(bar.close),
             "timestamp": ts_ms,
             "source": "live" if live else "historical",
@@ -358,35 +406,25 @@ class RSISignalStrategy(Strategy):
                 "signal_type": signal_type,
                 "timeframe": self.config.bar_interval,
                 "bar_time_ms": ts_ms,
-                "rsi": rsi_value,
+                "rsi": res.prediction,                  # column name kept; value is the MLMI prediction
                 "close": float(bar.close),
                 "source": payload["source"],
                 "payload": payload,
             })
 
-    def _check_crossovers(self, instrument_id: InstrumentId, state: _PairState, bar: Bar, rsi_val: float, live: bool) -> None:
-        """Detect OB/OS crossovers and log signals."""
-        prev = state.prev_rsi
-        if prev is None:
-            return
-        ob = self.config.overbought_threshold
-        os_ = self.config.oversold_threshold
-
-        if prev <= ob and rsi_val > ob:
+    def _emit_signals(self, instrument_id: InstrumentId, bar: Bar, res: MLMIResult, live: bool) -> None:
+        for signal_type in res.signals:
+            if signal_type not in self._enabled:
+                continue
             if live:
+                prev = res.prev_prediction
                 self.log.warning(
-                    f"🚨 {instrument_id} OVERBOUGHT CROSS (RSI {prev:.3f} -> {rsi_val:.3f} > {ob}) 🚨",
-                    color=LogColor.MAGENTA,
+                    f"🚨 {instrument_id} MLMI {signal_type} "
+                    f"(prediction {prev:.1f} -> {res.prediction:.1f}, "
+                    f"OS {res.os_level:.1f} / OB {res.ob_level:.1f}, zone {res.zone}) 🚨",
+                    color=LogColor.MAGENTA if signal_type.startswith("OB") else LogColor.CYAN,
                 )
-            self._log_signal(instrument_id, bar, "OB_CROSS", rsi_val, live)
-
-        if prev >= os_ and rsi_val < os_:
-            if live:
-                self.log.warning(
-                    f"🚨 {instrument_id} OVERSOLD CROSS (RSI {prev:.3f} -> {rsi_val:.3f} < {os_}) 🚨",
-                    color=LogColor.CYAN,
-                )
-            self._log_signal(instrument_id, bar, "OS_CROSS", rsi_val, live)
+            self._log_signal(instrument_id, bar, signal_type, res, live)
 
     def on_historical_data(self, data) -> None:
         if not isinstance(data, Bar):
@@ -396,17 +434,15 @@ class RSISignalStrategy(Strategy):
         if state is None:           # pair was unwatched while history was in flight
             return
 
-        state.rsi.handle_bar(data)  # per-pair indicator is updated manually
-        if not state.rsi.initialized:
+        res = state.mlmi.update(float(data.close))   # per-pair indicator is updated manually
+        if res is None:             # features (smoothed RSIs) not available yet
             return
 
-        rsi_val = state.rsi.value
-        self._check_crossovers(iid, state, data, rsi_val, live=False)
-        state.prev_rsi = rsi_val
+        self._emit_signals(iid, data, res, live=False)
 
         if state.warming_up:
             state.warming_up = False
-            self.log.info(f"{iid}: warmup complete. First RSI={rsi_val:.2f}")
+            self.log.info(f"{iid}: features warm. First MLMI prediction={res.prediction:.1f}")
 
     def on_bar(self, bar: Bar) -> None:
         iid = bar.bar_type.instrument_id
@@ -414,90 +450,10 @@ class RSISignalStrategy(Strategy):
         if state is None or state.warming_up:
             return
 
-        state.rsi.handle_bar(bar)
-        if not state.rsi.initialized:
+        res = state.mlmi.update(float(bar.close))
+        if res is None:
             return
-
-        rsi_val = state.rsi.value
-        self._check_crossovers(iid, state, bar, rsi_val, live=True)
-        state.prev_rsi = rsi_val
-
-
-# -----------------------------------------------------------------------------
-# Pair reconciler: keep watched pairs in sync with travis' latest scan
-# -----------------------------------------------------------------------------
-class PairReconciler:
-    def __init__(
-        self,
-        strategy: RSISignalStrategy,
-        *,
-        pair_types: tuple[str, ...],
-        poll_seconds: float,
-        remove_after_misses: int,
-        add_stagger_seconds: float,
-    ):
-        self._strategy = strategy
-        self._pair_types = pair_types
-        self._poll = poll_seconds
-        self._remove_after = remove_after_misses
-        self._stagger = add_stagger_seconds
-
-        self._misses: dict[str, int] = {}
-        self._last_scan_id: Optional[int] = None
-
-    async def run(self) -> None:
-        # Wait until the node has connected the data client (instruments are in
-        # the cache) and started the strategy.
-        while not self._strategy.is_running:
-            await asyncio.sleep(1)
-
-        db = await SignalsDB.get_instance()
-        while True:
-            try:
-                await self._reconcile_once(db)
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                log(f"❌ Pair reconcile failed: {e!r}")
-            await asyncio.sleep(self._poll)
-
-    async def _reconcile_once(self, db: SignalsDB) -> None:
-        snap = await db.get_target_pairs(self._pair_types)
-        if snap is None or not snap.pairs:
-            # Never tear everything down just because travis has nothing (yet)
-            log(f"ℹ️ No pairs from travis-scanner yet; keeping current set ({len(self._strategy.watched)} active)")
-            return
-
-        if snap.scan_id != self._last_scan_id:
-            log(f"📥 travis scan #{snap.scan_id} @ {snap.scanned_at}: {len(snap.pairs)} pairs")
-            self._last_scan_id = snap.scan_id
-
-        desired = set(snap.pairs)
-        watched = self._strategy.watched
-
-        # ---- add ----
-        for sym in snap.pairs:
-            self._misses.pop(sym, None)
-            if sym in watched:
-                continue
-            try:
-                iid = InstrumentId.from_str(f"{sym}.{BINANCE}")
-            except Exception:
-                log(f"⚠️ Skipping invalid symbol from travis: {sym!r}")
-                continue
-            if self._strategy.watch(iid):
-                log(f"➕ Watching {sym} ({len(self._strategy.watched)} active)")
-                await asyncio.sleep(self._stagger)   # be gentle with Binance kline requests
-            else:
-                log(f"⚠️ {sym} not available on Binance spot; will retry next poll")
-
-        # ---- remove (grace period so a pair that flaps out for one scan isn't churned) ----
-        for sym in self._strategy.watched - desired:
-            self._misses[sym] = self._misses.get(sym, 0) + 1
-            if self._misses[sym] >= self._remove_after:
-                self._strategy.unwatch(InstrumentId.from_str(f"{sym}.{BINANCE}"))
-                self._misses.pop(sym, None)
-                log(f"➖ Stopped watching {sym} ({len(self._strategy.watched)} active)")
+        self._emit_signals(iid, bar, res, live=True)
 
 
 async def purge_loop(ttl_hours: int, interval_seconds: float) -> None:
@@ -623,9 +579,16 @@ def main():
     trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
-    rsi_period = int(os.getenv("RSI_PERIOD", "14"))
-    overbought = float(os.getenv("RSI_OVERBOUGHT", "0.7"))
-    oversold = float(os.getenv("RSI_OVERSOLD", "0.3"))
+    mlmi_k = int(os.getenv("MLMI_K", "200"))
+    momentum_window = int(os.getenv("MLMI_MOMENTUM_WINDOW", "20"))
+    band_window = int(os.getenv("MLMI_BAND_WINDOW", "2000"))
+    band_min_bars = int(os.getenv("MLMI_BAND_MIN_BARS", "200"))
+    zone_threshold = float(os.getenv("MLMI_ZONE_THRESHOLD", "0.0"))
+    confirm_threshold = float(os.getenv("MLMI_CONFIRM_THRESHOLD", "0.0"))
+    aligned_labels = os.getenv("MLMI_ALIGNED_LABELS", "0") == "1"
+    enabled_signals = tuple(
+        s.strip().upper() for s in os.getenv("MLMI_SIGNALS", "OB_CROSS,OS_CROSS").split(",") if s.strip()
+    )
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
@@ -675,12 +638,17 @@ def main():
         webhook_max_retries=webhook_max_retries,
     )
 
-    strategy = RSISignalStrategy(
-        RSISignalConfig(
+    strategy = MLMISignalStrategy(
+        MLMISignalConfig(
             bar_interval=bar_interval,
-            rsi_period=rsi_period,
-            overbought_threshold=overbought,
-            oversold_threshold=oversold,
+            num_neighbors=mlmi_k,
+            momentum_window=momentum_window,
+            band_window=band_window,
+            band_min_bars=band_min_bars,
+            zone_threshold=zone_threshold,
+            confirmation_threshold=confirm_threshold,
+            aligned_labels=aligned_labels,
+            enabled_signals=enabled_signals,
             historical_bars=historical_bars,
         ),
         sink=sink,

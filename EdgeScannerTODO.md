@@ -13,6 +13,9 @@
   - [ ] MLMI instead of simple RSI
   - [ ] Send signals to the SQS
   - [ ] Create a new stack with SQS
+  - [ ] Move reconsiler to a dedicated file
+  - [ ] Supertrend
+  - [ ] Z-Score Volume with CVD Clustering
 - [ ] implement travis-scanner
   - [ ] Signals in the dashboard
   - [ ] Configuration (webhooky URL)
