@@ -20,7 +20,7 @@ Environment (new in this version):
     MLMI_ZONE_THRESHOLD           0.0                 exit level of buy / sell zones
     MLMI_CONFIRM_THRESHOLD        0.0                 end of the confirmation zone
     MLMI_ALIGNED_LABELS           0                   1 = label each sample with its own outcome (see mlmi.py)
-    MLMI_SIGNALS                  OB_CROSS,OS_CROSS   any of OB_CROSS,OB_EXIT,OS_CROSS,OS_EXIT,MID_UP,MID_DOWN,MA_UP,MA_DOWN
+    MLMI_SIGNALS                  all four            any of OB_CROSSOVER,OB_CROSSUNDER,OS_CROSSOVER,OS_CROSSUNDER
     PAIR_TYPES                    filtered,newcomer   which travis pair_types to scan
     PAIR_POLL_SECONDS             300                 how often to re-read travis' table
     PAIR_REMOVE_AFTER_MISSES      2                   drop a pair only after N consecutive polls without it
@@ -116,7 +116,12 @@ def _parse_interval_minutes(interval_str: str) -> int:
 # -----------------------------------------------------------------------------
 # Signal sink: strategy callbacks -> queue -> Postgres
 # -----------------------------------------------------------------------------
-_CROSS_LABELS = {"OB_CROSS": "OVERBOUGHT", "OS_CROSS": "OVERSOLD"}
+_CROSS_LABELS = {
+    "OB_CROSSOVER": "OVERBOUGHT CROSSOVER",
+    "OB_CROSSUNDER": "OVERBOUGHT CROSSUNDER",
+    "OS_CROSSOVER": "OVERSOLD CROSSOVER",
+    "OS_CROSSUNDER": "OVERSOLD CROSSUNDER",
+}
 
 _TRANSIENT_DB_ERRORS = (
     OSError,
@@ -207,8 +212,8 @@ class SignalSink:
 
         payload = {
             "symbol": item["symbol"],            # e.g. "BTCUSDT"
-            "signal_type": item["signal_type"],  # "OB_CROSS" / "OS_CROSS" / ...
-            "crossover": cross,                  # "OVERBOUGHT" / "OVERSOLD" / signal name
+            "signal_type": item["signal_type"],  # OB_/OS_ CROSSOVER / CROSSUNDER
+            "crossover": cross,                  # e.g. "OVERSOLD CROSSOVER"
             "timeframe": item["timeframe"],      # e.g. "15-MINUTE"
             "mlmi": item["rsi"],                 # MLMI prediction
             "rsi": item["rsi"],                  # legacy alias of "mlmi" for existing receivers
@@ -292,7 +297,7 @@ class MLMISignalConfig(StrategyConfig, frozen=True):
     zone_threshold: float = 0.0
     confirmation_threshold: float = 0.0
     aligned_labels: bool = False        # False = exact Pine behaviour (see mlmi.py)
-    enabled_signals: tuple[str, ...] = ("OB_CROSS", "OS_CROSS")
+    enabled_signals: tuple[str, ...] = SIGNAL_TYPES
     historical_bars: int = 3000         # signal-eligible past bars (warm-up is added on top)
 
 
@@ -587,7 +592,7 @@ def main():
     confirm_threshold = float(os.getenv("MLMI_CONFIRM_THRESHOLD", "0.0"))
     aligned_labels = os.getenv("MLMI_ALIGNED_LABELS", "0") == "1"
     enabled_signals = tuple(
-        s.strip().upper() for s in os.getenv("MLMI_SIGNALS", "OB_CROSS,OS_CROSS").split(",") if s.strip()
+        s.strip().upper() for s in os.getenv("MLMI_SIGNALS", ",".join(SIGNAL_TYPES)).split(",") if s.strip()
     )
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"

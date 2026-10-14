@@ -16,7 +16,7 @@ The algorithm is k-Nearest-Neighbours (NOT k-means clustering):
   3. Prediction (every bar): the labels of the k samples nearest to the current
      (slow, quick) point are summed -> the MLMI line.
   4. Adaptive bands from the last `band_window` predictions, zone state machines
-     and eight line-crossing events.
+     and four level-crossing signals (see SIGNAL_TYPES).
 
 One `MLMI` instance holds the state of ONE symbol / timeframe. Feed it closed
 bars in chronological order via `update(close)`.
@@ -47,16 +47,13 @@ SLOW_RSI_LEN = 20
 PREDICTION_MA_LEN = 20
 VOLATILITY_LEN = 20
 
-# Signal names, one per Pine alertcondition.
-#   prediction crosses OVER  the overbought level -> OB_CROSS  (enters overbought)
-#   prediction crosses UNDER the overbought level -> OB_EXIT
-#   prediction crosses UNDER the oversold level   -> OS_CROSS  (enters oversold)
-#   prediction crosses OVER  the oversold level   -> OS_EXIT   (starts "confirmation")
-#   prediction crosses the zero line              -> MID_UP / MID_DOWN
-#   prediction crosses its own WMA                -> MA_UP / MA_DOWN
+# Signal names: the prediction line crossing the two adaptive levels.
+#   OB_CROSSOVER   prediction crosses OVER  the overbought level
+#   OB_CROSSUNDER  prediction crosses UNDER the overbought level
+#   OS_CROSSOVER   prediction crosses OVER  the oversold level  (also starts the "confirmation" zone)
+#   OS_CROSSUNDER  prediction crosses UNDER the oversold level
 SIGNAL_TYPES: tuple[str, ...] = (
-    "OB_CROSS", "OB_EXIT", "OS_CROSS", "OS_EXIT",
-    "MID_UP", "MID_DOWN", "MA_UP", "MA_DOWN",
+    "OB_CROSSOVER", "OB_CROSSUNDER", "OS_CROSSOVER", "OS_CROSSUNDER",
 )
 
 
@@ -250,7 +247,7 @@ class MLMIResult:
     buy_zone: bool                       # prediction in / recovering from oversold
     sell_zone: bool                      # prediction in / recovering from overbought
     middle_zone: bool
-    confirmation_zone: bool              # after OS_EXIT until recovery threshold
+    confirmation_zone: bool              # after OS_CROSSOVER until recovery threshold
     signals: tuple[str, ...]             # subset of SIGNAL_TYPES firing on this bar
 
     @property
@@ -390,21 +387,15 @@ class MLMI:
             ob_under = _crossunder(pred, ob, self._prev_pred, self._prev_ob)
             os_over = _crossover(pred, os_, self._prev_pred, self._prev_os)
             os_under = _crossunder(pred, os_, self._prev_pred, self._prev_os)
-            mid_over = _crossover(pred, 0.0, self._prev_pred, 0.0)
-            mid_under = _crossunder(pred, 0.0, self._prev_pred, 0.0)
-            ma_over = _crossover(pred, pred_ma, self._prev_pred, self._prev_pred_ma)
-            ma_under = _crossunder(pred, pred_ma, self._prev_pred, self._prev_pred_ma)
 
             for flag, name in (
-                (ob_over, "OB_CROSS"), (ob_under, "OB_EXIT"),
-                (os_under, "OS_CROSS"), (os_over, "OS_EXIT"),
-                (mid_over, "MID_UP"), (mid_under, "MID_DOWN"),
-                (ma_over, "MA_UP"), (ma_under, "MA_DOWN"),
+                (ob_over, "OB_CROSSOVER"), (ob_under, "OB_CROSSUNDER"),
+                (os_over, "OS_CROSSOVER"), (os_under, "OS_CROSSUNDER"),
             ):
                 if flag:
                     signals.append(name)
 
-            # confirmation zone: starts when prediction climbs back over the oversold level
+            # confirmation zone: starts on OS_CROSSOVER
             if os_over:
                 self._confirm = True
             if pred >= self.confirmation_threshold:
