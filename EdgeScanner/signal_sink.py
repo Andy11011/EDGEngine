@@ -76,8 +76,10 @@ class SignalSink:
         webhook_url: Optional[str] = None,
         webhook_timeout: float = 10.0,
         webhook_max_retries: int = 3,
+        db_enabled: bool = True,
     ):
         self._loop = loop
+        self.db_enabled = db_enabled        # False = webhook only, Postgres is never touched
         self._queue: asyncio.Queue = asyncio.Queue()
         self._webhook_queue: asyncio.Queue = asyncio.Queue()
         self.ttl_hours = ttl_hours
@@ -91,13 +93,16 @@ class SignalSink:
 
     def submit(self, item: dict) -> None:
         # call_soon_threadsafe: safe whether or not the caller is on the loop thread
-        self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+        if self.db_enabled:
+            self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
         if self._webhook_url and item.get("source") == "live":
             self._loop.call_soon_threadsafe(self._webhook_queue.put_nowait, item)
 
     async def run(self) -> None:
-        db = await SignalsDB.get_instance()
-        tasks = [asyncio.create_task(self._db_worker(db), name="signal-db")]
+        tasks = []
+        if self.db_enabled:
+            db = await SignalsDB.get_instance()
+            tasks.append(asyncio.create_task(self._db_worker(db), name="signal-db"))
         if self._webhook_url:
             tasks.append(asyncio.create_task(self._webhook_worker(), name="signal-webhook"))
         await asyncio.gather(*tasks)
@@ -180,9 +185,11 @@ class SignalSink:
 
     # ---- shutdown flush ----
     async def drain(self, timeout: float = 10.0) -> None:
-        db = await SignalsDB.get_instance()
+        db = await SignalsDB.get_instance() if self.db_enabled else None
 
         async def _flush_db() -> None:
+            if db is None:
+                return
             while not self._queue.empty():
                 await self._write_db(db, self._queue.get_nowait())
 

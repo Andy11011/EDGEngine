@@ -1130,3 +1130,32 @@ docker run -d --name edge-signals-db -e POSTGRES_USER=user -e POSTGRES_PASSWORD=
 
 
 DATABASE_URL=postgresql://user:pass@localhost:5432/edge_signals
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+upper  = ta.highest(prediction, 2000)
+lower  = ta.lowest(prediction, 2000)
+upper_ = upper - ta.ema(ta.stdev(prediction,20),20)
+lower_ = lower + ta.ema(ta.stdev(prediction,20),20)
+
+So the bands are the highest and lowest k-NN prediction over 
+the last 2000 bars, pulled inward by a smoothed volatility term. 
+upper_ is the overbought level and lower_ the oversold level. 
+The four signals are the prediction crossing over or under those 
+two levels (P_OB_Over, P_OB_Under, P_OS_Over, P_OS_Under). 
+In Pine the 2000 is hard-coded; the Python version makes it 
+configurable through MLMI_BAND_WINDOW.
+
+BAND_MIN_BARS was not in the original. The Pine script has no minimum, 
+so signals can fire as soon as the bands exist. It is a guard added 
+in the Python port (default 200) that holds back signals until at 
+least that many predictions have been computed. It is there because 
+a band built from only a few predictions is very narrow, so crosses
+ early on would be mostly noise. This matters more in a live scanner,
+  which has to warm up on backfilled bars.
+
+//--------------------//
+//--------------------//
+//--------------------//

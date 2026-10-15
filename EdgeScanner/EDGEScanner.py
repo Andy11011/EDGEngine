@@ -12,6 +12,11 @@ what travis' dashboard reads. Rows older than SIGNAL_TTL_HOURS are purged.
 
 The indicator lives in mlmi.py, the pair reconciler in pair_reconciler.py.
 
+Debug mode (--debug): no Postgres at all (no travis pair table, no edge_signals
+writes, no purge). Runs the full MLMI computation for the hard-coded
+DEBUG_TICKERS below instead, logging signals to the console and still posting
+live signals to WEBHOOK_URL if it is set.
+
 Environment (new in this version):
     MLMI_K                        200                 k of the k-NN vote
     MLMI_MOMENTUM_WINDOW          20                  WMA smoothing of the two RSIs
@@ -31,6 +36,7 @@ Environment (new in this version):
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 import sys
@@ -67,6 +73,32 @@ from signals_db_async import SignalsDB
 
 def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
+
+
+# --debug mode: fixed list of Binance spot symbols to scan. Symbols that are
+# not listed on spot are skipped with an error log.
+DEBUG_TICKERS: tuple[str, ...] = (
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "SOLUSDT",
+    "TRXUSDT",
+    "DOGEUSDT",
+    "LINKUSDT",
+    "ADAUSDT",
+    "LTCUSDT",
+)
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Live MLMI signal scanner for Binance")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="No Postgres: compute MLMI for the hard-coded DEBUG_TICKERS; signals are logged and still sent to the webhook",
+    )
+    return parser.parse_args()
 
 
 # -----------------------------------------------------------------------------
@@ -301,6 +333,21 @@ async def purge_loop(ttl_hours: int, interval_seconds: float) -> None:
 # -----------------------------------------------------------------------------
 # Node construction
 # -----------------------------------------------------------------------------
+async def debug_watch_loop(strategy: MLMISignalStrategy, symbols: tuple[str, ...], stagger_seconds: float) -> None:
+    """Debug replacement for PairReconciler: watch a fixed ticker list once the strategy is running."""
+    while not strategy.is_running:
+        await asyncio.sleep(0.5)
+    for symbol in symbols:
+        try:
+            strategy.watch(InstrumentId.from_str(f"{symbol}.{BINANCE}"))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log(f"❌ Debug watch failed for {symbol}: {e!r}")
+        await asyncio.sleep(stagger_seconds)
+    log(f"🐞 Debug: watching {len(strategy.watched)}/{len(symbols)} ticker(s): {sorted(strategy.watched)}")
+
+
 def _resolve_binance_config_kwargs(environment_name: str) -> dict[str, object]:
     normalized = environment_name.upper()
     try:
@@ -363,8 +410,9 @@ async def _shutdown_background(tasks: list, sink: SignalSink) -> None:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
     await sink.drain()                       # flush signals still queued
-    db = await SignalsDB.get_instance()
-    await db.close()
+    if sink.db_enabled:                      # debug mode never opened the DB
+        db = await SignalsDB.get_instance()
+        await db.close()
 
 
 def run_data_node(
@@ -404,6 +452,12 @@ def register_binance_data_client_factory(node: TradingNode) -> None:
 # Main
 # -----------------------------------------------------------------------------
 def main():
+    args = _parse_args()
+    debug = args.debug
+    if debug:
+        log("🐞 DEBUG mode: no Postgres, no pair reconciler; "
+            f"scanning {len(DEBUG_TICKERS)} hard-coded ticker(s)")
+
     trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
@@ -455,12 +509,15 @@ def main():
         log_level=log_level,
     )
 
+    if debug and not webhook_url:
+        log("⚠️ DEBUG mode without WEBHOOK_URL: signals will only be logged to the console")
     sink = SignalSink(
         node.get_event_loop(),
         ttl_hours=ttl_hours,
         webhook_url=webhook_url,
         webhook_timeout=webhook_timeout,
         webhook_max_retries=webhook_max_retries,
+        db_enabled=not debug,
     )
 
     strategy = MLMISignalStrategy(
@@ -477,7 +534,7 @@ def main():
         ),
         sink=sink,
     )
-    reconciler = PairReconciler(
+    reconciler = None if debug else PairReconciler(
         strategy,
         pair_types=pair_types,
         poll_seconds=poll_seconds,
@@ -486,6 +543,8 @@ def main():
     )
 
     def make_background_tasks(loop: asyncio.AbstractEventLoop) -> list:
+        if debug:
+            return [loop.create_task(debug_watch_loop(strategy, DEBUG_TICKERS, add_stagger), name="debug-watch")]
         return [
             loop.create_task(sink.run(), name="signal-sink"),
             loop.create_task(reconciler.run(), name="pair-reconciler"),
