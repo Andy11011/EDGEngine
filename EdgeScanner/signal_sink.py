@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 import aiohttp
@@ -30,6 +31,20 @@ _CROSS_LABELS = {
     "OS_CROSSOVER": "OVERSOLD CROSSOVER",
     "OS_CROSSUNDER": "OVERSOLD CROSSUNDER",
 }
+
+# Symbol per signal type (red/green triangle, up/down).
+_SIGNAL_SYMBOLS = {
+    "OS_CROSSOVER": "🔴▼",
+    "OS_CROSSUNDER": "🔴▲",
+    "OB_CROSSOVER": "🟢▼",
+    "OB_CROSSUNDER": "🟢▲",
+}
+
+
+def _bar_time_utc(bar_time_ms: int) -> str:
+    """Bar timestamp (epoch ms) as an ISO-8601 UTC string, e.g. 2026-10-15T14:30:00Z."""
+    return datetime.fromtimestamp(bar_time_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 _TRANSIENT_DB_ERRORS = (
     OSError,
@@ -117,6 +132,8 @@ class SignalSink:
     async def _post_webhook(self, session: aiohttp.ClientSession, item: dict) -> None:
         # Human-friendly crossover label for the receiver.
         cross = _CROSS_LABELS.get(item["signal_type"], item["signal_type"])
+        symbol = _SIGNAL_SYMBOLS.get(item["signal_type"], "")
+        utc_time = _bar_time_utc(item["bar_time_ms"])
 
         payload = {
             "symbol": item["symbol"],            # e.g. "BTCUSDT"
@@ -127,9 +144,11 @@ class SignalSink:
             "rsi": item["rsi"],                  # legacy alias of "mlmi" for existing receivers
             "close": item["close"],
             "bar_time_ms": item["bar_time_ms"],
+            "utc_time": utc_time,                # bar time in UTC, ISO-8601
+            "signal_symbol": symbol,             # e.g. "🟢▲"
             "message": (
-                f"{item['symbol']} {item['timeframe']} MLMI "
-                f"{cross} ({item['rsi']:.1f}) @ {item['close']}"
+                f"{symbol} {item['symbol']} {item['timeframe']} MLMI "
+                f"{cross} ({item['rsi']:.1f}) @ {item['close']} [{utc_time}]"
             ),
         }
         delay = 1.0
