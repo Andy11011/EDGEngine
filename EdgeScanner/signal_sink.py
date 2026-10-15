@@ -33,7 +33,7 @@ _CROSS_LABELS = {
 }
 
 # Symbol per signal type (red/green triangle, up/down).
-_SIGNAL_SYMBOLS = {
+SIGNAL_SYMBOLS = {
     "OS_CROSSOVER": "🔴▼",
     "OS_CROSSUNDER": "🔴▲",
     "OB_CROSSOVER": "🟢▼",
@@ -41,7 +41,7 @@ _SIGNAL_SYMBOLS = {
 }
 
 
-def _bar_time_utc(bar_time_ms: int) -> str:
+def bar_time_utc(bar_time_ms: int) -> str:
     """Bar timestamp (epoch ms) as an ISO-8601 UTC string, e.g. 2026-10-15T14:30:00Z."""
     return datetime.fromtimestamp(bar_time_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -137,8 +137,8 @@ class SignalSink:
     async def _post_webhook(self, session: aiohttp.ClientSession, item: dict) -> None:
         # Human-friendly crossover label for the receiver.
         cross = _CROSS_LABELS.get(item["signal_type"], item["signal_type"])
-        symbol = _SIGNAL_SYMBOLS.get(item["signal_type"], "")
-        utc_time = _bar_time_utc(item["bar_time_ms"])
+        symbol = SIGNAL_SYMBOLS.get(item["signal_type"], "")
+        utc_time = bar_time_utc(item["bar_time_ms"])
 
         payload = {
             "symbol": item["symbol"],            # e.g. "BTCUSDT"

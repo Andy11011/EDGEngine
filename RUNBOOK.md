@@ -308,7 +308,7 @@ docker run --rm --env-file .env.local -p 8000:8000 edge-point:latest
 For edge-scanner:
 
 ```powershell
-docker run --rm --env-file .env.local edge-scanner:latest
+docker run --rm --env-file .env.local edge-scanner:latest python EDGEScanner.py --debug
 ```
 
 `--env-file` is required — host-shell env vars (`export`/`$env:`) are **not** automatically passed into the container.
