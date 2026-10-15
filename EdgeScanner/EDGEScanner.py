@@ -20,7 +20,6 @@ Environment (new in this version):
     MLMI_ZONE_THRESHOLD           0.0                 exit level of buy / sell zones
     MLMI_CONFIRM_THRESHOLD        0.0                 end of the confirmation zone
     MLMI_ALIGNED_LABELS           0                   1 = label each sample with its own outcome (see mlmi.py)
-    MLMI_SIGNALS                  all four            any of OB_CROSSOVER,OB_CROSSUNDER,OS_CROSSOVER,OS_CROSSUNDER
     PAIR_TYPES                    filtered,newcomer   which travis pair_types to scan
     PAIR_POLL_SECONDS             300                 how often to re-read travis' table
     PAIR_REMOVE_AFTER_MISSES      2                   drop a pair only after N consecutive polls without it
@@ -60,7 +59,7 @@ from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
 
-from mlmi import MLMI, MLMIResult, SIGNAL_TYPES
+from mlmi import MLMI, MLMIResult
 from pair_reconciler import PairReconciler
 from signal_sink import SignalSink
 from signals_db_async import SignalsDB
@@ -128,7 +127,6 @@ class MLMISignalConfig(StrategyConfig, frozen=True):
     zone_threshold: float = 0.0
     confirmation_threshold: float = 0.0
     aligned_labels: bool = False        # False = exact Pine behaviour (see mlmi.py)
-    enabled_signals: tuple[str, ...] = SIGNAL_TYPES
     historical_bars: int = 3000         # signal-eligible past bars (warm-up is added on top)
 
 
@@ -144,10 +142,6 @@ class _PairState:
 class MLMISignalStrategy(Strategy):
     def __init__(self, config: MLMISignalConfig, sink: Optional[SignalSink] = None):
         super().__init__(config)
-        unknown = set(config.enabled_signals) - set(SIGNAL_TYPES)
-        if unknown:
-            raise ValueError(f"Unknown MLMI signal(s) {sorted(unknown)}; valid: {SIGNAL_TYPES}")
-        self._enabled = frozenset(config.enabled_signals)
         self._sink = sink
         self._states: dict[InstrumentId, _PairState] = {}
         self._minutes_per_bar = _parse_interval_minutes(config.bar_interval)
@@ -204,7 +198,7 @@ class MLMISignalStrategy(Strategy):
         self.log.info(
             f"MLMI Signal Strategy started | interval={c.bar_interval}, k={c.num_neighbors}, "
             f"momentum_window={c.momentum_window}, band_window={c.band_window}, "
-            f"signals={sorted(self._enabled)}, aligned_labels={c.aligned_labels}",
+            f"aligned_labels={c.aligned_labels}",
             color=LogColor.GREEN,
         )
 
@@ -250,8 +244,6 @@ class MLMISignalStrategy(Strategy):
 
     def _emit_signals(self, instrument_id: InstrumentId, bar: Bar, res: MLMIResult, live: bool) -> None:
         for signal_type in res.signals:
-            if signal_type not in self._enabled:
-                continue
             if live:
                 prev = res.prev_prediction
                 self.log.warning(
@@ -422,9 +414,6 @@ def main():
     zone_threshold = float(os.getenv("MLMI_ZONE_THRESHOLD", "0.0"))
     confirm_threshold = float(os.getenv("MLMI_CONFIRM_THRESHOLD", "0.0"))
     aligned_labels = os.getenv("MLMI_ALIGNED_LABELS", "0") == "1"
-    enabled_signals = tuple(
-        s.strip().upper() for s in os.getenv("MLMI_SIGNALS", ",".join(SIGNAL_TYPES)).split(",") if s.strip()
-    )
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
@@ -484,7 +473,6 @@ def main():
             zone_threshold=zone_threshold,
             confirmation_threshold=confirm_threshold,
             aligned_labels=aligned_labels,
-            enabled_signals=enabled_signals,
             historical_bars=historical_bars,
         ),
         sink=sink,
