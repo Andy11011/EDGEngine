@@ -7,10 +7,13 @@ non-blocking); background writer tasks drain the queues.
 from __future__ import annotations
 
 import asyncio
+import os
+import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiohttp
 import asyncpg
@@ -44,6 +47,50 @@ SIGNAL_SYMBOLS = {
 def bar_time_utc(bar_time_ms: int) -> str:
     """Bar timestamp (epoch ms) as an ISO-8601 UTC string, e.g. 2026-10-15T14:30:00Z."""
     return datetime.fromtimestamp(bar_time_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# -----------------------------------------------------------------------------
+# Display timezone (env DISPLAY_TIMEZONE; default = Kazakhstan, UTC+5 since 2024-03-01)
+# Accepts an IANA name ("Asia/Almaty") or a fixed offset ("+05:00", "UTC+5").
+# Fixed offsets need no tz database; IANA names need tzdata >= 2024a for the
+# 2024 Kazakhstan change (python: `pip install tzdata`).
+# -----------------------------------------------------------------------------
+DEFAULT_DISPLAY_TIMEZONE = "Asia/Almaty"
+
+
+def resolve_timezone(name: str) -> tzinfo:
+    name = (name or "").strip() or DEFAULT_DISPLAY_TIMEZONE
+    if name.upper() in ("UTC", "Z"):
+        return timezone.utc
+    m = re.fullmatch(r"(?:UTC)?([+-])(\d{1,2})(?::?(\d{2}))?", name, re.IGNORECASE)
+    if m:
+        delta = timedelta(hours=int(m.group(2)), minutes=int(m.group(3) or 0))
+        return timezone(-delta if m.group(1) == "-" else delta)
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        log(f"⚠️ Unknown DISPLAY_TIMEZONE {name!r} (is the tzdata package installed?); falling back to UTC")
+        return timezone.utc
+
+
+DISPLAY_TZ_NAME = os.getenv("DISPLAY_TIMEZONE", DEFAULT_DISPLAY_TIMEZONE).strip() or DEFAULT_DISPLAY_TIMEZONE
+DISPLAY_TZ = resolve_timezone(DISPLAY_TZ_NAME)
+
+
+def _fmt_offset(dt: datetime) -> str:
+    off = dt.strftime("%z")                 # "+0500"
+    return f"UTC{off[:3]}:{off[3:]}"
+
+
+def bar_time_local(bar_time_ms: int) -> str:
+    """Bar timestamp in the display timezone, e.g. '2026-10-14 22:44:59 UTC+05:00'."""
+    dt = datetime.fromtimestamp(bar_time_ms / 1000, tz=DISPLAY_TZ)
+    return f"{dt:%Y-%m-%d %H:%M:%S} {_fmt_offset(dt)}"
+
+
+def display_timezone_info() -> str:
+    """One-line description for the startup log (shows the offset actually in effect)."""
+    return f"{DISPLAY_TZ_NAME} ({_fmt_offset(datetime.now(DISPLAY_TZ))})"
 
 
 _TRANSIENT_DB_ERRORS = (
@@ -139,6 +186,7 @@ class SignalSink:
         cross = _CROSS_LABELS.get(item["signal_type"], item["signal_type"])
         symbol = SIGNAL_SYMBOLS.get(item["signal_type"], "")
         utc_time = bar_time_utc(item["bar_time_ms"])
+        local_time = bar_time_local(item["bar_time_ms"])
 
         payload = {
             "symbol": item["symbol"],            # e.g. "BTCUSDT"
@@ -149,11 +197,12 @@ class SignalSink:
             "rsi": item["rsi"],                  # legacy alias of "mlmi" for existing receivers
             "close": item["close"],
             "bar_time_ms": item["bar_time_ms"],
-            "utc_time": utc_time,                # bar time in UTC, ISO-8601
+            "utc_time": utc_time,                # bar timestamp in UTC, ISO-8601
+            "local_time": local_time,            # same instant in DISPLAY_TIMEZONE
             "signal_symbol": symbol,             # e.g. "🟢▲"
             "message": (
                 f"{symbol} {item['symbol']} {item['timeframe']} MLMI "
-                f"{cross} ({item['rsi']:.1f}) @ {item['close']} [{utc_time}]"
+                f"{cross} ({item['rsi']:.1f}) @ {item['close']} [{local_time} | {utc_time}]"
             ),
         }
         delay = 1.0

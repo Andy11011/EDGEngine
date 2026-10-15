@@ -1159,3 +1159,24 @@ a band built from only a few predictions is very narrow, so crosses
 //--------------------//
 //--------------------//
 //--------------------//
+
+2026-10-15T04:25:24.730350793Z [INFO] EDGENGINE-001.MLMISignalStrategy: 📝 [HIST] 
+🔴▲ ADAUSDT OS_CROSSUNDER 2026-10-15T01:44:59Z 
+close=0.2282 
+mlmi=-18.0 
+| {"symbol": "ADAUSDT.BINANCE", 
+"type": "OS_CROSSUNDER",
+ "signal_symbol": "\ud83d\udd34\u25b2", 
+ "utc_time": "2026-10-15T01:44:59Z", 
+ "rsi": -18.0, 
+ "mlmi": {
+  "prediction": -18.0, 
+  "prediction_ma": 10.057142857142859, 
+  "upper": 48.0, 
+  "lower": -32.0, 
+  "ob_level": 31.913122654290255, 
+  "os_level": -15.913122654290255, 
+  "zone": "BUY", "confirmation_zone": false}, 
+  "close": 0.2282, 
+  "timestamp": 1792028699999, 
+  "source": "historical"

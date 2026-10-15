@@ -25,6 +25,7 @@ Environment (new in this version):
     MLMI_ZONE_THRESHOLD           0.0                 exit level of buy / sell zones
     MLMI_CONFIRM_THRESHOLD        0.0                 end of the confirmation zone
     MLMI_ALIGNED_LABELS           0                   1 = label each sample with its own outcome (see mlmi.py)
+    DISPLAY_TIMEZONE              Asia/Almaty         timezone of the local time in logs / webhook (IANA name or +05:00)
     PAIR_TYPES                    filtered,newcomer   which travis pair_types to scan
     PAIR_POLL_SECONDS             300                 how often to re-read travis' table
     PAIR_REMOVE_AFTER_MISSES      2                   drop a pair only after N consecutive polls without it
@@ -67,7 +68,13 @@ from nautilus_trader.trading.strategy import Strategy
 
 from mlmi import MLMI, MLMIResult
 from pair_reconciler import PairReconciler
-from signal_sink import SIGNAL_SYMBOLS, SignalSink, bar_time_utc
+from signal_sink import (
+    SIGNAL_SYMBOLS,
+    SignalSink,
+    bar_time_local,
+    bar_time_utc,
+    display_timezone_info,
+)
 from signals_db_async import SignalsDB
 
 
@@ -242,12 +249,14 @@ class MLMISignalStrategy(Strategy):
         """Log an MLMI signal and hand it to the DB sink."""
         ts_ms = round(bar.ts_event / 1_000_000)
         utc_time = bar_time_utc(ts_ms)
+        local_time = bar_time_local(ts_ms)
         symbol_char = SIGNAL_SYMBOLS.get(signal_type, "")
         payload = {
             "symbol": str(instrument_id),
             "type": signal_type,
             "signal_symbol": symbol_char,
-            "utc_time": utc_time,           # bar open time, UTC
+            "utc_time": utc_time,           # bar timestamp, UTC
+            "local_time": local_time,       # same instant in DISPLAY_TIMEZONE
             "rsi": res.prediction,          # legacy key/column name: now carries the MLMI prediction
             "mlmi": {
                 "prediction": res.prediction,
@@ -266,7 +275,7 @@ class MLMISignalStrategy(Strategy):
         tag = "LIVE" if live else "HIST"
         self.log.info(
             f"📝 [{tag}] {symbol_char} {instrument_id.symbol.value} {signal_type} "
-            f"{utc_time} close={float(bar.close)} mlmi={res.prediction:.1f} | {json.dumps(payload)}",
+            f"{local_time} ({utc_time}) close={float(bar.close)} mlmi={res.prediction:.1f} | {json.dumps(payload)}",
             color=LogColor.GREEN,
         )
 
@@ -289,7 +298,7 @@ class MLMISignalStrategy(Strategy):
                 prev = res.prev_prediction
                 self.log.warning(
                     f"🚨 {SIGNAL_SYMBOLS.get(signal_type, '')} {instrument_id} MLMI {signal_type} "
-                    f"[{bar_time_utc(round(bar.ts_event / 1_000_000))}] "
+                    f"[{bar_time_local(round(bar.ts_event / 1_000_000))}] "
                     f"(prediction {prev:.1f} -> {res.prediction:.1f}, "
                     f"OS {res.os_level:.1f} / OB {res.ob_level:.1f}, zone {res.zone}) 🚨",
                     color=LogColor.MAGENTA if signal_type.startswith("OB") else LogColor.CYAN,
@@ -468,6 +477,7 @@ def main():
         log("🐞 DEBUG mode: no Postgres, no pair reconciler; "
             f"scanning {len(DEBUG_TICKERS)} hard-coded ticker(s)")
 
+    log(f"🕒 Display timezone: {display_timezone_info()}")
     trader_id = os.getenv("TRADER_ID", "EDGENGINE-001")
     environment = os.getenv("BINANCE_ENV", "LIVE").upper()
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
