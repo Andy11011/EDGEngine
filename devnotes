@@ -1180,3 +1180,56 @@ mlmi=-18.0
   "close": 0.2282, 
   "timestamp": 1792028699999, 
   "source": "historical"
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+2026-10-15T04:36:19.954089903Z [INFO] EDGENGINE-001.MLMISignalStrategy: 📝 [HIST] 
+🔴▲ LTCUSDT OS_CROSSUNDER 2026-10-15 03:29:59 UTC+05:00 
+(2026-10-14T22:29:59Z) 
+close=59.51 
+mlmi=-40.0 
+| {"symbol": "LTCUSDT.BINANCE", 
+"type": "OS_CROSSUNDER", 
+"signal_symbol": "\ud83d\udd34\u25b2", 
+"utc_time": "2026-10-14T22:29:59Z", 
+"local_time": "2026-10-15 03:29:59 UTC+05:00", 
+"rsi": -40.0, 
+"mlmi": {"prediction": -40.0, 
+"prediction_ma": -25.076190476190476, 
+"upper": 58.0, 
+"lower": -50.0, 
+"ob_level": 43.97051741334502, 
+"os_level": -35.97051741334502, 
+"zone": "BUY", 
+"confirmation_zone": false}, 
+"close": 59.51, 
+"timestamp": 1792016999999, 
+"source": "historical"}
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+
+2026-10-15T04:44:04.543378401Z [INFO] EDGENGINE-001.MLMISignalStrategy: 
+📝 [HIST] 🔴▲ LINKUSDT OS_CROSSUNDER 2026-10-15 07:44:59 UTC+05:00 
+(2026-10-15T02:44:59Z) 
+close=12.237 mlmi=-140.0 
+| {"symbol": "LINKUSDT.BINANCE", 
+"type": "OS_CROSSUNDER", 
+"signal_symbol": "\ud83d\udd34\u25b2", 
+"utc_time": "2026-10-15T02:44:59Z", 
+"local_time": "2026-10-15 07:44:59 UTC+05:00", 
+"rsi": -140.0, 
+"mlmi": {"prediction": -140.0, 
+"prediction_ma": -48.09523809523809, 
+"upper": 178.0, 
+"lower": -176.0, 
+"ob_level": 136.52205534604877, 
+"os_level": -134.52205534604877, 
+"zone": "BUY", "confirmation_zone": false}, 
+"close": 12.237, "timestamp": 1792032299999, "source": "historical"}

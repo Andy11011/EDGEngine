@@ -483,8 +483,8 @@ def main():
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
     mlmi_k = int(os.getenv("MLMI_K", "200"))
     momentum_window = int(os.getenv("MLMI_MOMENTUM_WINDOW", "20"))
-    band_window = int(os.getenv("MLMI_BAND_WINDOW", "2000"))
-    band_min_bars = int(os.getenv("MLMI_BAND_MIN_BARS", "200"))
+    band_window = int(os.getenv("MLMI_BAND_WINDOW", "30000"))
+    band_min_bars = int(os.getenv("MLMI_BAND_MIN_BARS", "20000"))
     zone_threshold = float(os.getenv("MLMI_ZONE_THRESHOLD", "0.0"))
     confirm_threshold = float(os.getenv("MLMI_CONFIRM_THRESHOLD", "0.0"))
     aligned_labels = os.getenv("MLMI_ALIGNED_LABELS", "0") == "1"
