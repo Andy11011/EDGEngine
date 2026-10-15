@@ -19,8 +19,9 @@
 - [ ] MLMI
   - [ ] UTC timestamp in messages 
   - [ ] Make sure it matches with the TV
+  - [ ] Green and Red triangles to indicate the signal type
 - [ ] implement travis-scanner
-  - [ ] Signals in the dashboard
+  - [X] ~~*Signals in the dashboard*~~ [2026-10-14]
   - [ ] Configuration (webhooky URL)
 - [X] ~~*Think over shared infrastructure*~~ [2026-10-08]
 - [X] ~~*Deploy on AWS*~~ [2026-10-14]
