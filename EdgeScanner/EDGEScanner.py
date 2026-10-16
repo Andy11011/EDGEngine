@@ -25,6 +25,9 @@ Environment (new in this version):
     MLMI_ZONE_THRESHOLD           0.0                 exit level of buy / sell zones
     MLMI_CONFIRM_THRESHOLD        0.0                 end of the confirmation zone
     MLMI_ALIGNED_LABELS           0                   1 = label each sample with its own outcome (see mlmi.py)
+    SUPERTREND_PERIOD             10                  ATR length of the SuperTrend
+    SUPERTREND_FACTOR             3.0                 ATR multiplier of the SuperTrend
+    SUPERTREND_FILTER             1                   1 = MLMI signals only count in an UPTREND; others are dropped (not stored)
     DISPLAY_TIMEZONE              Asia/Almaty         timezone of the local time in logs / webhook (IANA name or +05:00)
     PAIR_TYPES                    filtered,newcomer   which travis pair_types to scan
     PAIR_POLL_SECONDS             300                 how often to re-read travis' table
@@ -67,6 +70,7 @@ from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy
 
 from mlmi import MLMI, MLMIResult
+from supertrend import SuperTrend, SuperTrendResult
 from pair_reconciler import PairReconciler
 from signal_sink import (
     SIGNAL_SYMBOLS,
@@ -167,14 +171,18 @@ class MLMISignalConfig(StrategyConfig, frozen=True):
     confirmation_threshold: float = 0.0
     aligned_labels: bool = False        # False = exact Pine behaviour (see mlmi.py)
     historical_bars: int = 3000         # signal-eligible past bars (warm-up is added on top)
+    supertrend_period: int = 10         # SuperTrend ATR length
+    supertrend_factor: float = 3.0      # SuperTrend ATR multiplier
+    supertrend_filter: bool = True      # True = drop MLMI signals unless SuperTrend is in an uptrend
 
 
 class _PairState:
-    __slots__ = ("bar_type", "mlmi", "warming_up")
+    __slots__ = ("bar_type", "mlmi", "st", "warming_up")
 
-    def __init__(self, bar_type: BarType, mlmi: MLMI):
+    def __init__(self, bar_type: BarType, mlmi: MLMI, st: SuperTrend):
         self.bar_type = bar_type
         self.mlmi = mlmi
+        self.st = st
         self.warming_up: bool = True
 
 
@@ -197,6 +205,10 @@ class MLMISignalStrategy(Strategy):
             aligned_labels=c.aligned_labels,
         )
 
+    def _new_supertrend(self) -> SuperTrend:
+        c = self.config
+        return SuperTrend(period=c.supertrend_period, factor=c.supertrend_factor)
+
     # ---- runtime pair management (called by PairReconciler) ----
     @property
     def watched(self) -> set[str]:
@@ -211,7 +223,7 @@ class MLMISignalStrategy(Strategy):
 
         bar_type = BarType.from_str(f"{instrument_id}-{self.config.bar_interval}-LAST-EXTERNAL")
         mlmi = self._new_mlmi()
-        self._states[instrument_id] = _PairState(bar_type, mlmi)
+        self._states[instrument_id] = _PairState(bar_type, mlmi, self._new_supertrend())
 
         total_bars_needed = self.config.historical_bars + mlmi.bars_to_ready
         days_needed = (total_bars_needed * self._minutes_per_bar) / (24 * 60)
@@ -237,7 +249,8 @@ class MLMISignalStrategy(Strategy):
         self.log.info(
             f"MLMI Signal Strategy started | interval={c.bar_interval}, k={c.num_neighbors}, "
             f"momentum_window={c.momentum_window}, band_window={c.band_window}, "
-            f"aligned_labels={c.aligned_labels}",
+            f"aligned_labels={c.aligned_labels}, "
+            f"supertrend=({c.supertrend_period}, {c.supertrend_factor}) filter={'ON (uptrend only)' if c.supertrend_filter else 'off'}",
             color=LogColor.GREEN,
         )
 
@@ -245,7 +258,15 @@ class MLMISignalStrategy(Strategy):
         self.log.info("MLMI Signal Strategy stopped", color=LogColor.YELLOW)
 
     # ---- signals ----
-    def _log_signal(self, instrument_id: InstrumentId, bar: Bar, signal_type: str, res: MLMIResult, live: bool) -> None:
+    def _log_signal(
+        self,
+        instrument_id: InstrumentId,
+        bar: Bar,
+        signal_type: str,
+        res: MLMIResult,
+        st: Optional[SuperTrendResult],
+        live: bool,
+    ) -> None:
         """Log an MLMI signal and hand it to the DB sink."""
         ts_ms = round(bar.ts_event / 1_000_000)
         utc_time = bar_time_utc(ts_ms)
@@ -268,6 +289,9 @@ class MLMISignalStrategy(Strategy):
                 "zone": res.zone,
                 "confirmation_zone": res.confirmation_zone,
             },
+            "supertrend": (
+                {"uptrend": st.uptrend, "value": st.value, "flipped": st.flipped} if st is not None else None
+            ),
             "close": float(bar.close),
             "timestamp": ts_ms,
             "source": "live" if live else "historical",
@@ -292,8 +316,25 @@ class MLMISignalStrategy(Strategy):
                 "payload": payload,
             })
 
-    def _emit_signals(self, instrument_id: InstrumentId, bar: Bar, res: MLMIResult, live: bool) -> None:
+    def _emit_signals(
+        self,
+        instrument_id: InstrumentId,
+        bar: Bar,
+        res: MLMIResult,
+        st: Optional[SuperTrendResult],
+        live: bool,
+    ) -> None:
         for signal_type in res.signals:
+            # SuperTrend gate: MLMI signals only count while SuperTrend is in an uptrend.
+            # Rejected signals are not stored and not sent to the webhook (live ones are logged).
+            if self.config.supertrend_filter and (st is None or not st.uptrend):
+                if live:
+                    self.log.info(
+                        f"🚫 {instrument_id.symbol.value} MLMI {signal_type} dropped: SuperTrend not in uptrend "
+                        f"[{bar_time_local(round(bar.ts_event / 1_000_000))}]",
+                        color=LogColor.YELLOW,
+                    )
+                continue
             if live:
                 prev = res.prev_prediction
                 self.log.warning(
@@ -303,7 +344,7 @@ class MLMISignalStrategy(Strategy):
                     f"OS {res.os_level:.1f} / OB {res.ob_level:.1f}, zone {res.zone}) 🚨",
                     color=LogColor.MAGENTA if signal_type.startswith("OB") else LogColor.CYAN,
                 )
-            self._log_signal(instrument_id, bar, signal_type, res, live)
+            self._log_signal(instrument_id, bar, signal_type, res, st, live)
 
     def on_historical_data(self, data) -> None:
         if not isinstance(data, Bar):
@@ -313,11 +354,14 @@ class MLMISignalStrategy(Strategy):
         if state is None:           # pair was unwatched while history was in flight
             return
 
-        res = state.mlmi.update(float(data.close))   # per-pair indicator is updated manually
+        # Both indicators are updated manually, on EVERY bar (SuperTrend first so it
+        # never skips bars while MLMI is still warming up)
+        st = state.st.update(float(data.high), float(data.low), float(data.close))
+        res = state.mlmi.update(float(data.close))
         if res is None:             # features (smoothed RSIs) not available yet
             return
 
-        self._emit_signals(iid, data, res, live=False)
+        self._emit_signals(iid, data, res, st, live=False)
 
         if state.warming_up:
             state.warming_up = False
@@ -329,10 +373,11 @@ class MLMISignalStrategy(Strategy):
         if state is None or state.warming_up:
             return
 
+        st = state.st.update(float(bar.high), float(bar.low), float(bar.close))
         res = state.mlmi.update(float(bar.close))
         if res is None:
             return
-        self._emit_signals(iid, bar, res, live=True)
+        self._emit_signals(iid, bar, res, st, live=True)
 
 
 async def purge_loop(ttl_hours: int, interval_seconds: float) -> None:
@@ -488,6 +533,9 @@ def main():
     zone_threshold = float(os.getenv("MLMI_ZONE_THRESHOLD", "0.0"))
     confirm_threshold = float(os.getenv("MLMI_CONFIRM_THRESHOLD", "0.0"))
     aligned_labels = os.getenv("MLMI_ALIGNED_LABELS", "0") == "1"
+    supertrend_period = int(os.getenv("SUPERTREND_PERIOD", "10"))
+    supertrend_factor = float(os.getenv("SUPERTREND_FACTOR", "3.0"))
+    supertrend_filter = os.getenv("SUPERTREND_FILTER", "1") == "1"
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
@@ -551,6 +599,9 @@ def main():
             confirmation_threshold=confirm_threshold,
             aligned_labels=aligned_labels,
             historical_bars=historical_bars,
+            supertrend_period=supertrend_period,
+            supertrend_factor=supertrend_factor,
+            supertrend_filter=supertrend_filter,
         ),
         sink=sink,
     )

@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements-scanner.txt
 
 COPY EdgeScanner/EDGEScanner.py ./
 COPY EdgeScanner/signals_db_async.py ./
-COPY EdgeScanner/mlmi.py ./
+COPY EdgeScanner/indicators/*.py ./
 COPY EdgeScanner/pair_reconciler.py ./
 COPY EdgeScanner/signal_sink.py ./
 CMD ["python", "EDGEScanner.py"]
