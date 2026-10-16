@@ -1233,3 +1233,12 @@ close=12.237 mlmi=-140.0
 "os_level": -134.52205534604877, 
 "zone": "BUY", "confirmation_zone": false}, 
 "close": 12.237, "timestamp": 1792032299999, "source": "historical"}
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+docker image prune -af          # removes only images no running container uses
+sudo journalctl --vacuum-size=100M
+sudo dnf clean all
+df -h /

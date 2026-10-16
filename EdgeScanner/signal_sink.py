@@ -101,7 +101,9 @@ _TRANSIENT_DB_ERRORS = (
     asyncpg.CannotConnectNowError,
 )
 
-
+# Signal types that are forwarded to the webhook. Everything else is still
+# written to Postgres, but only logged. Add types here to enable them later.
+WEBHOOK_SIGNAL_TYPES = frozenset({"OS_CROSSOVER"})
 class SignalSink:
     """
     Strategies call submit() (sync, non-blocking). Two independent writer tasks
@@ -123,6 +125,7 @@ class SignalSink:
         webhook_url: Optional[str] = None,
         webhook_timeout: float = 10.0,
         webhook_max_retries: int = 3,
+        webhook_signal_types: frozenset[str] = WEBHOOK_SIGNAL_TYPES,
         db_enabled: bool = True,
     ):
         self._loop = loop
@@ -133,6 +136,7 @@ class SignalSink:
         self._webhook_url = webhook_url
         self._webhook_timeout = webhook_timeout
         self._webhook_max_retries = webhook_max_retries
+        self._webhook_signal_types = webhook_signal_types
 
     def min_bar_ts_ms(self) -> int:
         """Historical signals older than this are not persisted (outside TTL)."""
@@ -142,8 +146,19 @@ class SignalSink:
         # call_soon_threadsafe: safe whether or not the caller is on the loop thread
         if self.db_enabled:
             self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+
         if self._webhook_url and item.get("source") == "live":
-            self._loop.call_soon_threadsafe(self._webhook_queue.put_nowait, item)
+            if item.get("signal_type") in self._webhook_signal_types:
+                self._loop.call_soon_threadsafe(self._webhook_queue.put_nowait, item)
+            else:
+                # Not forwarded for now: log only (the DB write above still happens)
+                cross = _CROSS_LABELS.get(item.get("signal_type"), item.get("signal_type"))
+                log(
+                    f"🔕 Webhook skipped (log only): {item.get('symbol')} "
+                    f"{item.get('timeframe')} {cross} "
+                    f"({item.get('rsi', float('nan')):.1f}) @ {item.get('close')} "
+                    f"[{bar_time_utc(item['bar_time_ms'])}]"
+                )
 
     async def run(self) -> None:
         tasks = []
