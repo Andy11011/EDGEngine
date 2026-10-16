@@ -28,6 +28,13 @@ Environment (new in this version):
     SUPERTREND_PERIOD             10                  ATR length of the SuperTrend
     SUPERTREND_FACTOR             3.0                 ATR multiplier of the SuperTrend
     SUPERTREND_FILTER             1                   1 = MLMI signals only count in an UPTREND; others are dropped (not stored)
+    ZVOL_LENGTH                   20                  Z-score length of the volume indicator
+    ZVOL_MAX_POINTS               200                 history used for the cluster percentiles
+    ZVOL_ANCHOR                   1D                  CVD anchor period: 1D | 1W | 1M | all (UTC)
+    ZVOL_CVD_MODE                 anchored            anchored = same as the dashboard JS | bar = per-bar signed volume
+    VOLUME_FILTER                 1                   1 = signals in VOLUME_FILTER_TYPES also need 'Strong Bullish' volume
+    VOLUME_FILTER_TYPES           OS_CROSSOVER        which signal types need it (comma separated)
+    VOLUME_LOOKBACK_BARS          0                   0 = Strong Bullish on the signal bar itself; N = within the last N bars too
     DISPLAY_TIMEZONE              Asia/Almaty         timezone of the local time in logs / webhook (IANA name or +05:00)
     PAIR_TYPES                    filtered,newcomer   which travis pair_types to scan
     PAIR_POLL_SECONDS             300                 how often to re-read travis' table
@@ -71,6 +78,7 @@ from nautilus_trader.trading.strategy import Strategy
 
 from mlmi import MLMI, MLMIResult
 from supertrend import SuperTrend, SuperTrendResult
+from zscore_volume import ZScoreVolume, ZScoreVolumeResult
 from pair_reconciler import PairReconciler
 from signal_sink import (
     SIGNAL_SYMBOLS,
@@ -174,15 +182,25 @@ class MLMISignalConfig(StrategyConfig, frozen=True):
     supertrend_period: int = 10         # SuperTrend ATR length
     supertrend_factor: float = 3.0      # SuperTrend ATR multiplier
     supertrend_filter: bool = True      # True = drop MLMI signals unless SuperTrend is in an uptrend
+    zvol_length: int = 20               # Z-Score Volume: z-score length
+    zvol_max_points: int = 200          # Z-Score Volume: history for the cluster percentiles
+    zvol_anchor: str = "1D"             # Z-Score Volume: CVD anchor period (UTC)
+    zvol_cvd_mode: str = "anchored"     # "anchored" = dashboard JS behaviour, "bar" = per-bar signed volume
+    volume_filter: bool = True          # True = signals in volume_filter_types also need Strong Bullish volume
+    volume_filter_types: tuple[str, ...] = ("OS_CROSSOVER",)
+    volume_lookback_bars: int = 0       # 0 = same bar only; N = Strong Bullish within the last N bars also counts
 
 
 class _PairState:
-    __slots__ = ("bar_type", "mlmi", "st", "warming_up")
+    __slots__ = ("bar_type", "mlmi", "st", "zv", "n_bars", "last_strong_bar", "warming_up")
 
-    def __init__(self, bar_type: BarType, mlmi: MLMI, st: SuperTrend):
+    def __init__(self, bar_type: BarType, mlmi: MLMI, st: SuperTrend, zv: ZScoreVolume):
         self.bar_type = bar_type
         self.mlmi = mlmi
         self.st = st
+        self.zv = zv
+        self.n_bars: int = 0                    # bars processed so far (history + live)
+        self.last_strong_bar: int = -1          # n_bars value of the latest "Strong Bullish" bar
         self.warming_up: bool = True
 
 
@@ -209,6 +227,15 @@ class MLMISignalStrategy(Strategy):
         c = self.config
         return SuperTrend(period=c.supertrend_period, factor=c.supertrend_factor)
 
+    def _new_zvol(self) -> ZScoreVolume:
+        c = self.config
+        return ZScoreVolume(
+            length=c.zvol_length,
+            max_points=c.zvol_max_points,
+            anchor=c.zvol_anchor,
+            cvd_mode=c.zvol_cvd_mode,
+        )
+
     # ---- runtime pair management (called by PairReconciler) ----
     @property
     def watched(self) -> set[str]:
@@ -223,7 +250,7 @@ class MLMISignalStrategy(Strategy):
 
         bar_type = BarType.from_str(f"{instrument_id}-{self.config.bar_interval}-LAST-EXTERNAL")
         mlmi = self._new_mlmi()
-        self._states[instrument_id] = _PairState(bar_type, mlmi, self._new_supertrend())
+        self._states[instrument_id] = _PairState(bar_type, mlmi, self._new_supertrend(), self._new_zvol())
 
         total_bars_needed = self.config.historical_bars + mlmi.bars_to_ready
         days_needed = (total_bars_needed * self._minutes_per_bar) / (24 * 60)
@@ -250,7 +277,9 @@ class MLMISignalStrategy(Strategy):
             f"MLMI Signal Strategy started | interval={c.bar_interval}, k={c.num_neighbors}, "
             f"momentum_window={c.momentum_window}, band_window={c.band_window}, "
             f"aligned_labels={c.aligned_labels}, "
-            f"supertrend=({c.supertrend_period}, {c.supertrend_factor}) filter={'ON (uptrend only)' if c.supertrend_filter else 'off'}",
+            f"supertrend=({c.supertrend_period}, {c.supertrend_factor}) filter={'ON (uptrend only)' if c.supertrend_filter else 'off'}, "
+            f"zvol=({c.zvol_length}, {c.zvol_anchor}, {c.zvol_cvd_mode}) "
+            f"filter={('ON for ' + ','.join(c.volume_filter_types) + f' (lookback {c.volume_lookback_bars})') if c.volume_filter else 'off'}",
             color=LogColor.GREEN,
         )
 
@@ -265,6 +294,8 @@ class MLMISignalStrategy(Strategy):
         signal_type: str,
         res: MLMIResult,
         st: Optional[SuperTrendResult],
+        zv: Optional[ZScoreVolumeResult],
+        strong_bars_ago: Optional[int],
         live: bool,
     ) -> None:
         """Log an MLMI signal and hand it to the DB sink."""
@@ -292,6 +323,15 @@ class MLMISignalStrategy(Strategy):
             "supertrend": (
                 {"uptrend": st.uptrend, "value": st.value, "flipped": st.flipped} if st is not None else None
             ),
+            "zvolume": (
+                {
+                    "z": zv.z,
+                    "cvd": zv.cvd,
+                    "cluster": zv.label,
+                    "strong_bullish_bars_ago": strong_bars_ago,     # 0 = on the signal bar, None = never
+                }
+                if zv is not None else None
+            ),
             "close": float(bar.close),
             "timestamp": ts_ms,
             "source": "live" if live else "historical",
@@ -316,21 +356,34 @@ class MLMISignalStrategy(Strategy):
                 "payload": payload,
             })
 
+    def _reject_reason(self, signal_type: str, st: Optional[SuperTrendResult], vol_ok: bool) -> Optional[str]:
+        """Why a signal must be dropped (None = it passes every filter)."""
+        c = self.config
+        if c.supertrend_filter and (st is None or not st.uptrend):
+            return "SuperTrend not in uptrend"
+        if c.volume_filter and signal_type in c.volume_filter_types and not vol_ok:
+            return "no Strong Bullish volume"
+        return None
+
     def _emit_signals(
         self,
         instrument_id: InstrumentId,
         bar: Bar,
         res: MLMIResult,
         st: Optional[SuperTrendResult],
+        zv: Optional[ZScoreVolumeResult],
+        strong_bars_ago: Optional[int],
         live: bool,
     ) -> None:
+        vol_ok = strong_bars_ago is not None and strong_bars_ago <= self.config.volume_lookback_bars
         for signal_type in res.signals:
-            # SuperTrend gate: MLMI signals only count while SuperTrend is in an uptrend.
+            # Filters: SuperTrend uptrend (all types) + Strong Bullish volume (volume_filter_types).
             # Rejected signals are not stored and not sent to the webhook (live ones are logged).
-            if self.config.supertrend_filter and (st is None or not st.uptrend):
+            reason = self._reject_reason(signal_type, st, vol_ok)
+            if reason is not None:
                 if live:
                     self.log.info(
-                        f"🚫 {instrument_id.symbol.value} MLMI {signal_type} dropped: SuperTrend not in uptrend "
+                        f"🚫 {instrument_id.symbol.value} MLMI {signal_type} dropped: {reason} "
                         f"[{bar_time_local(round(bar.ts_event / 1_000_000))}]",
                         color=LogColor.YELLOW,
                     )
@@ -344,7 +397,27 @@ class MLMISignalStrategy(Strategy):
                     f"OS {res.os_level:.1f} / OB {res.ob_level:.1f}, zone {res.zone}) 🚨",
                     color=LogColor.MAGENTA if signal_type.startswith("OB") else LogColor.CYAN,
                 )
-            self._log_signal(instrument_id, bar, signal_type, res, st, live)
+            self._log_signal(instrument_id, bar, signal_type, res, st, zv, strong_bars_ago, live)
+
+    def _advance(self, state: _PairState, bar: Bar):
+        """Feed one closed bar to every indicator of a pair.
+
+        All indicators are updated on EVERY bar, before any early return, so that
+        SuperTrend / volume never skip bars while MLMI is still warming up.
+        Returns (mlmi_result, supertrend_result, zvol_result, strong_bullish_bars_ago).
+        """
+        ts_ms = round(bar.ts_event / 1_000_000)
+        o, h, l, c, v = float(bar.open), float(bar.high), float(bar.low), float(bar.close), float(bar.volume)
+
+        state.n_bars += 1
+        st = state.st.update(h, l, c)
+        zv = state.zv.update(ts_ms, o, c, v)
+        if zv.strong_bullish:
+            state.last_strong_bar = state.n_bars
+        strong_bars_ago = state.n_bars - state.last_strong_bar if state.last_strong_bar >= 0 else None
+
+        res = state.mlmi.update(c)
+        return res, st, zv, strong_bars_ago
 
     def on_historical_data(self, data) -> None:
         if not isinstance(data, Bar):
@@ -354,14 +427,11 @@ class MLMISignalStrategy(Strategy):
         if state is None:           # pair was unwatched while history was in flight
             return
 
-        # Both indicators are updated manually, on EVERY bar (SuperTrend first so it
-        # never skips bars while MLMI is still warming up)
-        st = state.st.update(float(data.high), float(data.low), float(data.close))
-        res = state.mlmi.update(float(data.close))
+        res, st, zv, strong_bars_ago = self._advance(state, data)   # indicators are updated manually
         if res is None:             # features (smoothed RSIs) not available yet
             return
 
-        self._emit_signals(iid, data, res, st, live=False)
+        self._emit_signals(iid, data, res, st, zv, strong_bars_ago, live=False)
 
         if state.warming_up:
             state.warming_up = False
@@ -373,11 +443,10 @@ class MLMISignalStrategy(Strategy):
         if state is None or state.warming_up:
             return
 
-        st = state.st.update(float(bar.high), float(bar.low), float(bar.close))
-        res = state.mlmi.update(float(bar.close))
+        res, st, zv, strong_bars_ago = self._advance(state, bar)
         if res is None:
             return
-        self._emit_signals(iid, bar, res, st, live=True)
+        self._emit_signals(iid, bar, res, st, zv, strong_bars_ago, live=True)
 
 
 async def purge_loop(ttl_hours: int, interval_seconds: float) -> None:
@@ -536,6 +605,15 @@ def main():
     supertrend_period = int(os.getenv("SUPERTREND_PERIOD", "10"))
     supertrend_factor = float(os.getenv("SUPERTREND_FACTOR", "3.0"))
     supertrend_filter = os.getenv("SUPERTREND_FILTER", "1") == "1"
+    zvol_length = int(os.getenv("ZVOL_LENGTH", "20"))
+    zvol_max_points = int(os.getenv("ZVOL_MAX_POINTS", "200"))
+    zvol_anchor = os.getenv("ZVOL_ANCHOR", "1D").strip()
+    zvol_cvd_mode = os.getenv("ZVOL_CVD_MODE", "anchored").strip().lower()
+    volume_filter = os.getenv("VOLUME_FILTER", "1") == "1"
+    volume_filter_types = tuple(
+        t.strip().upper() for t in os.getenv("VOLUME_FILTER_TYPES", "OS_CROSSOVER").split(",") if t.strip()
+    )
+    volume_lookback_bars = int(os.getenv("VOLUME_LOOKBACK_BARS", "2"))
     log_level = os.getenv("LOG_LEVEL", "INFO")
     sandbox = os.getenv("BINANCE_SANDBOX", "0") == "1"
     aws_region = os.getenv("AWS_REGION", "ap-southeast-1")
@@ -602,6 +680,13 @@ def main():
             supertrend_period=supertrend_period,
             supertrend_factor=supertrend_factor,
             supertrend_filter=supertrend_filter,
+            zvol_length=zvol_length,
+            zvol_max_points=zvol_max_points,
+            zvol_anchor=zvol_anchor,
+            zvol_cvd_mode=zvol_cvd_mode,
+            volume_filter=volume_filter,
+            volume_filter_types=volume_filter_types,
+            volume_lookback_bars=volume_lookback_bars,
         ),
         sink=sink,
     )

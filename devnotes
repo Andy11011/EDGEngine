@@ -1242,3 +1242,13 @@ docker image prune -af          # removes only images no running container uses
 sudo journalctl --vacuum-size=100M
 sudo dnf clean all
 df -h /
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+Same bar by default: Strong Bullish must occur on the crossover bar itself,
+so expect noticeably fewer OS signals. Strong Bullish was about 7% of bars
+in my random test data, though real markets will differ. If that is too
+strict, set VOLUME_LOOKBACK_BARS=2 to also accept it within the 
+previous 2 bars.
