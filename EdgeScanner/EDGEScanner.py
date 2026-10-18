@@ -602,8 +602,8 @@ def main():
     zone_threshold = float(os.getenv("MLMI_ZONE_THRESHOLD", "0.0"))
     confirm_threshold = float(os.getenv("MLMI_CONFIRM_THRESHOLD", "0.0"))
     aligned_labels = os.getenv("MLMI_ALIGNED_LABELS", "0") == "1"
-    supertrend_period = int(os.getenv("SUPERTREND_PERIOD", "10"))
-    supertrend_factor = float(os.getenv("SUPERTREND_FACTOR", "3.0"))
+    supertrend_period = int(os.getenv("SUPERTREND_PERIOD", "30"))
+    supertrend_factor = float(os.getenv("SUPERTREND_FACTOR", "8.0"))
     supertrend_filter = os.getenv("SUPERTREND_FILTER", "1") == "1"
     zvol_length = int(os.getenv("ZVOL_LENGTH", "20"))
     zvol_max_points = int(os.getenv("ZVOL_MAX_POINTS", "200"))
