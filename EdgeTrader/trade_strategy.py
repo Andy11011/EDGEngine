@@ -356,6 +356,12 @@ class TradeStrategy(Strategy):
         # Subscribe to bars (needed for price updates or if we want to monitor)
         self.subscribe_bars(self.config.bar_type)
 
+        # The sandbox exchange only receives topics matching data.*.BINANCE.*
+        # (quotes/trades/book). Bar topics don't match, so bars alone can never fill orders.
+        if self.config.target == "virtual":
+            self.subscribe_trade_ticks(self.config.instrument_id)
+            self.subscribe_quote_ticks(self.config.instrument_id)
+
         instrument = self.cache.instrument(self.config.instrument_id)
         if instrument is None:
             # Can't size/price an order without instrument metadata (precision,

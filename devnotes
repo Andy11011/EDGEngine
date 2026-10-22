@@ -1252,3 +1252,15 @@ so expect noticeably fewer OS signals. Strong Bullish was about 7% of bars
 in my random test data, though real markets will differ. If that is too
 strict, set VOLUME_LOOKBACK_BARS=2 to also accept it within the 
 previous 2 bars.
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+What the log confirms
+
+Message received: the node received SQS message 82e630d7… and logged "Started strategy for trade RIFUSDT.BINANCE_20261021T041032689_virtual". It is the binance-virtual-mainnet node, which matches mode: "paper" in the alert.
+Entry order placed: it submitted a LIMIT BUY of 1,666.67 RIFUSDT at 0.0757 (GTC), and the exchange simulator accepted it. The 126.17 USDT locked in the account equals 1,666.67 × 0.0757, so the size and price are consistent.
+Message acknowledged: the node acked the SQS message, so it won't be redelivered.
+Trade recorded: it wrote the "Opened" event to the database (target=virtual).

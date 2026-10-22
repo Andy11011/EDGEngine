@@ -1,0 +1,29 @@
+2026-10-21T04:10:33.022034424Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: READY
+2026-10-21T04:10:33.022840517Z [INFO] EDGETRADER-VIRTUAL.ExecEngine: Registered OMS.UNSPECIFIED for Strategy RIFUSDT.BINANCE_20261021T041032689_virtual-000
+2026-10-21T04:10:33.022862917Z [INFO] EDGETRADER-VIRTUAL.EDGETRADER-VIRTUAL: Registered Strategy RIFUSDT.BINANCE_20261021T041032689_virtual-000
+2026-10-21T04:10:33.022880064Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: self.config.oms_type=None
+2026-10-21T04:10:33.022883296Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: self.config.external_order_claims=None
+2026-10-21T04:10:33.022896483Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: self.config.manage_gtd_expiry=False
+2026-10-21T04:10:33.022912730Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: Set ClientOrderIdGenerator client_order_id count to 0
+2026-10-21T04:10:33.022916088Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: Set ClientOrderIdGenerator order_list_id count to 0
+2026-10-21T04:10:33.022936094Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: 🚀 TradeStrategy started for RIFUSDT.BINANCE_20261021T041032689_virtual (instrument=RIFUSDT.BINANCE)
+2026-10-21T04:10:33.023515178Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: [CMD]--> SubscribeBars(bar_type=RIFUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL, client_id=None, venue=BINANCE)
+2026-10-21T04:10:33.023862278Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: <--[EVT] OrderInitialized(instrument_id=RIFUSDT.BINANCE, client_order_id=edge-RIFUSDT.BINANCE_20261021T041032689_virtual-entry, side=BUY, type=LIMIT, quantity=1_666.66666667, time_in_force=GTC, post_only=False, reduce_only=False, quote_quantity=False, options={'price': '0.07570000', 'display_qty': None, 'expire_time_ns': 0}, emulation_trigger=NO_TRIGGER, trigger_instrument_id=None, contingency_type=NO_CONTINGENCY, order_list_id=None, linked_order_ids=None, parent_order_id=None, exec_algorithm_id=None, exec_algorithm_params=None, exec_spawn_id=None, tags=None)
+2026-10-21T04:10:33.023969265Z [INFO] EDGETRADER-VIRTUAL.TradeStrategy: [CMD]--> [Risk] SubmitOrder(order=LimitOrder(BUY 1_666.66666667 RIFUSDT.BINANCE LIMIT @ 0.07570000 GTC, status=INITIALIZED, client_order_id=edge-RIFUSDT.BINANCE_20261021T041032689_virtual-entry, venue_order_id=None, position_id=None, tags=None), position_id=None)
+2026-10-21T04:10:33.023992651Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: 📈 Entry order submitted for RIFUSDT.BINANCE_20261021T041032689_virtual side=BUY client_order_id=edge-RIFUSDT.BINANCE_20261021T041032689_virtual-entry
+2026-10-21T04:10:33.024021120Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: RUNNING
+🚀 [msg 82e630d7-c89a-4f36-a4c3-dfa830c65cc5] Started strategy for trade RIFUSDT.BINANCE_20261021T041032689_virtual
+2026-10-21T04:10:33.025145230Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: <--[EVT] OrderSubmitted(instrument_id=RIFUSDT.BINANCE, client_order_id=edge-RIFUSDT.BINANCE_20261021T041032689_virtual-entry, account_id=BINANCE-001, ts_event=1792555213403291142)
+2026-10-21T04:10:33.025411611Z [INFO] EDGETRADER-VIRTUAL.Portfolio: Updated AccountState(account_id=BINANCE-001, account_type=CASH, base_currency=None, is_reported=False, balances=[AccountBalance(total=10_000.00000000 USDT, locked=126.16666667 USDT, free=9_873.83333333 USDT), AccountBalance(total=1.00000000 BTC, locked=0.00000000 BTC, free=1.00000000 BTC)], margins=[], event_id=fd38e6ad-7387-45d6-9901-60bc67d92798)
+2026-10-21T04:10:33.025469850Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: <--[EVT] OrderAccepted(instrument_id=RIFUSDT.BINANCE, client_order_id=edge-RIFUSDT.BINANCE_20261021T041032689_virtual-entry, venue_order_id=BINANCE-1235-001, account_id=BINANCE-001, ts_event=1792555213403291142)
+2026-10-21T04:10:33.025508274Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: ✅ Entry order accepted, awaiting fill (trade=RIFUSDT.BINANCE_20261021T041032689_virtual)
+🗑️ [msg 82e630d7-c89a-4f36-a4c3-dfa830c65cc5] Acked
+📡 [poll #3813] Long-polling SQS (virtual)...
+2026-10-21T04:10:33.036246144Z [INFO] EDGETRADER-VIRTUAL.RIFUSDT.BINANCE_20261021T041032689_virtual: 📝 Logged Opened event for RIFUSDT.BINANCE_20261021T041032689_virtual (target=virtual)
+2026-10-21T04:10:33.309804826Z [INFO] EDGETRADER-VIRTUAL.BinanceWebSocketClient: ws-client 0: Connected to wss://stream.binance.com:9443
+2026-10-21T04:10:33.309858858Z [INFO] EDGETRADER-VIRTUAL.DataClient-BINANCE: Subscribed RIFUSDT.BINANCE-15-MINUTE-LAST-EXTERNAL bars
+💰 [virtual] balance lookup ok (iteration=5084): 500.0000 USDT
+📡 [virtual] sqs status (iteration=5084): ok=True detail=none
+💓 [virtual] heartbeat (iteration=5084): is_running=True balance=500.0 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=5084)
+⏱️ [virtual] heartbeat iteration=5084 took 0.003s, sleeping 15.0s
