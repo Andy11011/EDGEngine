@@ -613,6 +613,93 @@ class TradeEventsDB:
             return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
+    # Finished trades (for edge-api's /finished_trades) — the mirror image
+    # of get_active_trades(): every 'Opened' event that DOES have a later
+    # terminal ('Closed' or 'Cancelled') event for the same trade_id. The
+    # terminal condition is intentionally identical to get_active_trades(),
+    # so every trade is in exactly one of the two result sets.
+    # ------------------------------------------------------------------
+    async def get_finished_trades(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        target: Optional[str] = None,
+        outcome: Optional[str] = None,
+        instrument: Optional[str] = None,
+        include_events: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Returns one summary row per finished trade, newest-finished first:
+        the trade's 'Opened' data (ep/sl/tp/size/side), the entry fill price
+        + time if it ever filled, and how it ended ('Closed' / 'Cancelled'
+        with its close_reason / cancel_reason).
+
+        Filters (all optional): target ('virtual'|'real'), outcome
+        ('Closed'|'Cancelled'), instrument. If include_events is True each
+        row also carries `events`: the trade's full event chain in
+        chronological order.
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    o.trade_id, o.target, o.instrument, o.side, o.size,
+                    o.ep, o.sl, o.tp,
+                    o.occurred_at AS opened_at,
+                    f.fill_price AS fill_price,
+                    f.occurred_at AS filled_at,
+                    t.event_type AS outcome,
+                    t.close_reason, t.cancel_reason,
+                    t.occurred_at AS finished_at
+                FROM trade_events o
+                JOIN LATERAL (
+                    SELECT te.event_type, te.close_reason, te.cancel_reason, te.occurred_at, te.event_id
+                    FROM trade_events te
+                    WHERE te.trade_id = o.trade_id
+                    AND te.event_type IN ('Closed', 'Cancelled')
+                    AND te.occurred_at > o.occurred_at
+                    ORDER BY te.occurred_at ASC, te.event_id ASC
+                    LIMIT 1
+                ) t ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT fe.fill_price, fe.occurred_at
+                    FROM trade_events fe
+                    WHERE fe.trade_id = o.trade_id AND fe.event_type = 'Filled'
+                    ORDER BY fe.occurred_at ASC, fe.event_id ASC
+                    LIMIT 1
+                ) f ON TRUE
+                WHERE o.event_type = 'Opened'
+                AND ($1::text IS NULL OR o.target = $1)
+                AND ($2::text IS NULL OR t.event_type = $2)
+                AND ($3::text IS NULL OR o.instrument = $3)
+                ORDER BY t.occurred_at DESC, t.event_id DESC
+                LIMIT $4 OFFSET $5
+                """,
+                target, outcome, instrument, limit, offset,
+            )
+            trades = [dict(r) for r in rows]
+
+            if include_events and trades:
+                event_rows = await conn.fetch(
+                    """
+                    SELECT event_id, trade_id, previous_event_id, event_type,
+                           size, ep, sl, tp, fill_price, close_reason,
+                           cancel_reason, occurred_at
+                    FROM trade_events
+                    WHERE trade_id = ANY($1::varchar[])
+                    ORDER BY occurred_at ASC, event_id ASC
+                    """,
+                    [t["trade_id"] for t in trades],
+                )
+                by_trade: Dict[str, List[Dict[str, Any]]] = {}
+                for er in event_rows:
+                    by_trade.setdefault(er["trade_id"], []).append(dict(er))
+                for t in trades:
+                    t["events"] = by_trade.get(t["trade_id"], [])
+
+            return trades
+
+    # ------------------------------------------------------------------
     # Cancel requests — DB-based hand-off from edge-api.py (no AWS access)
     # to the node processes (which poll this table for their own target).
     # ------------------------------------------------------------------

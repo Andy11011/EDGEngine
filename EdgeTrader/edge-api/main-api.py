@@ -22,15 +22,20 @@ Everything it serves comes from Postgres:
   - /balance/mainnet   — the real node's latest heartbeat balance snapshot.
   - /active_trades     — derived from trade_events (Opened without a later
                          Closed/Cancelled), not in-memory process state.
+  - /finished_trades   — the other half: Opened WITH a later Closed/Cancelled,
+                         one summary row per trade (optionally with its full
+                         event chain).
+  - /help              — lists every route this service exposes.
 """
 
 from __future__ import annotations
 
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
 from trades_db_async import TradeEventsDB
@@ -49,6 +54,45 @@ class TradeStatus(BaseModel):
     entry_price: Optional[float]
     sl_price: Optional[float]
     tp_price: Optional[float]
+
+
+class TradeEventOut(BaseModel):
+    event_id: int
+    previous_event_id: Optional[int]
+    event_type: str
+    size: float
+    ep: Optional[float]
+    sl: Optional[float]
+    tp: Optional[float]
+    fill_price: Optional[float]
+    close_reason: Optional[str]
+    cancel_reason: Optional[str]
+    occurred_at: datetime
+
+
+class FinishedTrade(BaseModel):
+    trade_id: str
+    target: str  # "virtual" | "real"
+    instrument: str
+    side: str
+    size: float
+    entry_price: Optional[float]
+    sl_price: Optional[float]
+    tp_price: Optional[float]
+    fill_price: Optional[float]  # None if the entry never filled
+    outcome: str  # "Closed" | "Cancelled"
+    close_reason: Optional[str]
+    cancel_reason: Optional[str]
+    opened_at: datetime
+    filled_at: Optional[datetime]
+    finished_at: datetime
+    events: Optional[List[TradeEventOut]] = None  # only with include_events=true
+
+
+class HelpEndpoint(BaseModel):
+    method: str
+    path: str
+    description: str
 
 
 class BalanceResponse(BaseModel):
@@ -71,7 +115,7 @@ def _heartbeat_stale(hb: Optional[Dict[str, Any]], max_age_seconds: float = 60.0
     return (datetime.now(timezone.utc) - updated_at).total_seconds() > max_age_seconds
 
 
-@app.get("/health")
+@app.get("/health", summary="Node, SQS and Postgres health (from node heartbeats)")
 async def health_check():
     """
     Reads node_heartbeats (written independently by binance_real_node.py
@@ -160,7 +204,7 @@ async def health_check():
     }
 
 
-@app.get("/balance/virtual", response_model=BalanceResponse)
+@app.get("/balance/virtual", response_model=BalanceResponse, summary="Configured virtual equity (USDT)")
 async def get_virtual_usdt_balance():
     """Configured virtual equity (trades_config.virtual_balance_usdt) — a
     plain DB read, unchanged in behavior from the old api.py."""
@@ -172,7 +216,7 @@ async def get_virtual_usdt_balance():
         return BalanceResponse(source="virtual", available=False, detail=str(e))
 
 
-@app.get("/balance/mainnet", response_model=BalanceResponse)
+@app.get("/balance/mainnet", response_model=BalanceResponse, summary="Real account balance from the real node's latest heartbeat")
 async def get_mainnet_usdt_balance():
     """Real node's latest balance snapshot, from its heartbeat row (edge-api
     has no live account/node reference anymore)."""
@@ -191,7 +235,7 @@ async def get_mainnet_usdt_balance():
     return BalanceResponse(source="mainnet", balance_usdt=float(hb["balance_usdt"]), available=True)
 
 
-@app.get("/active_trades", response_model=List[TradeStatus])
+@app.get("/active_trades", response_model=List[TradeStatus], summary="Currently open trades (Opened with no Closed/Cancelled yet)")
 async def get_active_trades():
     """Derived from trade_events (Opened without a later Closed/Cancelled),
     per MultiVenueTOD.md — no in-memory process state to read anymore."""
@@ -216,3 +260,88 @@ async def get_active_trades():
             print(f"⚠️ Error building TradeStatus for {ev.get('trade_id')}: {e}", file=sys.stderr)
     return result
 
+
+def _to_float(v: Any) -> Optional[float]:
+    return float(v) if v is not None else None
+
+
+@app.get(
+    "/finished_trades",
+    response_model=List[FinishedTrade],
+    summary="Trade history: finished trades (Closed or Cancelled), newest first",
+)
+async def get_finished_trades(
+    limit: int = Query(50, ge=1, le=500, description="Max trades to return"),
+    offset: int = Query(0, ge=0, description="Skip this many trades (paging)"),
+    target: Optional[Literal["virtual", "real"]] = Query(None, description="Only this execution target"),
+    outcome: Optional[Literal["Closed", "Cancelled"]] = Query(None, description="Only trades that ended this way"),
+    instrument: Optional[str] = Query(None, description="Only this instrument, exactly as stored"),
+    include_events: bool = Query(False, description="Also return each trade's full event chain"),
+):
+    """Mirror of /active_trades: trades whose 'Opened' event has a later
+    'Closed' or 'Cancelled' event in trade_events. One summary row per
+    trade; pass include_events=true to also get the Opened -> Filled ->
+    Closed/Cancelled chain for each."""
+    db = await _get_db()
+    trades = await db.get_finished_trades(
+        limit=limit, offset=offset, target=target, outcome=outcome,
+        instrument=instrument, include_events=include_events,
+    )
+    print(f"📊 /finished_trades: {len(trades)} trade(s) returned", file=sys.stderr)
+
+    result = []
+    for t in trades:
+        try:
+            events = None
+            if include_events:
+                events = [
+                    TradeEventOut(
+                        event_id=e["event_id"],
+                        previous_event_id=e["previous_event_id"],
+                        event_type=e["event_type"],
+                        size=float(e["size"]),
+                        ep=_to_float(e["ep"]),
+                        sl=_to_float(e["sl"]),
+                        tp=_to_float(e["tp"]),
+                        fill_price=_to_float(e["fill_price"]),
+                        close_reason=e["close_reason"],
+                        cancel_reason=e["cancel_reason"],
+                        occurred_at=e["occurred_at"],
+                    )
+                    for e in t.get("events", [])
+                ]
+            result.append(FinishedTrade(
+                trade_id=t["trade_id"],
+                target=t["target"],
+                instrument=t["instrument"],
+                side=t["side"],
+                size=float(t["size"]),
+                entry_price=_to_float(t["ep"]),
+                sl_price=_to_float(t["sl"]),
+                tp_price=_to_float(t["tp"]),
+                fill_price=_to_float(t["fill_price"]),
+                outcome=t["outcome"],
+                close_reason=t["close_reason"],
+                cancel_reason=t["cancel_reason"],
+                opened_at=t["opened_at"],
+                filled_at=t["filled_at"],
+                finished_at=t["finished_at"],
+                events=events,
+            ))
+        except Exception as e:
+            print(f"⚠️ Error building FinishedTrade for {t.get('trade_id')}: {e}", file=sys.stderr)
+    return result
+
+
+@app.get("/help", response_model=List[HelpEndpoint], summary="List all available API endpoints")
+async def help_endpoints():
+    """Built from the app's registered routes at request time, so it can't
+    drift out of date when endpoints are added."""
+    endpoints: List[HelpEndpoint] = []
+    for route in app.routes:
+        if not isinstance(route, APIRoute) or not route.include_in_schema:
+            continue
+        description = route.summary or (route.endpoint.__doc__ or "").strip().split("\n")[0]
+        for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
+            endpoints.append(HelpEndpoint(method=method, path=route.path, description=description))
+    return endpoints
