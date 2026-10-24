@@ -218,6 +218,7 @@ class TradeEventsDB:
 
             # Indexes
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_trade_id ON trade_events(trade_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_trade_chain ON trade_events(trade_id, occurred_at, event_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_occurred_at ON trade_events(occurred_at)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_order_fills_trade_id ON order_fills(trade_id)")
 
@@ -613,69 +614,75 @@ class TradeEventsDB:
             return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
-    # Finished trades (for edge-api's /finished_trades) — the mirror image
-    # of get_active_trades(): every 'Opened' event that DOES have a later
-    # terminal ('Closed' or 'Cancelled') event for the same trade_id. The
-    # terminal condition is intentionally identical to get_active_trades(),
-    # so every trade is in exactly one of the two result sets.
+    # Trades history (for edge-api's /trades_history) — one row per trade
+    # (open, closed or cancelled) plus, optionally, its full event chain
+    # (EntrySubmitted -> Opened -> Filled -> SLPlaced/TPPlaced -> SLHit/TPHit
+    # -> Closed, or whatever subset actually happened).
+    #
+    # Trades are discovered from the FIRST event of each trade_id (not from
+    # 'Opened'), so trades that never got that far — e.g. an entry order
+    # denied before the venue accepted it — still show up in the history.
     # ------------------------------------------------------------------
-    async def get_finished_trades(
+    async def get_trades_history(
         self,
         limit: int = 50,
         offset: int = 0,
         target: Optional[str] = None,
-        outcome: Optional[str] = None,
+        status: Optional[str] = None,        # 'Open' | 'Closed' | 'Cancelled'
         instrument: Optional[str] = None,
-        include_events: bool = False,
+        trade_id: Optional[str] = None,
+        include_events: bool = True,
     ) -> List[Dict[str, Any]]:
         """
-        Returns one summary row per finished trade, newest-finished first:
-        the trade's 'Opened' data (ep/sl/tp/size/side), the entry fill price
-        + time if it ever filled, and how it ended ('Closed' / 'Cancelled'
-        with its close_reason / cancel_reason).
-
-        Filters (all optional): target ('virtual'|'real'), outcome
-        ('Closed'|'Cancelled'), instrument. If include_events is True each
-        row also carries `events`: the trade's full event chain in
-        chronological order.
+        Returns trades newest-started first. Each row carries the trade's
+        definition (side/size/ep/sl/tp), entry fill price + time, exit price,
+        terminal reason, and `terminal_type` (None while still open). With
+        include_events=True each row also has `events`: the whole chain in
+        chronological order, including the `metadata` JSON of every event.
         """
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
+                WITH first_events AS (
+                    SELECT DISTINCT ON (trade_id)
+                        trade_id, target, instrument, side, size, ep, sl, tp,
+                        occurred_at AS started_at
+                    FROM trade_events
+                    ORDER BY trade_id, occurred_at ASC, event_id ASC
+                )
                 SELECT
-                    o.trade_id, o.target, o.instrument, o.side, o.size,
-                    o.ep, o.sl, o.tp,
-                    o.occurred_at AS opened_at,
-                    f.fill_price AS fill_price,
+                    s.*,
+                    f.fill_price AS entry_fill_price,
                     f.occurred_at AS filled_at,
-                    t.event_type AS outcome,
+                    t.event_type AS terminal_type,
                     t.close_reason, t.cancel_reason,
+                    t.fill_price AS exit_price,
                     t.occurred_at AS finished_at
-                FROM trade_events o
-                JOIN LATERAL (
-                    SELECT te.event_type, te.close_reason, te.cancel_reason, te.occurred_at, te.event_id
-                    FROM trade_events te
-                    WHERE te.trade_id = o.trade_id
-                    AND te.event_type IN ('Closed', 'Cancelled')
-                    AND te.occurred_at > o.occurred_at
-                    ORDER BY te.occurred_at ASC, te.event_id ASC
-                    LIMIT 1
-                ) t ON TRUE
+                FROM first_events s
                 LEFT JOIN LATERAL (
                     SELECT fe.fill_price, fe.occurred_at
                     FROM trade_events fe
-                    WHERE fe.trade_id = o.trade_id AND fe.event_type = 'Filled'
+                    WHERE fe.trade_id = s.trade_id AND fe.event_type = 'Filled'
                     ORDER BY fe.occurred_at ASC, fe.event_id ASC
                     LIMIT 1
                 ) f ON TRUE
-                WHERE o.event_type = 'Opened'
-                AND ($1::text IS NULL OR o.target = $1)
-                AND ($2::text IS NULL OR t.event_type = $2)
-                AND ($3::text IS NULL OR o.instrument = $3)
-                ORDER BY t.occurred_at DESC, t.event_id DESC
-                LIMIT $4 OFFSET $5
+                LEFT JOIN LATERAL (
+                    SELECT te.event_type, te.close_reason, te.cancel_reason,
+                           te.fill_price, te.occurred_at
+                    FROM trade_events te
+                    WHERE te.trade_id = s.trade_id
+                    AND te.event_type IN ('Closed', 'Cancelled')
+                    ORDER BY te.occurred_at ASC, te.event_id ASC
+                    LIMIT 1
+                ) t ON TRUE
+                WHERE ($1::text IS NULL OR s.target = $1)
+                AND ($2::text IS NULL OR COALESCE(t.event_type, 'Open') = $2)
+                AND ($3::text IS NULL OR s.instrument = $3)
+                AND ($4::text IS NULL OR s.trade_id = $4)
+                ORDER BY s.started_at DESC, s.trade_id DESC
+                LIMIT $5 OFFSET $6
                 """,
-                target, outcome, instrument, limit, offset,
+                target, status, instrument, trade_id, limit, offset,
             )
             trades = [dict(r) for r in rows]
 
@@ -684,7 +691,7 @@ class TradeEventsDB:
                     """
                     SELECT event_id, trade_id, previous_event_id, event_type,
                            size, ep, sl, tp, fill_price, close_reason,
-                           cancel_reason, occurred_at
+                           cancel_reason, metadata, occurred_at
                     FROM trade_events
                     WHERE trade_id = ANY($1::varchar[])
                     ORDER BY occurred_at ASC, event_id ASC
@@ -693,7 +700,11 @@ class TradeEventsDB:
                 )
                 by_trade: Dict[str, List[Dict[str, Any]]] = {}
                 for er in event_rows:
-                    by_trade.setdefault(er["trade_id"], []).append(dict(er))
+                    ev = dict(er)
+                    # asyncpg returns jsonb as a str unless a codec is registered
+                    if isinstance(ev.get("metadata"), str):
+                        ev["metadata"] = json.loads(ev["metadata"])
+                    by_trade.setdefault(ev["trade_id"], []).append(ev)
                 for t in trades:
                     t["events"] = by_trade.get(t["trade_id"], [])
 

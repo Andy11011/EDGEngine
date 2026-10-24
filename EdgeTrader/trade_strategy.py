@@ -234,6 +234,13 @@ class TradeStrategy(Strategy):
         # orders the venue has confirmed, not just the first one).
         self._pending_protection_ids: set[str] = set()
 
+        # Event-sourcing writes are fire-and-forget tasks. The lock (asyncio
+        # locks are FIFO) makes them hit Postgres in the exact order they were
+        # emitted, so previous_event_id links and occurred_at ordering are
+        # correct. The set keeps task references alive until they finish.
+        self._db_lock = asyncio.Lock()
+        self._db_tasks: set[asyncio.Task] = set()
+
     async def _get_db(self):
         """Lazy load the DB instance (avoids early import issues)."""
         if self._db is None:
@@ -242,76 +249,129 @@ class TradeStrategy(Strategy):
             self._db = await TradeEventsDB.get_instance()
         return self._db
 
-    # ---------- DB helpers ----------
-    async def _append_opened_event(self) -> None:
-        """Insert the 'Opened' event once the entry order is confirmed live
-        (state enters AWAITING_FILL). This is the trade's start-of-chain
-        event — written before any fill, so the trade is discoverable
-        (e.g. by a cancel event) even while still awaiting fill."""
-        db = await self._get_db()
-        await db.insert_trade_event(
-            trade_id=self.config.trade_id,
-            event_type="Opened",
-            instrument=str(self.config.instrument_id),
-            side=self.config.side,
-            size=self.config.size,
-            occurred_at=None,  # use now()
-            ep=self.config.entry_price,
-            sl=self.config.sl_price,
-            tp=self.config.tp_price,
-            target=self.config.target,
-        )
-        self.log.info(f"📝 Logged Opened event for {self.config.trade_id} (target={self.config.target})")
+    # ---------- DB helpers (event sourcing) ----------
+    #
+    # Every meaningful step of a trade is appended to trade_events as its own
+    # immutable row. Event types written by this strategy (all <= 20 chars):
+    #
+    #   EntrySubmitted    entry order handed to the venue gateway
+    #   Opened            venue accepted the entry order (trade is live)
+    #   Filled            entry order filled
+    #   SLPlaced          stop-loss order accepted by the venue
+    #   TPPlaced          take-profit order accepted by the venue
+    #   SLHit / TPHit     a protection order filled (position exited)
+    #   SiblingCancelSent cancel sent for the other protection order (manual OCO)
+    #   CancelRequested   cancel asked for (edge-api / cancel_requests table)
+    #   CloseRequested    manual close order submitted
+    #   OrderRejected     venue rejected an order (any role)
+    #   OrderDenied       Nautilus risk engine denied an order (any role)
+    #   Closed/Cancelled  terminal event, carries close_reason / cancel_reason
+    #
+    # Per-event details (order role, client/venue order ids, qty, commission,
+    # exchange timestamp...) go in the `metadata` JSONB column.
 
-    async def _append_filled_event(self) -> None:
-        """Insert the 'Filled' event once the entry order fills (state moves
-        AWAITING_FILL → PROTECTING)."""
-        db = await self._get_db()
-        await db.insert_trade_event(
-            trade_id=self.config.trade_id,
-            event_type="Filled",
-            instrument=str(self.config.instrument_id),
-            side=self.config.side,
-            size=self.config.size,
-            occurred_at=None,  # use now()
-            ep=self.config.entry_price,
-            sl=self.config.sl_price,
-            tp=self.config.tp_price,
-            fill_price=self.sm.extra_data.get("fill_price"),
-            target=self.config.target,
-        )
-        self.log.info(f"📝 Logged Filled event for {self.config.trade_id} (target={self.config.target})")
+    def _order_role(self, coid: str) -> str:
+        if coid == self._entry_client_order_id:
+            return "entry"
+        if coid == self._sl_client_order_id:
+            return "sl"
+        if coid == self._tp_client_order_id:
+            return "tp"
+        if coid == self._close_client_order_id:
+            return "close"
+        return "unknown"
 
-    async def _append_closing_event(self) -> None:
-        """Insert the final 'Closed' or 'Cancelled' event into trade_events."""
-        db = await self._get_db()
+    def _order_meta(self, event, role: str) -> Dict[str, Any]:
+        meta: Dict[str, Any] = {
+            "order_role": role,
+            "client_order_id": str(event.client_order_id),
+        }
+        venue_oid = getattr(event, "venue_order_id", None)
+        if venue_oid is not None:
+            meta["venue_order_id"] = str(venue_oid)
+        ts_event = getattr(event, "ts_event", None)
+        if ts_event:
+            meta["exchange_ts_ns"] = int(ts_event)
+        return meta
+
+    def _fill_meta(self, event: OrderFilled, role: str) -> Dict[str, Any]:
+        meta = self._order_meta(event, role)
+        meta["last_qty"] = float(event.last_qty)
+        meta["last_px"] = float(event.last_px)
+        meta["exchange_trade_id"] = str(event.trade_id)
+        liq = getattr(event, "liquidity_side", None)
+        if liq is not None:
+            meta["liquidity_side"] = getattr(liq, "name", str(liq))
+        commission = getattr(event, "commission", None)
+        if commission is not None:
+            meta["commission"] = str(commission)
+        return meta
+
+    def _emit(
+        self,
+        event_type: str,
+        *,
+        fill_price: Optional[float] = None,
+        close_reason: Optional[str] = None,
+        cancel_reason: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Queue one event for this trade (non-blocking, order-preserving)."""
+        task = asyncio.create_task(
+            self._append_event(event_type, fill_price, close_reason, cancel_reason, metadata or {})
+        )
+        self._db_tasks.add(task)
+        task.add_done_callback(self._db_tasks.discard)
+
+    async def _append_event(
+        self,
+        event_type: str,
+        fill_price: Optional[float],
+        close_reason: Optional[str],
+        cancel_reason: Optional[str],
+        metadata: Dict[str, Any],
+    ) -> None:
+        async with self._db_lock:
+            try:
+                db = await self._get_db()
+                await db.insert_trade_event(
+                    trade_id=self.config.trade_id,
+                    event_type=event_type,
+                    instrument=str(self.config.instrument_id),
+                    side=self.config.side,
+                    size=self.config.size,
+                    occurred_at=None,  # DB now(); exchange time is kept in metadata
+                    ep=self.config.entry_price,
+                    sl=self.config.sl_price,
+                    tp=self.config.tp_price,
+                    fill_price=fill_price,
+                    close_reason=close_reason,
+                    cancel_reason=cancel_reason,
+                    metadata=metadata,
+                    target=self.config.target,
+                )
+                self.log.info(
+                    f"📝 Logged {event_type} event for {self.config.trade_id} (target={self.config.target})"
+                )
+            except Exception as e:
+                self.log.error(f"❌ Failed to log {event_type} event for {self.config.trade_id}: {e}")
+
+    def _log_terminal_event(self) -> None:
+        """Emit the final 'Closed' or 'Cancelled' event from the SM's state."""
         if self.sm.state == TradeState.CLOSING:
-            event_type = "Closed"
-            close_reason = self.sm.extra_data.get("close_reason", "protection_filled")
-            cancel_reason = None
+            self._emit(
+                "Closed",
+                fill_price=self.sm.extra_data.get("fill_price"),
+                close_reason=self.sm.extra_data.get("close_reason", "protection_filled"),
+            )
         elif self.sm.state == TradeState.CANCELING:
-            event_type = "Cancelled"
-            close_reason = None
-            cancel_reason = self.sm.extra_data.get("cancel_reason", "forced")
+            self._emit(
+                "Cancelled",
+                fill_price=self.sm.extra_data.get("fill_price"),  # may be None
+                cancel_reason=self.sm.extra_data.get("cancel_reason", "forced"),
+            )
         else:
-            # Should never be called from a non‑terminal state
             self.log.warning(f"Attempted to append closing event while in {self.sm.state}")
-            return
-
-        fill_price = self.sm.extra_data.get("fill_price")  # may be None
-
-        await db.insert_trade_event(
-            trade_id=self.config.trade_id,
-            event_type=event_type,
-            instrument=str(self.config.instrument_id),
-            side=self.config.side,
-            size=self.config.size,
-            fill_price=fill_price,
-            close_reason=close_reason,
-            cancel_reason=cancel_reason,
-            target=self.config.target,
-        )
-        self.log.info(f"📝 Logged {event_type} event for {self.config.trade_id} (target={self.config.target})")
 
     # -------- Modified _finalize_and_stop --------
     def _finalize_and_stop(self) -> None:
@@ -321,7 +381,7 @@ class TradeStrategy(Strategy):
         listener. Calling both would double-stop an already-STOPPED strategy
         and raise InvalidStateTrigger('STOPPED -> STOP')."""
         # Fire‑and‑forget the DB insert (we don't wait for it)
-        asyncio.create_task(self._append_closing_event())
+        self._log_terminal_event()
 
         self.log.info(
             f"Trade {self.config.trade_id} reached terminal state {self.sm.state}; stopping"
@@ -416,6 +476,8 @@ class TradeStrategy(Strategy):
         """Order handed off to the venue gateway. Confirmation comes later
         via on_order_accepted(); this is just a log/telemetry hook."""
         self.log.debug(f"Order submitted: {event.client_order_id}")
+        if self._is_entry_order(event):
+            self._emit("EntrySubmitted", metadata=self._order_meta(event, "entry"))
 
     def on_order_accepted(self, event: OrderAccepted) -> None:
         """Venue confirmed the order is live."""
@@ -426,10 +488,15 @@ class TradeStrategy(Strategy):
             self.log.info(f"✅ Entry order accepted, awaiting fill (trade={self.config.trade_id})")
             # Record the Opened event now, not just after fill, so the trade
             # is discoverable (e.g. by a cancel event) while AWAITING_FILL.
-            asyncio.create_task(self._append_opened_event())
+            self._emit("Opened", metadata=self._order_meta(event, "entry"))
 
         elif coid in self._pending_protection_ids:
             self._pending_protection_ids.discard(coid)
+            role = self._order_role(coid)
+            self._emit(
+                "SLPlaced" if role == "sl" else "TPPlaced",
+                metadata=self._order_meta(event, role),
+            )
             if not self._pending_protection_ids and self.sm.needs_protection():
                 self.sm.protection_placed()
                 self.log.info(f"🛡️ Protection orders live for {self.config.trade_id}")
@@ -444,11 +511,23 @@ class TradeStrategy(Strategy):
         if self._is_entry_order(event) and self.sm.state == TradeState.AWAITING_FILL:
             self.sm.entry_filled()
             # Record the Filled event → SM is moving into PROTECTING
-            asyncio.create_task(self._append_filled_event())
+            self._emit(
+                "Filled",
+                fill_price=float(event.last_px),
+                metadata=self._fill_meta(event, "entry"),
+            )
             self._submit_protection_orders()
 
         elif self._is_protection_order(event) and self.sm.state == TradeState.IN_POSITION:
             self.sm.protection_filled()
+            role = self._order_role(str(event.client_order_id))
+            hit = "sl_hit" if role == "sl" else "tp_hit"
+            self.sm.extra_data["close_reason"] = hit  # was a generic "protection_filled"
+            self._emit(
+                "SLHit" if role == "sl" else "TPHit",
+                fill_price=float(event.last_px),
+                metadata=self._fill_meta(event, role),
+            )
             self._cancel_sibling_protection_order(event)
             self._finalize_and_stop()
 
@@ -465,6 +544,11 @@ class TradeStrategy(Strategy):
     def on_order_rejected(self, event: OrderRejected) -> None:
         """Called when an order is rejected."""
         self.log.warning(f"❌ Order rejected: {event.client_order_id} ({event.reason})")
+        self._emit(
+            "OrderRejected",
+            metadata={**self._order_meta(event, self._order_role(str(event.client_order_id))),
+                      "reason": str(event.reason)},
+        )
 
         if self._is_entry_order(event):
             self.sm.entry_rejected(reason=event.reason)
@@ -491,6 +575,11 @@ class TradeStrategy(Strategy):
         rejected entry order: cancel and finalize.
         """
         self.log.warning(f"🚫 Order denied: {event.client_order_id} ({event.reason})")
+        self._emit(
+            "OrderDenied",
+            metadata={**self._order_meta(event, self._order_role(str(event.client_order_id))),
+                      "reason": str(event.reason)},
+        )
 
         if self._is_entry_order(event):
             self.sm.entry_rejected(reason=event.reason)
@@ -585,6 +674,13 @@ class TradeStrategy(Strategy):
                 f"(filled: {filled_coid})"
             )
             self.cancel_order(sibling_order)
+            self._emit(
+                "SiblingCancelSent",
+                metadata={
+                    "order_role": "tp" if sibling_coid == self._tp_client_order_id else "sl",
+                    "client_order_id": sibling_coid,
+                },
+            )
         else:
             self.log.debug(
                 f"Sibling protection order {sibling_coid} already inactive "
@@ -617,6 +713,14 @@ class TradeStrategy(Strategy):
             reduce_only=True,
             client_order_id=ClientOrderId(self._close_client_order_id),
         )
+        self._emit(
+            "CloseRequested",
+            metadata={
+                "order_role": "close",
+                "client_order_id": self._close_client_order_id,
+                "close_reason": "user_close",
+            },
+        )
         self.sm.close_order_submitted(str(close_order.client_order_id))
         self.submit_order(close_order)
 
@@ -625,6 +729,8 @@ class TradeStrategy(Strategy):
         Cancel the trade: if entry order is open, cancel it;
         if position is open, close it; otherwise do nothing.
         """
+        if self.sm.state in (TradeState.AWAITING_FILL, TradeState.IN_POSITION):
+            self._emit("CancelRequested", metadata={"state": self.sm.state.name})
         if self.sm.state == TradeState.AWAITING_FILL:
             entry_order = self.cache.order(ClientOrderId(self._entry_client_order_id))
             if entry_order and entry_order.is_open:

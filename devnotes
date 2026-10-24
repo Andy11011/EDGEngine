@@ -1264,3 +1264,19 @@ Message received: the node received SQS message 82e630d7… and logged "Started 
 Entry order placed: it submitted a LIMIT BUY of 1,666.67 RIFUSDT at 0.0757 (GTC), and the exchange simulator accepted it. The 126.17 USDT locked in the account equals 1,666.67 × 0.0757, so the size and price are consistent.
 Message acknowledged: the node acked the SQS message, so it won't be redelivered.
 Trade recorded: it wrote the "Opened" event to the database (target=virtual).
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+EntrySubmitted → Opened → Filled → SLPlaced → TPPlaced → 
+SLHit → SiblingCancelSent → Closed
+
+Other events appear when they happen: 
+TPHit, CancelRequested, CloseRequested, OrderRejected and OrderDenied
+
+No schema change was needed, since metadata is an existing JSONB column.
+
+GET /trades_history replaces /finished_trades. It returns open, closed and cancelled trades, each with status, entry_fill_price, exit_price and an events array. Filters are target, status, instrument, limit, offset, and include_events=false for a light listing.
+GET /trades_history/{trade_id} returns a single trade.
+Trades that were denied or rejected before the venue accepted them now show up too.

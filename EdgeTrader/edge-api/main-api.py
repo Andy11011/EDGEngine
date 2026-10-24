@@ -22,9 +22,11 @@ Everything it serves comes from Postgres:
   - /balance/mainnet   — the real node's latest heartbeat balance snapshot.
   - /active_trades     — derived from trade_events (Opened without a later
                          Closed/Cancelled), not in-memory process state.
-  - /finished_trades   — the other half: Opened WITH a later Closed/Cancelled,
-                         one summary row per trade (optionally with its full
-                         event chain).
+  - /trades_history    — every trade (open, closed, cancelled), one row per
+                         trade plus its full event-sourced chain (entry
+                         submitted/opened/filled, SL/TP placed, SL/TP hit,
+                         closed/cancelled, rejections ...). Also
+                         /trades_history/{trade_id} for a single trade.
   - /help              — lists every route this service exposes.
 """
 
@@ -67,10 +69,11 @@ class TradeEventOut(BaseModel):
     fill_price: Optional[float]
     close_reason: Optional[str]
     cancel_reason: Optional[str]
+    metadata: Optional[Dict[str, Any]] = None  # order role, order ids, qty, commission, ...
     occurred_at: datetime
 
 
-class FinishedTrade(BaseModel):
+class TradeHistory(BaseModel):
     trade_id: str
     target: str  # "virtual" | "real"
     instrument: str
@@ -79,14 +82,15 @@ class FinishedTrade(BaseModel):
     entry_price: Optional[float]
     sl_price: Optional[float]
     tp_price: Optional[float]
-    fill_price: Optional[float]  # None if the entry never filled
-    outcome: str  # "Closed" | "Cancelled"
-    close_reason: Optional[str]
+    status: Literal["Open", "Closed", "Cancelled"]
+    entry_fill_price: Optional[float]  # None if the entry never filled
+    exit_price: Optional[float]        # price of the last fill (SL/TP/manual close)
+    close_reason: Optional[str]        # sl_hit | tp_hit | user_close
     cancel_reason: Optional[str]
-    opened_at: datetime
+    started_at: datetime               # first event of the trade
     filled_at: Optional[datetime]
-    finished_at: datetime
-    events: Optional[List[TradeEventOut]] = None  # only with include_events=true
+    finished_at: Optional[datetime]    # None while the trade is still open
+    events: Optional[List[TradeEventOut]] = None  # full event chain (default on)
 
 
 class HelpEndpoint(BaseModel):
@@ -265,72 +269,89 @@ def _to_float(v: Any) -> Optional[float]:
     return float(v) if v is not None else None
 
 
+def _build_event(e: Dict[str, Any]) -> TradeEventOut:
+    return TradeEventOut(
+        event_id=e["event_id"],
+        previous_event_id=e["previous_event_id"],
+        event_type=e["event_type"],
+        size=float(e["size"]),
+        ep=_to_float(e["ep"]),
+        sl=_to_float(e["sl"]),
+        tp=_to_float(e["tp"]),
+        fill_price=_to_float(e["fill_price"]),
+        close_reason=e["close_reason"],
+        cancel_reason=e["cancel_reason"],
+        metadata=e.get("metadata") or None,
+        occurred_at=e["occurred_at"],
+    )
+
+
+def _build_trade_history(t: Dict[str, Any], include_events: bool) -> TradeHistory:
+    return TradeHistory(
+        trade_id=t["trade_id"],
+        target=t["target"],
+        instrument=t["instrument"],
+        side=t["side"],
+        size=float(t["size"]),
+        entry_price=_to_float(t["ep"]),
+        sl_price=_to_float(t["sl"]),
+        tp_price=_to_float(t["tp"]),
+        status=t["terminal_type"] or "Open",
+        entry_fill_price=_to_float(t["entry_fill_price"]),
+        exit_price=_to_float(t["exit_price"]),
+        close_reason=t["close_reason"],
+        cancel_reason=t["cancel_reason"],
+        started_at=t["started_at"],
+        filled_at=t["filled_at"],
+        finished_at=t["finished_at"],
+        events=[_build_event(e) for e in t.get("events", [])] if include_events else None,
+    )
+
+
 @app.get(
-    "/finished_trades",
-    response_model=List[FinishedTrade],
-    summary="Trade history: finished trades (Closed or Cancelled), newest first",
+    "/trades_history",
+    response_model=List[TradeHistory],
+    summary="Trade history with the full event chain of each trade, newest first",
 )
-async def get_finished_trades(
+async def get_trades_history(
     limit: int = Query(50, ge=1, le=500, description="Max trades to return"),
     offset: int = Query(0, ge=0, description="Skip this many trades (paging)"),
     target: Optional[Literal["virtual", "real"]] = Query(None, description="Only this execution target"),
-    outcome: Optional[Literal["Closed", "Cancelled"]] = Query(None, description="Only trades that ended this way"),
+    status: Optional[Literal["Open", "Closed", "Cancelled"]] = Query(None, description="Only trades in this state"),
     instrument: Optional[str] = Query(None, description="Only this instrument, exactly as stored"),
-    include_events: bool = Query(False, description="Also return each trade's full event chain"),
+    include_events: bool = Query(True, description="Include each trade's event chain (set false for a light listing)"),
 ):
-    """Mirror of /active_trades: trades whose 'Opened' event has a later
-    'Closed' or 'Cancelled' event in trade_events. One summary row per
-    trade; pass include_events=true to also get the Opened -> Filled ->
-    Closed/Cancelled chain for each."""
+    """Every trade (open, closed or cancelled) with its event-sourced chain:
+    EntrySubmitted -> Opened -> Filled -> SLPlaced/TPPlaced -> SLHit/TPHit ->
+    Closed (or Cancelled / OrderRejected / OrderDenied ...), in chronological
+    order, each with its `metadata`."""
     db = await _get_db()
-    trades = await db.get_finished_trades(
-        limit=limit, offset=offset, target=target, outcome=outcome,
+    trades = await db.get_trades_history(
+        limit=limit, offset=offset, target=target, status=status,
         instrument=instrument, include_events=include_events,
     )
-    print(f"📊 /finished_trades: {len(trades)} trade(s) returned", file=sys.stderr)
+    print(f"📊 /trades_history: {len(trades)} trade(s) returned", file=sys.stderr)
 
     result = []
     for t in trades:
         try:
-            events = None
-            if include_events:
-                events = [
-                    TradeEventOut(
-                        event_id=e["event_id"],
-                        previous_event_id=e["previous_event_id"],
-                        event_type=e["event_type"],
-                        size=float(e["size"]),
-                        ep=_to_float(e["ep"]),
-                        sl=_to_float(e["sl"]),
-                        tp=_to_float(e["tp"]),
-                        fill_price=_to_float(e["fill_price"]),
-                        close_reason=e["close_reason"],
-                        cancel_reason=e["cancel_reason"],
-                        occurred_at=e["occurred_at"],
-                    )
-                    for e in t.get("events", [])
-                ]
-            result.append(FinishedTrade(
-                trade_id=t["trade_id"],
-                target=t["target"],
-                instrument=t["instrument"],
-                side=t["side"],
-                size=float(t["size"]),
-                entry_price=_to_float(t["ep"]),
-                sl_price=_to_float(t["sl"]),
-                tp_price=_to_float(t["tp"]),
-                fill_price=_to_float(t["fill_price"]),
-                outcome=t["outcome"],
-                close_reason=t["close_reason"],
-                cancel_reason=t["cancel_reason"],
-                opened_at=t["opened_at"],
-                filled_at=t["filled_at"],
-                finished_at=t["finished_at"],
-                events=events,
-            ))
+            result.append(_build_trade_history(t, include_events))
         except Exception as e:
-            print(f"⚠️ Error building FinishedTrade for {t.get('trade_id')}: {e}", file=sys.stderr)
+            print(f"⚠️ Error building TradeHistory for {t.get('trade_id')}: {e}", file=sys.stderr)
     return result
+
+
+@app.get(
+    "/trades_history/{trade_id}",
+    response_model=TradeHistory,
+    summary="One trade with its full event chain",
+)
+async def get_trade_history(trade_id: str):
+    db = await _get_db()
+    trades = await db.get_trades_history(limit=1, trade_id=trade_id, include_events=True)
+    if not trades:
+        raise HTTPException(status_code=404, detail=f"No trade with trade_id {trade_id}")
+    return _build_trade_history(trades[0], include_events=True)
 
 
 @app.get("/help", response_model=List[HelpEndpoint], summary="List all available API endpoints")
