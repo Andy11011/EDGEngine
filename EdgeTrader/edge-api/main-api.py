@@ -32,7 +32,9 @@ Everything it serves comes from Postgres:
 
 from __future__ import annotations
 
+import os
 import sys
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
@@ -40,11 +42,18 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
+from trade_metrics import compute_trade_metrics
 from trades_db_async import TradeEventsDB
 
 app = FastAPI()
 
 VENUE = "binance"
+
+# Optional BNB/USDT rate used to value BNB-denominated fees when the fill events
+# themselves don't carry `bnb_usdt_price`. Unset -> BNB fees stay unpriced and the
+# trade's net_pnl / win / roi_pct are null instead of being guessed.
+_bnb_fallback_raw = os.getenv("BNB_USDT_FALLBACK_PRICE")
+BNB_USDT_FALLBACK: Optional[float] = float(_bnb_fallback_raw) if _bnb_fallback_raw else None
 
 
 class TradeStatus(BaseModel):
@@ -73,6 +82,24 @@ class TradeEventOut(BaseModel):
     occurred_at: datetime
 
 
+class TradeMetricsOut(BaseModel):
+    """Derived from the trade's events by trade_metrics.compute_trade_metrics
+    (definitions live there). Null for trades that are still open."""
+    ticker: str                         # instrument without the venue suffix
+    side: str
+    target: str
+    win: Optional[bool]                 # net_pnl > 0; null when net_pnl can't be determined
+    gross_pnl: Optional[float]          # (exit - entry fill) * size, sign-flipped for SELL; before fees
+    fee_usdt: float                     # fees paid in USDT (base-asset fees converted at fill price)
+    fee_bnb: float                      # fees paid in BNB (native units)
+    fee_bnb_usdt: Optional[float]       # BNB fees valued in USDT; null if no rate is known
+    net_pnl: Optional[float]            # gross_pnl - fee_usdt - fee_bnb_usdt
+    roi_pct: Optional[float]            # net_pnl / (entry fill * size) * 100
+    duration_s: Optional[float]         # seconds in the position (filled_at -> finished_at)
+    fills_complete: Optional[bool]      # False: recorded fills don't add up to size, fees may be understated
+    notes: List[str] = []               # why a field is null / caveats
+
+
 class TradeHistory(BaseModel):
     trade_id: str
     target: str  # "virtual" | "real"
@@ -91,6 +118,7 @@ class TradeHistory(BaseModel):
     filled_at: Optional[datetime]
     finished_at: Optional[datetime]    # None while the trade is still open
     events: Optional[List[TradeEventOut]] = None  # full event chain (default on)
+    metrics: Optional[TradeMetricsOut] = None     # PnL / fees / ROI / duration; null while open
 
 
 class HelpEndpoint(BaseModel):
@@ -286,6 +314,16 @@ def _build_event(e: Dict[str, Any]) -> TradeEventOut:
     )
 
 
+def _build_metrics(t: Dict[str, Any]) -> Optional[TradeMetricsOut]:
+    """A metrics failure must never hide the trade itself, so log and return null."""
+    try:
+        m = compute_trade_metrics(t, t.get("events", []), bnb_usdt_fallback=BNB_USDT_FALLBACK)
+    except Exception as e:
+        print(f"⚠️ Error computing metrics for {t.get('trade_id')}: {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+    return TradeMetricsOut(**asdict(m)) if m is not None else None
+
+
 def _build_trade_history(t: Dict[str, Any], include_events: bool) -> TradeHistory:
     return TradeHistory(
         trade_id=t["trade_id"],
@@ -305,6 +343,7 @@ def _build_trade_history(t: Dict[str, Any], include_events: bool) -> TradeHistor
         filled_at=t["filled_at"],
         finished_at=t["finished_at"],
         events=[_build_event(e) for e in t.get("events", [])] if include_events else None,
+        metrics=_build_metrics(t),
     )
 
 
@@ -328,7 +367,8 @@ async def get_trades_history(
     db = await _get_db()
     trades = await db.get_trades_history(
         limit=limit, offset=offset, target=target, status=status,
-        instrument=instrument, include_events=include_events,
+        instrument=instrument,
+        include_events=True,  # metrics are derived from the events; they are only echoed back when include_events is set
     )
     print(f"📊 /trades_history: {len(trades)} trade(s) returned", file=sys.stderr)
 
