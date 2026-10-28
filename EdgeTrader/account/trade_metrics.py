@@ -20,9 +20,9 @@ Definitions (all money in USDT, spot USDT-quoted instruments only):
                    base asset  -> converted at that fill's price, into fee_usdt
                                   (Binance charges BUY fees in the received
                                   coin unless BNB-for-fees is on)
-                   BNB         -> fee_bnb (native BNB), priced into USDT only
-                                  if a BNB/USDT rate is known (see below)
-    net_pnl    = gross_pnl - fee_usdt - fee_bnb_usdt
+                   BNB         -> fee_bnb (native BNB), reported only and
+                                  deliberately NOT part of net_pnl (see below)
+    net_pnl    = gross_pnl - fee_usdt
     win        = net_pnl > 0            (NOT "take-profit hit": after fees a
                                          tiny TP can still lose money)
     roi_pct    = net_pnl / (entry_fill_price * size) * 100   (return on the
@@ -31,10 +31,11 @@ Definitions (all money in USDT, spot USDT-quoted instruments only):
     duration_s = finished_at - filled_at, i.e. time IN the position
                  (None if the entry never filled)
 
-BNB rate: used per fill if the event's metadata has `bnb_usdt_price`
-(recommended: have the node write it), else `bnb_usdt_fallback`, else the
-BNB fee cannot be priced and net_pnl / win / roi_pct are None rather than
-silently wrong.
+BNB fees: ignored when calculating PnL by design. They are still summed into
+`fee_bnb` (native units) so they stay visible, but they are never converted
+to USDT, so a trade paying fees in BNB still gets a net_pnl / win / roi_pct.
+`fee_bnb_usdt` is therefore always None. `bnb_usdt_fallback` is still accepted
+by compute_trade_metrics() for backward compatibility but has no effect.
 
 Known data limitation: the strategy currently records only the FIRST fill of
 each order. `fills_complete` says whether the recorded fill quantities add up
@@ -66,7 +67,7 @@ class TradeMetrics:
     gross_pnl: Optional[float]
     fee_usdt: float                # fees paid in USDT (incl. base-asset fees converted at fill price)
     fee_bnb: float                 # fees paid in BNB, native units
-    fee_bnb_usdt: Optional[float]  # the BNB fees valued in USDT; None if BNB fees exist but no rate known
+    fee_bnb_usdt: Optional[float]  # always None: BNB fees are not valued in USDT / not part of PnL
     net_pnl: Optional[float]
     roi_pct: Optional[float]
     duration_s: Optional[float]
@@ -128,17 +129,13 @@ def compute_trade_metrics(
     size = _d(trade.get("size"))
     entry = _d(trade.get("entry_fill_price"))
     exit_ = _d(trade.get("exit_price"))
-    fallback = _d(bnb_usdt_fallback)
 
     notes: List[str] = []
 
     # ---- fees + recorded fill quantities --------------------------------
     fee_usdt = Decimal(0)
     fee_bnb = Decimal(0)
-    fee_bnb_usdt = Decimal(0)
     unpriced = False
-    bnb_unpriced = False
-    used_fallback = False
     entry_qty = Decimal(0)
     exit_qty = Decimal(0)
     seen: Set[str] = set()
@@ -177,14 +174,7 @@ def compute_trade_metrics(
         if ccy == QUOTE:
             fee_usdt += amount
         elif ccy == "BNB":
-            fee_bnb += amount
-            rate = _d(meta.get("bnb_usdt_price"))
-            if rate is None and fallback is not None:
-                rate, used_fallback = fallback, True
-            if rate is None:
-                unpriced = bnb_unpriced = True
-            else:
-                fee_bnb_usdt += amount * rate
+            fee_bnb += amount  # reported, but intentionally excluded from PnL
         elif ccy == base:
             px = _d(meta.get("last_px")) or _d(ev.get("fill_price"))
             if px is None:
@@ -196,10 +186,8 @@ def compute_trade_metrics(
             notes.append(f"fee in unsupported asset {ccy}; fees not priced")
             unpriced = True
 
-    if bnb_unpriced:
-        notes.append("BNB fees present but no BNB/USDT rate known; net_pnl unavailable")
-    if used_fallback:
-        notes.append("BNB fees valued with the fallback rate, not the rate at fill time")
+    if fee_bnb > 0:
+        notes.append(f"{fee_bnb:f} BNB in fees not included in net_pnl")
 
     # ---- completeness of what was recorded ------------------------------
     fills_complete: Optional[bool]
@@ -224,7 +212,7 @@ def compute_trade_metrics(
     ):
         gross = direction * (exit_ - entry) * size
         if not unpriced:
-            net = gross - fee_usdt - fee_bnb_usdt
+            net = gross - fee_usdt
             win = net > 0
             notional = entry * size
             roi = net / notional * 100 if notional > 0 else None
@@ -245,7 +233,7 @@ def compute_trade_metrics(
         gross_pnl=_f(gross),
         fee_usdt=float(fee_usdt),
         fee_bnb=float(fee_bnb),
-        fee_bnb_usdt=None if bnb_unpriced else float(fee_bnb_usdt),
+        fee_bnb_usdt=None,
         net_pnl=_f(net),
         roi_pct=_f(roi),
         duration_s=duration,

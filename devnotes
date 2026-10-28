@@ -1280,3 +1280,26 @@ No schema change was needed, since metadata is an existing JSONB column.
 GET /trades_history replaces /finished_trades. It returns open, closed and cancelled trades, each with status, entry_fill_price, exit_price and an events array. Filters are target, status, instrument, limit, offset, and include_events=false for a light listing.
 GET /trades_history/{trade_id} returns a single trade.
 Trades that were denied or rejected before the venue accepted them now show up too.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+Set TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GSHEETS_CREDENTIALS_FILE
+and GSHEETS_SPREADSHEET_KEY. Optionally set GSHEETS_SHEET_ID_REAL 
+and GSHEETS_SHEET_ID_VIRTUAL for separate worksheets, and 
+BNB_USDT_FALLBACK_PRICE to match your API.
+Set TELEGRAM_ENABLED=0 or GSHEETS_ENABLED=0 to switch either channel
+off. Missing config only disables that channel and logs a line.
+
+
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+GSHEETS_CREDENTIALS_FILE
+GSHEETS_SPREADSHEET_KEY
+TELEGRAM_ENABLED
+GSHEETS_ENABLED
+
+GSHEETS_SHEET_ID_REAL
+GSHEETS_SHEET_ID_VIRTUAL
+BNB_USDT_FALLBACK_PRICE

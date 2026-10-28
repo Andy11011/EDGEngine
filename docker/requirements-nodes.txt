@@ -5,3 +5,5 @@ redis
 asyncpg
 uvicorn
 fastapi
+gspread
+oauth2client

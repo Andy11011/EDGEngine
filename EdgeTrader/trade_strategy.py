@@ -331,9 +331,11 @@ class TradeStrategy(Strategy):
         cancel_reason: Optional[str],
         metadata: Dict[str, Any],
     ) -> None:
+        db_for_notify = None
         async with self._db_lock:
             try:
                 db = await self._get_db()
+                db_for_notify = db
                 await db.insert_trade_event(
                     trade_id=self.config.trade_id,
                     event_type=event_type,
@@ -355,6 +357,30 @@ class TradeStrategy(Strategy):
                 )
             except Exception as e:
                 self.log.error(f"❌ Failed to log {event_type} event for {self.config.trade_id}: {e}")
+
+
+        # Telegram / Google Sheets: outside the DB lock and fully isolated, so a
+        # slow or failing notification can never delay or break event logging.
+        # Sent even if the DB write failed (that is when you most want to know).
+        try:
+            from trade_notifier import get_notifier
+            get_notifier().submit(db_for_notify, {
+                "trade_id": self.config.trade_id,
+                "event_type": event_type,
+                "instrument": str(self.config.instrument_id),
+                "side": self.config.side,
+                "size": self.config.size,
+                "ep": self.config.entry_price,
+                "sl": self.config.sl_price,
+                "tp": self.config.tp_price,
+                "fill_price": fill_price,
+                "close_reason": close_reason,
+                "cancel_reason": cancel_reason,
+                "metadata": metadata,
+                "target": self.config.target,
+            })
+        except Exception as e:
+            self.log.error(f"❌ Failed to queue notification for {event_type}: {e}")
 
     def _log_terminal_event(self) -> None:
         """Emit the final 'Closed' or 'Cancelled' event from the SM's state."""

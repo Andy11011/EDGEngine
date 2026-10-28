@@ -12,6 +12,11 @@ env:
     BINANCE_ED25519_PRIVATE_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PRIVATE_KEY"
     AWS_ACCESS_KEY_ID: "edgetrader/trading-secrets:AWS_ACCESS_KEY_ID"
     AWS_SECRET_ACCESS_KEY: "edgetrader/trading-secrets:AWS_SECRET_ACCESS_KEY"
+    TELEGRAM_BOT_TOKEN: "edgetrader/sinks-secrets:TELEGRAM_BOT_TOKEN"
+    TELEGRAM_CHAT_ID: "edgetrader/sinks-secrets:TELEGRAM_CHAT_ID"
+    GSHEETS_SPREADSHEET_KEY: "edgetrader/sinks-secrets:GSHEETS_SPREADSHEET_KEY"
+    GSHEETS_SHEET_ID: "edgetrader/sinks-secrets:GSHEETS_SHEET_ID"
+    GSHEETS_CREDENTIALS_JSON: "edgetrader/sinks-secrets:GSHEETS_CREDENTIALS_JSON"
 
 phases:
   install:
@@ -41,6 +46,16 @@ phases:
       - docker pull postgres:16-alpine
       - docker network create edgetrader-net
 
+      # Google service-account JSON for GSHClient, same idea as
+      # `echo "$GOOGLE_CREDENTIALS_JSON" > ...json` in TradeProxy's CI, but the file is
+      # bind-mounted into the node containers instead of baked into the image.
+      # printf '%s' (not echo): echo can turn the \n sequences in the private_key
+      # into real newlines and corrupt the JSON.
+      - GSHEETS_CREDS_HOST_PATH=/tmp/gsheets-credentials.json
+      - printf '%s' "$GSHEETS_CREDENTIALS_JSON" > "$GSHEETS_CREDS_HOST_PATH"
+      - chmod 644 "$GSHEETS_CREDS_HOST_PATH"
+      - python -c "import json,sys; d=json.load(open(sys.argv[1])); assert d.get('type')=='service_account' and d.get('private_key') and d.get('client_email'), 'missing fields'; print('gsheets credentials JSON OK for', d['client_email'])" "$GSHEETS_CREDS_HOST_PATH"
+
   build:
     commands:
       # Real Docker network instead of host.docker.internal — this is the
@@ -66,6 +81,12 @@ phases:
           -e DB_PASSWORD="${DB_PASSWORD}" \
           -e DB_HOST=postgres-ci \
           -e DB_PORT=5432 \
+          -e TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}" \
+          -e TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID}" \
+          -e GSHEETS_SPREADSHEET_KEY="${GSHEETS_SPREADSHEET_KEY}" \
+          -e GSHEETS_SHEET_ID="${GSHEETS_SHEET_ID}" \
+          -e GSHEETS_CREDENTIALS_FILE=/run/secrets/gsheets-credentials.json \
+          -v "${GSHEETS_CREDS_HOST_PATH}:/run/secrets/gsheets-credentials.json:ro" \
           "$IMAGE_BINANCE_VIRTUAL"
 
       - |
@@ -83,6 +104,12 @@ phases:
           -e DB_PASSWORD="${DB_PASSWORD}" \
           -e DB_HOST=postgres-ci \
           -e DB_PORT=5432 \
+          -e TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}" \
+          -e TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID}" \
+          -e GSHEETS_SPREADSHEET_KEY="${GSHEETS_SPREADSHEET_KEY}" \
+          -e GSHEETS_SHEET_ID="${GSHEETS_SHEET_ID}" \
+          -e GSHEETS_CREDENTIALS_FILE=/run/secrets/gsheets-credentials.json \
+          -v "${GSHEETS_CREDS_HOST_PATH}:/run/secrets/gsheets-credentials.json:ro" \
           "$IMAGE_BINANCE_REAL"
 
       # TODO: confirm APP_PORT matches whatever Dockerfile.api EXPOSEs / the
@@ -118,3 +145,4 @@ phases:
       - echo "--- postgres-ci logs ---"
       - docker logs postgres-ci || true
       - docker rm -f edge-point binance-virtual-mainnet-node binance-real-node postgres-ci || true
+      - rm -f /tmp/gsheets-credentials.json
