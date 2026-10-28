@@ -17,7 +17,7 @@ COPY docker/requirements-nodes.txt ./
 RUN pip install --no-cache-dir -r requirements-nodes.txt
 
 COPY EdgeTrader/*.py ./
-COPY EdgeTrader/account/position_sizing.py ./
+COPY EdgeTrader/account/*.py ./
 COPY EdgeTrader/nodes/binance_real_node.py ./
 COPY EdgeTrader/sinks/*.py ./
 
