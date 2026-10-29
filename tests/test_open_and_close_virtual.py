@@ -73,9 +73,9 @@ CONTAINER_NAME = "binance-virtual-mainnet-node"
 
 TEST_TICKER = "ATMUSDT.BINANCE"
 TEST_SIDE = "BUY"
-TEST_EP = 1.598
-TEST_SL = 1.587
-TEST_TP = 1.618
+TEST_EP = 0.954
+TEST_SL = 0.950
+TEST_TP = 0.971
 
 # Mirrors the seed row inserted by trades_db_async.py's CREATE TABLE
 # IF NOT EXISTS / INSERT ... ON CONFLICT DO NOTHING for trades_config.
