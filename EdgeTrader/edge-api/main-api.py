@@ -18,7 +18,8 @@ Deliberately holds ONLY a Postgres connection pool:
 Everything it serves comes from Postgres:
   - /health           — node_heartbeats rows (written by the node processes
                          every ~15s) + a trivial DB ping.
-  - /balance/virtual   — trades_config.virtual_balance_usdt (plain DB read).
+  - /balance/virtual   — trades_config.virtual_balance_usdt (plain DB read);
+                         PUT on the same path updates it (virtual only).
   - /balance/mainnet   — the real node's latest heartbeat balance snapshot.
   - /active_trades     — derived from trade_events (Opened without a later
                          Closed/Cancelled), not in-memory process state.
@@ -40,7 +41,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.routing import APIRoute
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from trade_metrics import compute_trade_metrics
 from trades_db_async import TradeEventsDB
@@ -132,6 +133,13 @@ class BalanceResponse(BaseModel):
     balance_usdt: Optional[float] = None
     available: bool
     detail: Optional[str] = None
+
+
+class SetVirtualBalanceRequest(BaseModel):
+    # gt=0: sizing raises PositionSizingError for equity <= 0, so reject it here
+    # rather than storing a value that makes every virtual trade fail.
+    # le=1e12 also keeps inf out of the NUMERIC column (NaN already fails gt=0).
+    balance_usdt: float = Field(..., gt=0, le=1e12, description="New virtual equity in USDT (> 0)")
 
 
 async def _get_db() -> TradeEventsDB:
@@ -246,6 +254,22 @@ async def get_virtual_usdt_balance():
         return BalanceResponse(source="virtual", balance_usdt=cfg["virtual_balance_usdt"], available=True)
     except Exception as e:
         return BalanceResponse(source="virtual", available=False, detail=str(e))
+
+
+@app.put("/balance/virtual", response_model=BalanceResponse, summary="Set the virtual equity (USDT)")
+async def set_virtual_usdt_balance(body: SetVirtualBalanceRequest):
+    """Overwrites trades_config.virtual_balance_usdt (risk_ratio is left
+    untouched). Virtual only — there is deliberately no way to set the real
+    balance. The virtual node reads this value from the DB each time it sizes
+    a trade, so the new equity applies to the next trade without a restart;
+    trades already open keep the size they were opened with."""
+    try:
+        db = await _get_db()
+        cfg = await db.update_trades_config(virtual_balance_usdt=body.balance_usdt)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not update virtual balance: {e}")
+    print(f"💾 PUT /balance/virtual: virtual_balance_usdt set to {cfg['virtual_balance_usdt']}", file=sys.stderr)
+    return BalanceResponse(source="virtual", balance_usdt=cfg["virtual_balance_usdt"], available=True)
 
 
 @app.get("/balance/mainnet", response_model=BalanceResponse, summary="Real account balance from the real node's latest heartbeat")
