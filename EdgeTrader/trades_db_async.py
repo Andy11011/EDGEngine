@@ -215,6 +215,10 @@ class TradeEventsDB:
                 )
             """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_cancel_requests_pending ON cancel_requests(target, processed)")
+            # Why the cancel was asked for (e.g. 'scanner_ob_crossover') and the
+            # context (the scanner signal). NULL for requests made without them.
+            await conn.execute("ALTER TABLE cancel_requests ADD COLUMN IF NOT EXISTS reason VARCHAR")
+            await conn.execute("ALTER TABLE cancel_requests ADD COLUMN IF NOT EXISTS details JSONB")
 
             # Indexes
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_events_trade_id ON trade_events(trade_id)")
@@ -714,14 +718,89 @@ class TradeEventsDB:
     # Cancel requests — DB-based hand-off from edge-api.py (no AWS access)
     # to the node processes (which poll this table for their own target).
     # ------------------------------------------------------------------
-    async def enqueue_cancel_request(self, trade_id: str, target: str) -> int:
+    async def enqueue_cancel_request(
+        self,
+        trade_id: str,
+        target: str,
+        reason: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> int:
         async with self.pool.acquire() as conn:
             row_id = await conn.fetchval(
-                """INSERT INTO cancel_requests (trade_id, target)
-                   VALUES ($1, $2) RETURNING id""",
-                trade_id, target,
+                """INSERT INTO cancel_requests (trade_id, target, reason, details)
+                   VALUES ($1, $2, $3, $4::jsonb) RETURNING id""",
+                trade_id, target, reason, json.dumps(details) if details else None,
             )
             return row_id
+
+    async def get_active_trade_details(self, ticker: str, target: str) -> Optional[Dict[str, Any]]:
+        """
+        Same trade as get_active_trade_for_ticker (latest 'Opened' with no
+        Closed/Cancelled after it) but with what a signal router needs to decide:
+        {'trade_id', 'opened_at' (naive UTC), 'filled' (entry already filled?)}.
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                WITH latest_open AS (
+                    SELECT trade_id, occurred_at
+                    FROM trade_events
+                    WHERE instrument = $1 AND event_type = 'Opened' AND target = $2
+                    ORDER BY occurred_at DESC, event_id DESC
+                    LIMIT 1
+                )
+                SELECT lo.trade_id,
+                       lo.occurred_at AS opened_at,
+                       EXISTS (
+                           SELECT 1 FROM trade_events f
+                           WHERE f.trade_id = lo.trade_id AND f.event_type = 'Filled'
+                       ) AS filled
+                FROM latest_open lo
+                LEFT JOIN trade_events terminal
+                    ON terminal.trade_id = lo.trade_id
+                    AND terminal.event_type IN ('Closed', 'Cancelled')
+                    AND terminal.occurred_at > lo.occurred_at
+                WHERE terminal.event_id IS NULL
+                """,
+                ticker, target,
+            )
+            return dict(row) if row else None
+
+    async def enqueue_signal_cancel(
+        self,
+        *,
+        ticker: str,
+        event_type: str,
+        occurred_at: str,
+        trade_id: str,
+        target: str,
+        reason: str,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> Optional[int]:
+        """
+        Claim (ticker, event_type, occurred_at, target) AND enqueue the cancel
+        request in ONE transaction, so a signal is acted on exactly once even if
+        SQS delivers it twice or several consumers run, and a crash can never leave
+        a claim without its request. Returns the request id, or None if this
+        signal was already claimed for this target.
+        """
+        dt = datetime.fromisoformat(occurred_at.replace('Z', '+00:00')).replace(tzinfo=None)
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                claimed = await conn.fetchrow(
+                    """INSERT INTO claimed_events (ticker, event_type, occurred_at, target)
+                       VALUES ($1, $2, $3, $4)
+                       ON CONFLICT DO NOTHING
+                       RETURNING ticker""",
+                    ticker, event_type, dt, target,
+                )
+                if claimed is None:
+                    return None
+                return await conn.fetchval(
+                    """INSERT INTO cancel_requests (trade_id, target, reason, details)
+                       VALUES ($1, $2, $3, $4::jsonb) RETURNING id""",
+                    trade_id, target, reason, json.dumps(details or {}),
+                )
 
     async def fetch_pending_cancel_requests(self, target: str) -> List[Dict[str, Any]]:
         async with self.pool.acquire() as conn:

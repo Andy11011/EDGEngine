@@ -20,6 +20,7 @@ from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.events import (
     OrderAccepted,
+    OrderCancelRejected,
     OrderCanceled,
     OrderDenied,
     OrderFilled,
@@ -31,6 +32,10 @@ from nautilus_trader.trading.strategy import Strategy
 
 # We'll import the DB lazily inside the strategy to avoid circular imports
 # from trades_db_async import TradeEventsDB
+
+# A market exit first cancels the resting SL/TP orders and waits for the venue to
+# confirm. If a confirmation never arrives, exit anyway after this many seconds.
+PROTECTION_CANCEL_TIMEOUT_S = 15.0
 
 
 # ----------------------------------------------------------------------
@@ -106,12 +111,14 @@ class OrderManagementSM:
         self.state = TradeState.CANCELING
         self.extra_data["cancel_reason"] = reason or "entry_rejected"
 
-    def entry_cancelled(self) -> None:
-        """Entry order cancelled (e.g. user request) → cancelled."""
+    def entry_cancelled(self, reason: Optional[str] = None) -> None:
+        """Entry order cancelled (user request, scanner signal, ...) → cancelled.
+        `reason` is what ends up in trade_events.cancel_reason; the legacy
+        "entry_cancelled" is kept when the caller gives none."""
         if self.state != TradeState.AWAITING_FILL:
             raise ValueError(f"entry_cancelled only from AWAITING_FILL, not {self.state}")
         self.state = TradeState.CANCELING
-        self.extra_data["cancel_reason"] = "entry_cancelled"
+        self.extra_data["cancel_reason"] = reason or "entry_cancelled"
 
     def protection_placed(self) -> None:
         """Stop‑loss and take‑profit orders placed → position active."""
@@ -126,13 +133,14 @@ class OrderManagementSM:
         self.state = TradeState.CLOSING
         self.extra_data["close_reason"] = "protection_filled"
 
-    def close_order_submitted(self, close_order_id: str) -> None:
-        """User‑initiated close: submit market/limit order."""
+    def close_order_submitted(self, close_order_id: str, reason: str = "user_close") -> None:
+        """Requested close (user, scanner signal, ...): submit market/limit order.
+        `reason` is what ends up in trade_events.close_reason."""
         if self.state != TradeState.IN_POSITION:
             raise ValueError(f"close_order_submitted only from IN_POSITION, not {self.state}")
         self.close_order_id = close_order_id
         self.state = TradeState.CLOSING
-        self.extra_data["close_reason"] = "user_close"
+        self.extra_data["close_reason"] = reason or "user_close"
 
     def close_filled(self) -> None:
         """Close order filled → trade fully closed (stays in CLOSING, terminal)."""
@@ -241,6 +249,16 @@ class TradeStrategy(Strategy):
         self._db_lock = asyncio.Lock()
         self._db_tasks: set[asyncio.Task] = set()
 
+        # Externally requested cancel / exit (edge-api, scanner signal, ...).
+        # Remembered until the trade can act on it, because a request can arrive
+        # in any state (e.g. while the entry is still being accepted, or between
+        # the entry fill and the SL/TP being live).
+        self._exit_request: Optional[tuple[Optional[str], Optional[Dict[str, Any]]]] = None  # (reason, details)
+        self._entry_cancel_sent = False
+        self._close_reason: Optional[str] = None      # set once a market exit has been decided
+        self._close_submitted = False
+        self._awaiting_protection_cancel: set[str] = set()
+
     async def _get_db(self):
         """Lazy load the DB instance (avoids early import issues)."""
         if self._db is None:
@@ -262,7 +280,9 @@ class TradeStrategy(Strategy):
     #   SLHit / TPHit     a protection order filled (position exited)
     #   SiblingCancelSent cancel sent for the other protection order (manual OCO)
     #   CancelRequested   cancel asked for (edge-api / cancel_requests table)
-    #   CloseRequested    manual close order submitted
+    #   CloseRequested    market exit order submitted (manual or signal-driven)
+    #   CloseFilled       market exit order filled (carries qty / commission)
+    #   ProtectionCancelSent  cancel sent for a resting SL/TP before a market exit
     #   OrderRejected     venue rejected an order (any role)
     #   OrderDenied       Nautilus risk engine denied an order (any role)
     #   Closed/Cancelled  terminal event, carries close_reason / cancel_reason
@@ -515,6 +535,7 @@ class TradeStrategy(Strategy):
             # Record the Opened event now, not just after fill, so the trade
             # is discoverable (e.g. by a cancel event) while AWAITING_FILL.
             self._emit("Opened", metadata=self._order_meta(event, "entry"))
+            self._apply_exit_request()      # a cancel may have arrived while the entry was being accepted
 
         elif coid in self._pending_protection_ids:
             self._pending_protection_ids.discard(coid)
@@ -526,6 +547,7 @@ class TradeStrategy(Strategy):
             if not self._pending_protection_ids and self.sm.needs_protection():
                 self.sm.protection_placed()
                 self.log.info(f"🛡️ Protection orders live for {self.config.trade_id}")
+                self._apply_exit_request()  # an exit may have arrived while SL/TP were being placed
 
     def on_order_filled(self, event: OrderFilled) -> None:
         """Called when any order fills."""
@@ -559,6 +581,13 @@ class TradeStrategy(Strategy):
 
         elif self._is_close_order(event) and self.sm.state == TradeState.CLOSING:
             self.sm.close_filled()
+            # Without this event the exit fill's qty / commission were never stored,
+            # so trade_metrics could not price the exit fee.
+            self._emit(
+                "CloseFilled",
+                fill_price=float(event.last_px),
+                metadata=self._fill_meta(event, "close"),
+            )
             self._finalize_and_stop()
 
         else:
@@ -620,10 +649,31 @@ class TradeStrategy(Strategy):
     def on_order_canceled(self, event: OrderCanceled) -> None:
         """Called when an order is canceled."""
         self.log.warning(f"🚫 Order canceled: {event.client_order_id}")
+        coid = str(event.client_order_id)
 
         if self._is_entry_order(event) and self.sm.state == TradeState.AWAITING_FILL:
-            self.sm.entry_cancelled()
+            # If we asked for this cancel (manual / scanner signal) record WHY;
+            # an exchange-side cancel keeps the legacy "entry_cancelled".
+            reason = self._exit_request[0] if self._exit_request is not None else None
+            self.sm.entry_cancelled(reason=reason)
             self._finalize_and_stop()
+
+        elif coid in self._awaiting_protection_cancel:
+            self._protection_cancel_done(coid)
+
+    def on_order_cancel_rejected(self, event: OrderCancelRejected) -> None:
+        """The venue refused a cancel. For a resting SL/TP this usually means it
+        just filled (the fill event settles the trade); we deliberately do NOT
+        send the market exit here, that could double-close. If nothing settles
+        it, the timeout in request_close() takes over."""
+        coid = str(event.client_order_id)
+        self.log.warning(f"❌ Cancel rejected: {coid} ({event.reason})")
+        if coid in self._awaiting_protection_cancel:
+            self._emit(
+                "OrderRejected",
+                metadata={**self._order_meta(event, self._order_role(coid)),
+                          "reason": f"cancel rejected: {event.reason}"},
+            )
 
     # ---------- Order construction helpers ----------
 
@@ -665,6 +715,7 @@ class TradeStrategy(Strategy):
                 f"skipping protection and moving straight to IN_POSITION"
             )
             self.sm.protection_placed()
+            self._apply_exit_request()
             return
 
         self._pending_protection_ids = set(pending.keys())
@@ -713,13 +764,18 @@ class TradeStrategy(Strategy):
                 f"(status={sibling_order.status})"
             )
 
-    def request_close(self) -> None:
-        """User‑initiated close of an open position (e.g. manual override
-        from outside the strategy). Submits a reduce-only market order.
+    # ---------- Exit / cancel requests ----------
 
-        TODO: cancel the resting SL/TP orders before submitting this, to
-        avoid a race where the protection order fills at the same moment
-        this close order does (double-close / over-selling the position).
+    def request_close(self, reason: str = "user_close") -> None:
+        """Exit an open position at market; `reason` becomes close_reason.
+
+        Order matters (on spot, resting SL/TP sell orders lock the coins, and a
+        protection order could fill at the same moment as the exit):
+          1. cancel whichever SL/TP orders are still resting;
+          2. only after the venue confirmed those cancels, submit the reduce-only
+             market order (see _protection_cancel_done).
+        If an SL/TP fills in between, the normal SLHit/TPHit path wins and no
+        market order is ever sent.
         """
         if not self.sm.is_open():
             self.log.warning(
@@ -727,6 +783,59 @@ class TradeStrategy(Strategy):
                 f"(state={self.sm.state})"
             )
             return
+        if self._close_reason is not None:
+            self.log.info(f"Exit already in progress for {self.config.trade_id}")
+            return
+        self._close_reason = reason
+
+        resting = []
+        for coid in (self._sl_client_order_id, self._tp_client_order_id):
+            order = self.cache.order(ClientOrderId(coid))
+            if order is not None and order.is_open:
+                resting.append(order)
+
+        if not resting:
+            self._submit_close_order()
+            return
+
+        self._awaiting_protection_cancel = {str(o.client_order_id) for o in resting}
+        for order in resting:
+            coid = str(order.client_order_id)
+            self.log.info(f"Cancelling {coid} before market exit of {self.config.trade_id} ({reason})")
+            self.cancel_order(order)
+            self._emit(
+                "ProtectionCancelSent",
+                metadata={"order_role": self._order_role(coid), "client_order_id": coid, "reason": reason},
+            )
+        asyncio.get_running_loop().call_later(PROTECTION_CANCEL_TIMEOUT_S, self._on_protection_cancel_timeout)
+
+    def _protection_cancel_done(self, coid: str) -> None:
+        """One resting SL/TP is gone; when all are, send the market exit — unless
+        the position was already closed by an SL/TP fill in the meantime."""
+        self._awaiting_protection_cancel.discard(coid)
+        if self._awaiting_protection_cancel:
+            return
+        if self.sm.is_open() and not self._close_submitted:
+            self._submit_close_order()
+
+    def _on_protection_cancel_timeout(self) -> None:
+        if self._awaiting_protection_cancel and self.sm.is_open() and not self._close_submitted:
+            self.log.warning(
+                f"Protection cancel not confirmed after {PROTECTION_CANCEL_TIMEOUT_S:.0f}s for "
+                f"{self.config.trade_id} ({sorted(self._awaiting_protection_cancel)}); sending the exit anyway"
+            )
+            self._awaiting_protection_cancel.clear()
+            try:
+                self._submit_close_order()
+            except Exception as e:
+                self.log.error(f"❌ Could not submit the exit for {self.config.trade_id}: {e}")
+
+    def _submit_close_order(self) -> None:
+        """Submit the reduce-only market exit and move the SM to CLOSING."""
+        if self._close_submitted or not self.sm.is_open():
+            return
+        self._close_submitted = True
+        reason = self._close_reason or "user_close"
 
         instrument = self.cache.instrument(self.config.instrument_id)
         exit_side = OrderSide.SELL if self.config.side.upper() == "BUY" else OrderSide.BUY
@@ -744,30 +853,59 @@ class TradeStrategy(Strategy):
             metadata={
                 "order_role": "close",
                 "client_order_id": self._close_client_order_id,
-                "close_reason": "user_close",
+                "close_reason": reason,
             },
         )
-        self.sm.close_order_submitted(str(close_order.client_order_id))
+        self.sm.close_order_submitted(str(close_order.client_order_id), reason=reason)
         self.submit_order(close_order)
 
-    def request_cancel(self) -> None:
+    def request_cancel(self, reason: Optional[str] = None, details: Optional[Dict[str, Any]] = None) -> None:
         """
-        Cancel the trade: if entry order is open, cancel it;
-        if position is open, close it; otherwise do nothing.
+        Cancel the trade: entry still pending -> cancel the entry order;
+        position open -> exit at market. The request is remembered and applied as
+        soon as the trade can act on it, so it is not lost if it arrives while the
+        entry is being accepted or the SL/TP are being placed.
+
+        reason  -> trade_events.cancel_reason / close_reason of the final event
+                   (None keeps the legacy values: "entry_cancelled" / "user_close").
+        details -> free-form JSON stored with the CancelRequested event (e.g. the
+                   scanner signal that triggered this).
         """
-        if self.sm.state in (TradeState.AWAITING_FILL, TradeState.IN_POSITION):
-            self._emit("CancelRequested", metadata={"state": self.sm.state.name})
+        if self.sm.is_terminal():
+            self.log.warning(f"Cannot cancel trade in state {self.sm.state}")
+            return
+        if self._exit_request is not None:
+            self.log.info(f"Cancel/exit already requested for {self.config.trade_id}")
+            return
+
+        self._exit_request = (reason, details)
+        meta: Dict[str, Any] = {"state": self.sm.state.name, "reason": reason or "user_cancel"}
+        if details:
+            meta["details"] = details
+        self._emit("CancelRequested", metadata=meta)
+        self._apply_exit_request()
+
+    def _apply_exit_request(self) -> None:
+        """Act on a pending request if the trade is in a state where it can be
+        executed. Called when a request arrives and again whenever the SM reaches
+        AWAITING_FILL or IN_POSITION; in any other state it just waits."""
+        if self._exit_request is None:
+            return
+        reason, _details = self._exit_request
+
         if self.sm.state == TradeState.AWAITING_FILL:
+            if self._entry_cancel_sent:
+                return
             entry_order = self.cache.order(ClientOrderId(self._entry_client_order_id))
-            if entry_order and entry_order.is_open:
+            if entry_order is not None and entry_order.is_open:
+                self._entry_cancel_sent = True
                 self.cancel_order(entry_order)
-                self.log.info(f"Cancelling entry order for {self.config.trade_id}")
+                self.log.info(f"Cancelling entry order for {self.config.trade_id}" + (f" ({reason})" if reason else ""))
             else:
                 self.log.warning(f"Entry order not open; state {self.sm.state}")
+
         elif self.sm.state == TradeState.IN_POSITION:
-            self.request_close()
-        else:
-            self.log.warning(f"Cannot cancel trade in state {self.sm.state}")
+            self.request_close(reason=reason or "user_close")
 
     def _is_entry_order(self, event) -> bool:
         return str(event.client_order_id) == self._entry_client_order_id

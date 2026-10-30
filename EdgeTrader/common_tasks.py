@@ -4,7 +4,8 @@ common_tasks.py — async background tasks shared by headless node processes.
 Includes:
 - Heartbeat loop: writes (venue, target) liveness + balance to Postgres.
 - Cancel‑requests loop: polls the cancel_requests table and triggers in‑memory
-  strategy cancellation.
+  strategy cancellation (rows come from edge-api and from scanner_signals.py;
+  an optional `reason` / `details` is passed on to the strategy).
 
 These loops run alongside the TradingNode's run_async() and are intended to be
 started as asyncio tasks in the main async entry point.
@@ -16,6 +17,7 @@ they do not contain any Nautilus wrapper code.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 import time
@@ -174,8 +176,15 @@ async def cancel_requests_loop(
                 print(f"⚠️ Cancel request for {trade_id} but no in-memory strategy (already closed?)", file=sys.stderr)
             else:
                 try:
-                    strategy.request_cancel()
-                    print(f"🛑 Cancel requested (via edge-api) for {trade_id}", file=sys.stderr)
+                    reason = req.get("reason")
+                    details = req.get("details")
+                    if isinstance(details, str):          # asyncpg returns jsonb as str
+                        details = json.loads(details)
+                    strategy.request_cancel(reason=reason, details=details or None)
+                    print(
+                        f"🛑 Cancel requested for {trade_id}" + (f" (reason: {reason})" if reason else " (via edge-api)"),
+                        file=sys.stderr,
+                    )
                 except Exception as e:
                     print(f"❌ Failed to cancel {trade_id}: {e}", file=sys.stderr)
             # Mark processed regardless of whether we found the strategy – this prevents

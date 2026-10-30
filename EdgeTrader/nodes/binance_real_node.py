@@ -21,6 +21,8 @@ Env vars:
   BINANCE_BAR_INTERVAL              default "15-MINUTE"
   LOG_LEVEL                        default "INFO"
   AWS_REGION                        default "ap-southeast-1"
+  SQS_SCANNER_EVENTS_QUEUE_URL      optional - also read edge-scanner signals from this queue and
+                                    exit matching trades (scanner_signals.py); one node is enough
 """
 
 from __future__ import annotations
@@ -57,6 +59,7 @@ from nautilus_trader.trading.config import ImportableControllerConfig
 import auth
 import sqs
 from common_tasks import heartbeat_loop, cancel_requests_loop
+from scanner_signals import ENV_QUEUE_URL as SCANNER_QUEUE_ENV, listen_scanner_signals
 
 from position_sizing import PositionSizingError, calculate_position_size
 from trade_strategy import TradeStrategy, TradeStrategyConfig
@@ -391,6 +394,15 @@ def main() -> None:
                 print(f"⚠️ Postgres connection failed: {e}, retrying in 5s...", file=sys.stderr)
                 await asyncio.sleep(5)
 
+        # Optional: turn edge-scanner signals into trade exits (see scanner_signals.py).
+        # It only touches Postgres and fans out to BOTH targets through cancel_requests,
+        # so it is enough to set the variable on one node; setting it on both is
+        # harmless (every signal is claimed once).
+        extra_tasks = []
+        scanner_queue_url = os.getenv(SCANNER_QUEUE_ENV, "").strip()
+        if scanner_queue_url:
+            extra_tasks.append(listen_scanner_signals(db, sqs_client, scanner_queue_url))
+
         try:
             await asyncio.gather(
                 node.run_async(),
@@ -401,6 +413,7 @@ def main() -> None:
                     get_sqs_status=sqs.get_sqs_status,
                 ),
                 cancel_requests_loop(db, TARGET, active_strategies),
+                *extra_tasks,
             )
         except asyncio.CancelledError:
             pass

@@ -46,8 +46,10 @@ ACTION_TEMPLATES: Dict[str, Optional[str]] = {
     "SLHit": "{dot} {tag} <b>{ticker}</b>: stop-loss hit @ {fill_price}",
     "TPHit": "{dot} {tag} <b>{ticker}</b>: take-profit hit @ {fill_price}",
     "SiblingCancelSent": "{dot} {tag} <b>{ticker}</b>: cancelling the other protection order ({role})",
-    "CancelRequested": "{dot} {tag} <b>{ticker}</b>: cancel requested (state: {state})",
-    "CloseRequested": "{dot} {tag} <b>{ticker}</b>: manual close order submitted",
+    "CancelRequested": "{dot} {tag} <b>{ticker}</b>: cancel requested (state: {state}, reason: {reason})",
+    "ProtectionCancelSent": "{dot} {tag} <b>{ticker}</b>: cancelling the {role} order before the market exit",
+    "CloseRequested": "{dot} {tag} <b>{ticker}</b>: market exit order submitted",
+    "CloseFilled": "{dot} {tag} <b>{ticker}</b>: market exit FILLED @ {fill_price} (qty {qty}, fee {commission})",
     "OrderRejected": "{dot} {tag} <b>{ticker}</b>: order REJECTED by venue ({role}): {reason}",
     "OrderDenied": "{dot} {tag} <b>{ticker}</b>: order DENIED by risk engine ({role}): {reason}",
 }
