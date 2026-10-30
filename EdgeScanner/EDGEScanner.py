@@ -42,6 +42,10 @@ Environment (new in this version):
     PAIR_ADD_STAGGER_SECONDS      1.0                 delay between adding pairs (Binance backfill rate limits)
     SIGNAL_TTL_HOURS              48
     SIGNAL_PURGE_INTERVAL_SECONDS 3600
+    SQS_SCANNER_EVENTS_QUEUE_URL  (unset)             SQS queue URL of scanner-events (stack output ScannerEventsQueueUrl); unset = SQS off
+    SQS_SIGNAL_TYPES              OB_CROSSOVER        live signal types published to that queue (comma separated)
+    SQS_MAX_RETRIES               3                   send attempts per signal before it is dropped
+    AWS_REGION                    ap-southeast-1      region of the queue (credentials: instance role / standard AWS chain)
     DB_* / DB_POOL_MAX_SIZE       same as trades_db_async.py
 """
 
@@ -630,6 +634,12 @@ def main():
     webhook_timeout = float(os.getenv("WEBHOOK_TIMEOUT_SECONDS", "10"))
     webhook_max_retries = int(os.getenv("WEBHOOK_MAX_RETRIES", "3"))
 
+    sqs_queue_url = os.getenv("SQS_SCANNER_EVENTS_QUEUE_URL", "").strip() or None
+    sqs_max_retries = int(os.getenv("SQS_MAX_RETRIES", "3"))
+    sqs_signal_types = frozenset(
+        t.strip().upper() for t in os.getenv("SQS_SIGNAL_TYPES", "OB_CROSSOVER").split(",") if t.strip()
+    )
+
     try:
         api_key, api_secret = load_credentials_from_env(sandbox=sandbox)
         print("✅ Credentials loaded from environment", file=sys.stderr)
@@ -657,6 +667,10 @@ def main():
 
     if debug and not webhook_url:
         log("⚠️ DEBUG mode without WEBHOOK_URL: signals will only be logged to the console")
+    if sqs_queue_url:
+        log(f"📤 scanner-events SQS: live {sorted(sqs_signal_types)} -> {sqs_queue_url}")
+    else:
+        log("ℹ️ SQS_SCANNER_EVENTS_QUEUE_URL not set: nothing is published to SQS")
     sink = SignalSink(
         node.get_event_loop(),
         ttl_hours=ttl_hours,
@@ -664,6 +678,10 @@ def main():
         webhook_timeout=webhook_timeout,
         webhook_max_retries=webhook_max_retries,
         db_enabled=not debug,
+        sqs_queue_url=sqs_queue_url,
+        sqs_region=aws_region,
+        sqs_max_retries=sqs_max_retries,
+        sqs_signal_types=sqs_signal_types,
     )
 
     strategy = MLMISignalStrategy(
