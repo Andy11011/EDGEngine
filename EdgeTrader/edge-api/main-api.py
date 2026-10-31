@@ -31,8 +31,11 @@ Everything it serves comes from Postgres:
   - /pnl /wr /total_trades_count /mounthly_trades_rate /equity_percent
     /max_dd_percent /er /cagr /calmar /sharp /sortino /trade_mode /rdyn
                        — year-to-date portfolio statistics, computed from the
-                         closed trades in trade_events (portfolio_metrics.py);
-                         /stats returns all of them at once.
+                         closed trades in trade_events (portfolio_metrics.py).
+                         By DEFAULT they combine real AND virtual trades into
+                         one portfolio (target=all); pass ?target=virtual or
+                         ?target=real to restrict. /stats returns all of them
+                         at once.
   - /help              — lists every route this service exposes.
 """
 
@@ -430,7 +433,9 @@ async def get_trade_history(trade_id: str):
 #
 # Every number comes from the closed trades in trade_events: only trades whose
 # terminal "Closed" event falls inside the calendar year (UTC) count, so the
-# statistics start from scratch on 1 January. Definitions: portfolio_metrics.py.
+# statistics start from scratch on 1 January. By DEFAULT both real AND virtual
+# trades are combined into a single portfolio (target=all). Use ?target=virtual
+# or ?target=real to restrict. Definitions: portfolio_metrics.py.
 # ---------------------------------------------------------------------------
 
 STATS_CACHE_SECONDS = float(os.getenv("STATS_CACHE_SECONDS", "5"))
@@ -450,7 +455,7 @@ class MetricResponse(BaseModel):
     metric: str
     value: Optional[Union[StrictInt, StrictFloat]]   # null when it cannot be computed (e.g. Sharpe with no variance)
     unit: str
-    target: str                                      # "virtual" | "real"
+    target: str                                      # "virtual" | "real" | "all"
     year: int
     trades_count: int
     start_equity: float
@@ -470,16 +475,21 @@ def _current_year() -> int:
     return datetime.now(timezone.utc).year
 
 
-async def _load_year_stats(target: str, year: int, start_equity: Optional[float]) -> _StatsContext:
+async def _load_year_stats(
+    target: str,                # "virtual" | "real" | "all"
+    year: int,
+    start_equity: Optional[float],
+) -> _StatsContext:
     key = (target, year, start_equity)
     hit = _stats_cache.get(key)
     if hit is not None and time.monotonic() - hit[0] < STATS_CACHE_SECONDS:
         return hit[1]
 
+    db = await _get_db()
+    db_target = None if target == "all" else target     # None = no DB-side filter
     try:
-        db = await _get_db()
         trades = await db.get_trades_history(
-            limit=100_000, target=target, status="Closed", include_events=True,
+            limit=100_000, target=db_target, status="Closed", include_events=True,
             finished_from=datetime(year, 1, 1), finished_to=datetime(year + 1, 1, 1),  # naive UTC, like trade_events
         )
     except Exception as e:
@@ -496,7 +506,11 @@ async def _load_year_stats(target: str, year: int, start_equity: Optional[float]
         if m is None or m.net_pnl is None or t.get("finished_at") is None:
             excluded += 1
             continue
-        closed.append(ClosedTrade(finished_at=t["finished_at"], net_pnl=m.net_pnl))
+        closed.append(ClosedTrade(
+            finished_at=t["finished_at"],
+            net_pnl=m.net_pnl,
+            target=m.target,
+        ))
 
     # Equity the year started with. Per-trade returns are measured against the account
     # equity before each trade (Day_Trading.gs: profit / previous balance).
@@ -504,13 +518,13 @@ async def _load_year_stats(target: str, year: int, start_equity: Optional[float]
         equity0, source = start_equity, "query_param"
     elif target == "virtual":
         try:
-            cfg = await (await _get_db()).get_trades_config()
+            cfg = await db.get_trades_config()
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Could not read virtual balance: {e}")
         equity0, source = float(cfg["virtual_balance_usdt"]), "virtual_balance_usdt"
-    else:
+    elif target == "real":
         try:
-            hb = await (await _get_db()).get_heartbeat(VENUE, "real")
+            hb = await db.get_heartbeat(VENUE, "real")
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Could not read real balance: {e}")
         if hb is None or _heartbeat_stale(hb) or hb.get("balance_usdt") is None:
@@ -520,6 +534,30 @@ async def _load_year_stats(target: str, year: int, start_equity: Optional[float]
             )
         equity0 = float(hb["balance_usdt"]) - sum(c.net_pnl for c in closed)
         source = "mainnet_balance_minus_ytd_pnl"
+    else:  # target == "all"
+        # Combined start_equity = virtual_start + real_start.
+        #   virtual_start = trades_config.virtual_balance_usdt (same figure
+        #                   virtual sizing uses; this is what the virtual
+        #                   account "has" at the start of the year).
+        #   real_start    = current real free USDT - real YTD PnL.
+        # The real side needs a fresh heartbeat; if it isn't there, we refuse
+        # rather than guess (an explicit ?start_equity= overrides this branch).
+        try:
+            cfg = await db.get_trades_config()
+            hb = await db.get_heartbeat(VENUE, "real")
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Could not read balances for target=all: {e}")
+        if hb is None or _heartbeat_stale(hb) or hb.get("balance_usdt") is None:
+            raise HTTPException(
+                status_code=503,
+                detail="target=all needs a fresh real heartbeat and the virtual balance; "
+                       "either wait for the real node or pass ?start_equity=<USDT at the start of the year>",
+            )
+        real_pnl = sum(c.net_pnl for c in closed if c.target == "real")
+        virtual_start = float(cfg["virtual_balance_usdt"])
+        real_start = float(hb["balance_usdt"]) - real_pnl
+        equity0 = virtual_start + real_start
+        source = "virtual_balance_usdt+mainnet_balance_minus_real_ytd_pnl"
 
     try:
         stats = compute_portfolio_stats(closed, equity0)
@@ -531,12 +569,17 @@ async def _load_year_stats(target: str, year: int, start_equity: Optional[float]
     return ctx
 
 
-_TARGET_Q = Query("virtual", description="Which trades to evaluate: 'virtual' (default) or 'real'")
+_TARGET_Q = Query(
+    "all",
+    description="Which trades to evaluate: 'virtual', 'real', or 'all' (default). "
+                "'all' combines real and virtual trades into a single portfolio.",
+)
 _YEAR_Q = Query(None, ge=2000, le=2100, description="Calendar year (UTC); default = the current year")
 _EQUITY_Q = Query(
     None, gt=0, le=1e12,
     description="Override: account equity (USDT) at the start of the year. Default: virtual_balance_usdt "
-                "(virtual) or latest real balance minus the year's PnL (real)",
+                "(virtual), latest real balance minus the year's PnL (real), or "
+                "virtual_balance_usdt + real_balance - real YTD PnL (all).",
 )
 
 
@@ -552,7 +595,7 @@ def _metric_route(
     aliases: Tuple[str, ...] = (),
 ) -> None:
     async def endpoint(
-        target: Literal["virtual", "real"] = _TARGET_Q,
+        target: Literal["virtual", "real", "all"] = _TARGET_Q,
         year: Optional[int] = _YEAR_Q,
         start_equity: Optional[float] = _EQUITY_Q,
     ) -> MetricResponse:
@@ -576,7 +619,7 @@ def _metric_route(
 
 
 _metric_route("/pnl", "pnl", "USDT", lambda s: s.pnl,
-              "Year-to-date net PnL (USDT), after fees",
+              "Year-to-date net PnL (USDT), after fees — aggregate over all closed trades",
               details=lambda s: {"start_equity": s.start_equity, "end_equity": s.end_equity})
 _metric_route("/wr", "wr", "%", lambda s: s.win_rate_pct,
               "Year-to-date win rate (% of trades with net PnL > 0)",
@@ -593,19 +636,25 @@ _metric_route("/equity_percent", "equity_percent", "%", lambda s: s.equity_perce
 _metric_route("/max_dd_percent", "max_dd_percent", "%", lambda s: s.max_dd_percent,
               "Maximum drawdown of the equity curve this year (%)",
               details=lambda s: {"max_dd_usdt": s.max_dd_usdt})
-_metric_route("/er", "er", "% per trade", lambda s: s.er_pct,
-              "Expected return per trade: WR * avg gain + (1 - WR) * avg loss (% of equity)",
-              details=lambda s: {"avg_gain_pct": s.avg_gain_pct, "avg_loss_pct": s.avg_loss_pct})
+_metric_route("/er", "er", "USDT per trade", lambda s: s.er_usdt,
+              "Expected return per trade (USDT): WR * avg win USDT + (1 - WR) * avg loss USDT",
+              details=lambda s: {
+                  "avg_win_usdt": s.avg_win_usdt,
+                  "avg_loss_usdt": s.avg_loss_usdt,
+                  "avg_gain_pct": s.avg_gain_pct,
+                  "avg_loss_pct": s.avg_loss_pct,
+              })
 _metric_route("/cagr", "cagr", "%", lambda s: s.cagr_pct,
               "CAGR annualised from the first to the last close of the year (%)",
               details=lambda s: {"duration_days": s.duration_days})
 _metric_route("/calmar", "calmar", "ratio", lambda s: s.calmar,
               "Calmar ratio: CAGR / max drawdown (null while there is no drawdown)")
 _metric_route("/sharp", "sharpe", "ratio", lambda s: s.sharpe,
-              "Sharpe ratio: mean / std of per-trade returns (not annualised)",
+              "Sharpe ratio: mean / std across ALL trades' per-trade returns (not annualised)",
               aliases=("/sharpe",))
 _metric_route("/sortino", "sortino", "ratio", lambda s: s.sortino,
-              "Sortino ratio: mean per-trade return / downside deviation (null while there is no losing trade)")
+              "Sortino ratio: mean per-trade return / downside deviation, over ALL trades "
+              "(null while there is no losing trade)")
 _metric_route("/trade_mode", "trade_mode", "1=real, 0=paper", lambda s: s.trade_mode,
               "Trading mode: 1 = real, 0 = paper (paper after 15% drawdown or 10 losses in a row, "
               "back to real at a new equity high)",
@@ -618,7 +667,7 @@ _metric_route("/rdyn", "rdyn", "% risk per trade", lambda s: s.rdyn_pct,
 
 @app.get("/stats", response_model=StatsResponse, summary="All year-to-date portfolio statistics in one call")
 async def get_stats(
-    target: Literal["virtual", "real"] = _TARGET_Q,
+    target: Literal["virtual", "real", "all"] = _TARGET_Q,
     year: Optional[int] = _YEAR_Q,
     start_equity: Optional[float] = _EQUITY_Q,
 ):

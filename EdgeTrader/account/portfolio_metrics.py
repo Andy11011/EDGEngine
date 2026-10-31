@@ -13,6 +13,9 @@ is noted next to the code.
 
 Input: one `ClosedTrade` per trade that closed inside the period, in any order
 (they are sorted by close time here), plus the equity the period started with.
+Real and virtual trades are combined here (the CALLER decides whether to filter
+by target — main-api.py defaults to target=all). `ClosedTrade.target` records
+which pool each trade came from so callers can partition when they need to.
 
 Definitions
 -----------
@@ -25,11 +28,17 @@ Definitions
     gains/losses roi_i > 0 / roi_i < 0 (breakeven is neither)
 
     win_rate     wins / trades
-    ER           wr * avg_gain + (1 - wr) * avg_loss         (per trade, on roi)
-    Sharpe       mean(roi) / std(roi)         population std; per trade, no
+    ER           wr * avg_win_usdt + (1 - wr) * avg_loss_usdt
+                 (USDT per trade — how much USDT you expect to make on average
+                 per trade; the old per-% ER lived on trade notional, which is
+                 not what "expected return" usually means)
+    Sharpe       mean(roi) / std(roi)         population std; one ratio computed
+                                              over ALL trades (mean and std of
+                                              the per-trade roi sequence), no
                                               risk-free rate, not annualised
-    Sortino      mean(roi) / sqrt(mean(roi^2 over roi < 0))  (denominator counts
-                                              the losing trades only)
+    Sortino      mean(roi) / sqrt(mean(roi^2 over roi < 0))  same aggregate
+                                              treatment as Sharpe; denominator
+                                              counts the losing trades only
     max_dd       max over the equity curve (incl. the starting point) of
                  (peak - equity) / peak
     duration     calendar days from the first to the last close, inclusive
@@ -81,6 +90,11 @@ class ModeParams:
 class ClosedTrade:
     finished_at: datetime
     net_pnl: float
+    # Which execution path the trade ran on. Recorded here so callers that want
+    # to split the portfolio (e.g. to compute a combined start_equity for
+    # target=all) can partition without a second DB round-trip. Defaults to ""
+    # so any legacy callers/tests that don't pass it keep working.
+    target: str = ""
 
 
 @dataclass(frozen=True)
@@ -98,7 +112,9 @@ class PortfolioStats:
     max_dd_usdt: float
     avg_gain_pct: Optional[float]     # mean roi of winning trades, in %
     avg_loss_pct: Optional[float]     # mean roi of losing trades, in % (negative)
-    er_pct: Optional[float]           # expected return per trade, in % of equity
+    avg_win_usdt: float               # mean net_pnl of winning trades, in USDT
+    avg_loss_usdt: float              # mean net_pnl of losing trades, in USDT (negative)
+    er_usdt: Optional[float]          # expected return per trade, in USDT
     cagr_pct: Optional[float]         # None if it overflows or cannot be defined
     calmar: Optional[float]
     sharpe: Optional[float]
@@ -217,9 +233,17 @@ def compute_portfolio_stats(
     avg_gain = _mean(gains) if gains else 0.0
     avg_loss = _mean(losses) if losses else 0.0
 
-    win_rate = wins / n if n else None
-    er = win_rate * avg_gain + (1 - win_rate) * avg_loss if n else None
+    pnls = [t.net_pnl for t in ordered]
+    wins_pnl = [p for p in pnls if p > 0]
+    losses_pnl = [p for p in pnls if p < 0]     # strictly negative (breakeven excluded)
+    avg_win_usdt = _mean(wins_pnl) if wins_pnl else 0.0
+    avg_loss_usdt = _mean(losses_pnl) if losses_pnl else 0.0
 
+    win_rate = wins / n if n else None
+    er_usdt = (win_rate * avg_win_usdt + (1 - win_rate) * avg_loss_usdt) if n else None
+
+    # Aggregate Sharpe / Sortino: mean and std (resp. downside deviation) are
+    # taken over the WHOLE per-trade roi sequence, not per trade.
     std = _std_pop(rois) if n else 0.0
     sharpe = _mean(rois) / std if n and std > 0 else None
     dd_dev = _downside_dev(rois) if n else 0.0
@@ -243,7 +267,9 @@ def compute_portfolio_stats(
         max_dd_usdt=max_dd_usdt,
         avg_gain_pct=avg_gain * 100.0 if n else None,
         avg_loss_pct=avg_loss * 100.0 if n else None,
-        er_pct=er * 100.0 if er is not None else None,
+        avg_win_usdt=avg_win_usdt,
+        avg_loss_usdt=avg_loss_usdt,
+        er_usdt=er_usdt,
         cagr_pct=cagr_pct,
         calmar=calmar,
         sharpe=sharpe,
