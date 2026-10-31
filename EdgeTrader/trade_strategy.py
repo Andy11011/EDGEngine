@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import time
 from enum import Enum, auto
 from typing import Optional, Dict, Any, Callable
 
 from nautilus_trader.config import StrategyConfig
-from nautilus_trader.model.data import Bar, BarType
+from nautilus_trader.model.data import Bar, BarType, QuoteTick, TradeTick
 from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.events import (
     OrderAccepted,
@@ -36,6 +38,21 @@ from nautilus_trader.trading.strategy import Strategy
 # A market exit first cancels the resting SL/TP orders and waits for the venue to
 # confirm. If a confirmation never arrives, exit anyway after this many seconds.
 PROTECTION_CANCEL_TIMEOUT_S = 15.0
+
+# Reasons written to trade_events (cancel_reason / close_reason).
+REASON_TARGET_BEFORE_FILL = "target_before_fill"   # target reached while the entry was still pending
+REASON_BE_EXIT = "be_market_exit"                  # break-even due but price already on the wrong side of EP
+REASON_BE_FAILED = "be_sl_failed_exit"             # the break-even SL could not be placed -> exit at market
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    return os.getenv(name, "1" if default else "0").strip().lower() not in ("0", "false", "no", "off")
+
+
+# Defaults for the two features (override per process via env, or per trade via TradeStrategyConfig).
+DEFAULT_CANCEL_ON_TARGET = _env_bool("EDGE_CANCEL_ON_TARGET", True)
+DEFAULT_BREAK_EVEN = _env_bool("EDGE_BREAK_EVEN", True)
+DEFAULT_BE_CANDLES = int(os.getenv("EDGE_BE_CANDLES", "6"))   # same default as beCandlesToWait in LevelsBot_v1_0_7.pine
 
 
 # ----------------------------------------------------------------------
@@ -205,6 +222,12 @@ class TradeStrategyConfig(StrategyConfig, frozen=True, kw_only=True):
     # how EDGETrader decides which of the two TradingNode instances to
     # attach this strategy to.
     target: str
+    # Feature 1: cancel a still-unfilled entry once price has already reached tp_price.
+    cancel_on_target_before_fill: bool = DEFAULT_CANCEL_ON_TARGET
+    # Feature 2: "Break-Even Logic" from LevelsBot_v1_0_7.pine. After `be_candles` bars
+    # (0 = at the first bar close once the SL/TP are live) the stop-loss is moved to the entry price.
+    break_even: bool = DEFAULT_BREAK_EVEN
+    be_candles: int = DEFAULT_BE_CANDLES
 
 # ----------------------------------------------------------------------
 # Per‑Trade Strategy
@@ -236,6 +259,9 @@ class TradeStrategy(Strategy):
         self._sl_client_order_id = f"edge-{config.trade_id}-sl"
         self._tp_client_order_id = f"edge-{config.trade_id}-tp"
         self._close_client_order_id = f"edge-{config.trade_id}-close"
+        # Replacement stop-loss placed by the break-even logic (the original SL
+        # cannot be amended on Binance spot, so it is cancelled and re-placed).
+        self._sl_be_client_order_id = f"edge-{config.trade_id}-slbe"
 
         # Tracks SL/TP client_order_ids submitted-but-not-yet-accepted, so we
         # know when to fire protection_placed() (i.e. once ALL protection
@@ -259,6 +285,18 @@ class TradeStrategy(Strategy):
         self._close_submitted = False
         self._awaiting_protection_cancel: set[str] = set()
 
+        # Feature 1 state
+        self._started_ns: int = 0
+        self._target_cancel_fired = False
+
+        # Feature 2 state (break-even)
+        self._entry_fill_px: Optional[float] = None
+        self._bars_since_fill: int = 0
+        self._be_started = False                 # BE decided once; never retried
+        self._be_in_flight = False               # old SL cancel sent / new SL not yet accepted
+        self._be_old_sl_coid: Optional[str] = None
+        self._be_exit_reason: Optional[str] = None
+
     async def _get_db(self):
         """Lazy load the DB instance (avoids early import issues)."""
         if self._db is None:
@@ -279,7 +317,9 @@ class TradeStrategy(Strategy):
     #   TPPlaced          take-profit order accepted by the venue
     #   SLHit / TPHit     a protection order filled (position exited)
     #   SiblingCancelSent cancel sent for the other protection order (manual OCO)
-    #   CancelRequested   cancel asked for (edge-api / cancel_requests table)
+    #   CancelRequested   cancel asked for (edge-api / cancel_requests table / target reached)
+    #   BESLCancelSent    break-even: old SL cancel sent (new SL follows)
+    #   BESLPlaced        break-even: SL now sits at the entry price
     #   CloseRequested    market exit order submitted (manual or signal-driven)
     #   CloseFilled       market exit order filled (carries qty / commission)
     #   ProtectionCancelSent  cancel sent for a resting SL/TP before a market exit
@@ -293,7 +333,7 @@ class TradeStrategy(Strategy):
     def _order_role(self, coid: str) -> str:
         if coid == self._entry_client_order_id:
             return "entry"
-        if coid == self._sl_client_order_id:
+        if coid in (self._sl_client_order_id, self._sl_be_client_order_id):
             return "sl"
         if coid == self._tp_client_order_id:
             return "tp"
@@ -462,11 +502,17 @@ class TradeStrategy(Strategy):
         # Subscribe to bars (needed for price updates or if we want to monitor)
         self.subscribe_bars(self.config.bar_type)
 
+        self._started_ns = self.clock.timestamp_ns()
+
         # The sandbox exchange only receives topics matching data.*.BINANCE.*
         # (quotes/trades/book). Bar topics don't match, so bars alone can never fill orders.
         if self.config.target == "virtual":
             self.subscribe_trade_ticks(self.config.instrument_id)
             self.subscribe_quote_ticks(self.config.instrument_id)
+        elif self._watch_target_before_fill():
+            # Real node: ticks are only needed to spot "target reached before fill"
+            # quickly (bars alone could be up to one bar late). Dropped after the fill.
+            self.subscribe_trade_ticks(self.config.instrument_id)
 
         instrument = self.cache.instrument(self.config.instrument_id)
         if instrument is None:
@@ -537,6 +583,15 @@ class TradeStrategy(Strategy):
             self._emit("Opened", metadata=self._order_meta(event, "entry"))
             self._apply_exit_request()      # a cancel may have arrived while the entry was being accepted
 
+        elif coid == self._sl_be_client_order_id and self._be_in_flight:
+            self._be_in_flight = False
+            self._emit(
+                "BESLPlaced",
+                metadata={**self._order_meta(event, "sl"), "new_sl": self._be_price()},
+            )
+            self.log.info(f"🔒 Break-even SL live @ {self._be_price()} for {self.config.trade_id}")
+            self._resume_pending_exit()
+
         elif coid in self._pending_protection_ids:
             self._pending_protection_ids.discard(coid)
             role = self._order_role(coid)
@@ -558,6 +613,9 @@ class TradeStrategy(Strategy):
 
         if self._is_entry_order(event) and self.sm.state == TradeState.AWAITING_FILL:
             self.sm.entry_filled()
+            self._entry_fill_px = float(event.last_px)
+            self._bars_since_fill = 0
+            self._unwatch_ticks()
             # Record the Filled event → SM is moving into PROTECTING
             self._emit(
                 "Filled",
@@ -605,7 +663,9 @@ class TradeStrategy(Strategy):
                       "reason": str(event.reason)},
         )
 
-        if self._is_entry_order(event):
+        if self._is_be_sl_order(event):
+            self._be_sl_failed(str(event.reason))
+        elif self._is_entry_order(event):
             self.sm.entry_rejected(reason=event.reason)
             self._finalize_and_stop()
         else:
@@ -636,7 +696,9 @@ class TradeStrategy(Strategy):
                       "reason": str(event.reason)},
         )
 
-        if self._is_entry_order(event):
+        if self._is_be_sl_order(event):
+            self._be_sl_failed(str(event.reason))
+        elif self._is_entry_order(event):
             self.sm.entry_rejected(reason=event.reason)
             self._finalize_and_stop()
         else:
@@ -652,13 +714,17 @@ class TradeStrategy(Strategy):
         coid = str(event.client_order_id)
 
         if self._is_entry_order(event) and self.sm.state == TradeState.AWAITING_FILL:
+            self._unwatch_ticks()
             # If we asked for this cancel (manual / scanner signal) record WHY;
             # an exchange-side cancel keeps the legacy "entry_cancelled".
             reason = self._exit_request[0] if self._exit_request is not None else None
             self.sm.entry_cancelled(reason=reason)
             self._finalize_and_stop()
 
-        elif coid in self._awaiting_protection_cancel:
+        if coid == self._be_old_sl_coid and self._be_in_flight:
+            self._be_old_sl_canceled()
+
+        if coid in self._awaiting_protection_cancel:
             self._protection_cancel_done(coid)
 
     def on_order_cancel_rejected(self, event: OrderCancelRejected) -> None:
@@ -668,6 +734,15 @@ class TradeStrategy(Strategy):
         it, the timeout in request_close() takes over."""
         coid = str(event.client_order_id)
         self.log.warning(f"❌ Cancel rejected: {coid} ({event.reason})")
+        if coid == self._be_old_sl_coid and self._be_in_flight:
+            # Usually the SL just filled (that fill settles the trade). Otherwise keep
+            # the original SL; break-even is not retried.
+            self._be_in_flight = False
+            self._emit(
+                "OrderRejected",
+                metadata={**self._order_meta(event, "sl"), "reason": f"break-even cancel rejected: {event.reason}"},
+            )
+            self._resume_pending_exit()
         if coid in self._awaiting_protection_cancel:
             self._emit(
                 "OrderRejected",
@@ -733,12 +808,15 @@ class TradeStrategy(Strategy):
         venue to do it.
         """
         filled_coid = str(filled_event.client_order_id)
-        sibling_coid = (
-            self._tp_client_order_id
-            if filled_coid == self._sl_client_order_id
-            else self._sl_client_order_id
-        )
+        sl_coids = (self._sl_client_order_id, self._sl_be_client_order_id)
+        if filled_coid in sl_coids:
+            sibling_coids = [self._tp_client_order_id]
+        else:
+            sibling_coids = list(sl_coids)   # only the live one (old or break-even SL) is open
+        for sibling_coid in sibling_coids:
+            self._cancel_one_sibling(sibling_coid, filled_coid)
 
+    def _cancel_one_sibling(self, sibling_coid: str, filled_coid: str) -> None:
         sibling_order = self.cache.order(ClientOrderId(sibling_coid))
         if sibling_order is None:
             # Sibling was never placed — e.g. only sl_price OR tp_price was
@@ -754,7 +832,7 @@ class TradeStrategy(Strategy):
             self._emit(
                 "SiblingCancelSent",
                 metadata={
-                    "order_role": "tp" if sibling_coid == self._tp_client_order_id else "sl",
+                    "order_role": self._order_role(sibling_coid),
                     "client_order_id": sibling_coid,
                 },
             )
@@ -788,8 +866,16 @@ class TradeStrategy(Strategy):
             return
         self._close_reason = reason
 
+        if self._be_in_flight:
+            # SL is being swapped right now; cancelling mid-swap could leave a stray
+            # SL behind. Resumed by _resume_pending_exit() when the swap settles.
+            self.log.info(f"Exit for {self.config.trade_id} deferred until the break-even SL swap settles")
+            return
+        self._begin_close_sequence(reason)
+
+    def _begin_close_sequence(self, reason: str) -> None:
         resting = []
-        for coid in (self._sl_client_order_id, self._tp_client_order_id):
+        for coid in (self._sl_client_order_id, self._sl_be_client_order_id, self._tp_client_order_id):
             order = self.cache.order(ClientOrderId(coid))
             if order is not None and order.is_open:
                 resting.append(order)
@@ -912,16 +998,196 @@ class TradeStrategy(Strategy):
 
     def _is_protection_order(self, event) -> bool:
         coid = str(event.client_order_id)
-        return coid in (self._sl_client_order_id, self._tp_client_order_id)
+        return coid in (self._sl_client_order_id, self._sl_be_client_order_id, self._tp_client_order_id)
+
+    def _is_be_sl_order(self, event) -> bool:
+        return str(event.client_order_id) == self._sl_be_client_order_id
 
     def _is_close_order(self, event) -> bool:
         return str(event.client_order_id) == self._close_client_order_id
 
-    # ---------- Bar handler (optional) ----------
+    # ---------- Feature 1: cancel a pending entry once the target was reached ----------
+    #
+    # LevelsBot (Pine) cancels a waiting entry on an exit token or a broken level.
+    # Here, additionally: if price already traded through the take-profit while the
+    # entry order is still unfilled, the setup is spent (the move happened without
+    # us), so the entry is cancelled instead of chasing it later.
+
+    def _watch_target_before_fill(self) -> bool:
+        return bool(self.config.cancel_on_target_before_fill and self.config.tp_price is not None)
+
+    def _unwatch_ticks(self) -> None:
+        """Real target only: stop the tick feed that was started for the target watch."""
+        if self.config.target != "virtual" and self._watch_target_before_fill():
+            try:
+                self.unsubscribe_trade_ticks(self.config.instrument_id)
+            except Exception:
+                pass
+
+    def _target_reached(self, price_high: float, price_low: float) -> bool:
+        tp = self.config.tp_price
+        if tp is None:
+            return False
+        if self.config.side.upper() == "BUY":
+            return price_high >= tp
+        return price_low <= tp
+
+    def _maybe_cancel_on_target(self, high: float, low: float, source: str) -> None:
+        if (
+            not self._watch_target_before_fill()
+            or self._target_cancel_fired
+            or self._exit_request is not None
+            or self.sm.state not in (TradeState.PLACING_ENTRY, TradeState.AWAITING_FILL)
+        ):
+            return
+        if not self._target_reached(high, low):
+            return
+        self._target_cancel_fired = True
+        self.log.info(
+            f"🎯 Target {self.config.tp_price} reached before the entry filled "
+            f"({source}); cancelling {self.config.trade_id}"
+        )
+        self.request_cancel(
+            reason=REASON_TARGET_BEFORE_FILL,
+            details={"source": source, "tp": self.config.tp_price, "high": high, "low": low},
+        )
+
+    def on_trade_tick(self, tick: TradeTick) -> None:
+        px = float(tick.price)
+        self._maybe_cancel_on_target(px, px, "trade_tick")
+
+    def on_quote_tick(self, tick: QuoteTick) -> None:
+        # BUY target is hit by the bid reaching it, SELL target by the ask.
+        if self.config.side.upper() == "BUY":
+            px = float(tick.bid_price)
+        else:
+            px = float(tick.ask_price)
+        self._maybe_cancel_on_target(px, px, "quote_tick")
+
+    # ---------- Feature 2: break-even (lock SL at EP after N candles) ----------
+    #
+    # Mirrors the "Break-Even Logic" block of LevelsBot_v1_0_7.pine:
+    #   candlesSinceEntry >= beCandlesToWait  ->  SL := EP (OCO re-placed)
+    #   close below the (new) SL              ->  market exit
+    # Candle counting: the bar in which the entry filled counts as candle 1 when it
+    # closes (Pine: bar_index - entryBarIndex reaches N when bar E+N opens, i.e. when
+    # bar E+N-1 closes = the N-th bar close counted from the entry bar).
+
+    def _be_price(self) -> Optional[float]:
+        return self.config.entry_price if self.config.entry_price is not None else self._entry_fill_px
+
+    def _is_long(self) -> bool:
+        return self.config.side.upper() == "BUY"
+
+    def _be_due(self) -> bool:
+        return (
+            self.config.break_even
+            and not self._be_started
+            and self.config.sl_price is not None
+            and self.sm.is_open()
+            and self._close_reason is None
+            and self._exit_request is None
+            and self._bars_since_fill >= max(self.config.be_candles, 0)
+        )
+
+    def _start_break_even(self, last_close: float) -> None:
+        ep = self._be_price()
+        if ep is None:
+            return
+        self._be_started = True
+
+        # Price already on the losing side of EP (or exactly on it): a stop at EP would be
+        # rejected as "would trigger immediately", and Pine would market-exit here anyway
+        # (close < stopLossPrice). Exit at market.
+        underwater = last_close <= ep if self._is_long() else last_close >= ep
+        if underwater:
+            self.log.info(
+                f"🔒 Break-even due for {self.config.trade_id} but close {last_close} is not beyond EP {ep}; "
+                f"exiting at market"
+            )
+            self.request_close(reason=REASON_BE_EXIT)
+            return
+
+        old = self.cache.order(ClientOrderId(self._sl_client_order_id))
+        if old is None or not old.is_open:
+            self.log.warning(f"Break-even: original SL not open for {self.config.trade_id}; skipped")
+            return
+
+        # Binance spot cannot amend a stop order: cancel it, then place the new one once
+        # the cancel is confirmed (also avoids the balance being locked twice).
+        self._be_in_flight = True
+        self._be_old_sl_coid = self._sl_client_order_id
+        self.cancel_order(old)
+        self._emit(
+            "BESLCancelSent",
+            metadata={"order_role": "sl", "client_order_id": self._sl_client_order_id, "new_sl": ep},
+        )
+        self.log.info(f"🔒 Break-even: moving SL {self.config.sl_price} -> {ep} for {self.config.trade_id}")
+        asyncio.get_running_loop().call_later(PROTECTION_CANCEL_TIMEOUT_S, self._on_be_cancel_timeout)
+
+    def _on_be_cancel_timeout(self) -> None:
+        if self._be_in_flight and self._be_old_sl_coid is not None:
+            self.log.warning(
+                f"Break-even: SL cancel not confirmed after {PROTECTION_CANCEL_TIMEOUT_S:.0f}s for "
+                f"{self.config.trade_id}; keeping the original SL"
+            )
+            self._be_in_flight = False
+            self._be_old_sl_coid = None
+            self._resume_pending_exit()
+
+    def _be_old_sl_canceled(self) -> None:
+        """Old SL is gone -> place the replacement at EP (unless the trade ended / an exit is pending)."""
+        self._be_old_sl_coid = None
+        if not self.sm.is_open() or self._close_reason is not None:
+            self._be_in_flight = False
+            self._resume_pending_exit()
+            return
+        ep = self._be_price()
+        instrument = self.cache.instrument(self.config.instrument_id)
+        exit_side = OrderSide.SELL if self._is_long() else OrderSide.BUY
+        sl_order = self.order_factory.stop_market(
+            instrument_id=self.config.instrument_id,
+            order_side=exit_side,
+            quantity=instrument.make_qty(self.config.size),
+            trigger_price=instrument.make_price(ep),
+            reduce_only=True,
+            client_order_id=ClientOrderId(self._sl_be_client_order_id),
+        )
+        self.submit_order(sl_order)
+
+    def _be_sl_failed(self, reason: str) -> None:
+        """The break-even SL was rejected/denied. The original SL is already cancelled, so the
+        position has NO stop: leave it via a market exit rather than staying unprotected."""
+        self.log.error(f"❌ Break-even SL failed for {self.config.trade_id}: {reason}; exiting at market")
+        self._be_in_flight = False
+        if self._close_reason is not None:
+            self._resume_pending_exit()
+        else:
+            self.request_close(reason=REASON_BE_FAILED)
+
+    def _resume_pending_exit(self) -> None:
+        """An exit was requested while the SL swap was running: carry it out now."""
+        if self._close_reason is not None and self.sm.is_open() and not self._close_submitted:
+            self._begin_close_sequence(self._close_reason)
+        else:
+            self._apply_exit_request()
+
+    # ---------- Bar handler ----------
     def on_bar(self, bar: Bar) -> None:
-        """Called when a new bar arrives; can be used for monitoring."""
-        # We might not need this for the MVP, but we keep the subscription.
-        pass
+        """Bar close: feeds the target-before-fill fallback and the break-even candle count."""
+        # Feature 1 (fallback to the tick watch). Only bars that opened after this trade
+        # started are trusted, otherwise a high printed before the order existed would count.
+        if self.sm.state in (TradeState.PLACING_ENTRY, TradeState.AWAITING_FILL):
+            bar_open_ns = int(bar.ts_event) - int(self.config.bar_type.spec.timedelta.total_seconds() * 1_000_000_000)
+            if bar_open_ns >= self._started_ns:
+                self._maybe_cancel_on_target(float(bar.high), float(bar.low), "bar")
+            return
+
+        # Feature 2
+        if self.sm.is_open() or self.sm.state == TradeState.PROTECTING:
+            self._bars_since_fill += 1
+            if self._be_due():
+                self._start_break_even(float(bar.close))
 
     def on_stop(self) -> None:
         """Stop the strategy: clean up resources."""

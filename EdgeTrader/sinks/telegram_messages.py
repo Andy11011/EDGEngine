@@ -14,7 +14,7 @@ How it works
 Placeholders available in ACTION_TEMPLATES
 ------------------------------------------
 {dot} {tag} {ticker} {side} {size} {ep} {sl} {tp} {fill_price} {role}
-{qty} {commission} {reason} {trade_id} {state}
+{qty} {commission} {reason} {trade_id} {state} {new_sl}
 
 Extra placeholders in RESULT_TEMPLATES
 --------------------------------------
@@ -43,6 +43,8 @@ ACTION_TEMPLATES: Dict[str, Optional[str]] = {
     "Filled": "{dot} {tag} <b>{ticker}</b> {side}: entry FILLED @ {fill_price} (qty {qty}, fee {commission})",
     "SLPlaced": "{dot} {tag} <b>{ticker}</b>: stop-loss placed @ {sl}",
     "TPPlaced": "{dot} {tag} <b>{ticker}</b>: take-profit placed @ {tp}",
+    "BESLCancelSent": "{dot} {tag} <b>{ticker}</b>: break-even: moving the stop-loss to the entry price ({new_sl})",
+    "BESLPlaced": "{dot} {tag} <b>{ticker}</b>: break-even: stop-loss now locked at entry {new_sl}",
     "SLHit": "{dot} {tag} <b>{ticker}</b>: stop-loss hit @ {fill_price}",
     "TPHit": "{dot} {tag} <b>{ticker}</b>: take-profit hit @ {fill_price}",
     "SiblingCancelSent": "{dot} {tag} <b>{ticker}</b>: cancelling the other protection order ({role})",
@@ -142,6 +144,7 @@ def _base(ev: Dict[str, Any]) -> Dict[str, Any]:
         "commission": meta.get("commission"),
         "reason": meta.get("reason"),
         "state": meta.get("state"),
+        "new_sl": _num(meta.get("new_sl")),
     }
 
 
