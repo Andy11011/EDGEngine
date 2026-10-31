@@ -636,6 +636,8 @@ class TradeEventsDB:
         instrument: Optional[str] = None,
         trade_id: Optional[str] = None,
         include_events: bool = True,
+        finished_from: Optional[datetime] = None,   # naive UTC, inclusive: terminal event at/after
+        finished_to: Optional[datetime] = None,     # naive UTC, exclusive: terminal event before
     ) -> List[Dict[str, Any]]:
         """
         Returns trades newest-started first. Each row carries the trade's
@@ -683,10 +685,13 @@ class TradeEventsDB:
                 AND ($2::text IS NULL OR COALESCE(t.event_type, 'Open') = $2)
                 AND ($3::text IS NULL OR s.instrument = $3)
                 AND ($4::text IS NULL OR s.trade_id = $4)
+                AND ($7::timestamp IS NULL OR t.occurred_at >= $7)
+                AND ($8::timestamp IS NULL OR t.occurred_at < $8)
                 ORDER BY s.started_at DESC, s.trade_id DESC
                 LIMIT $5 OFFSET $6
                 """,
                 target, status, instrument, trade_id, limit, offset,
+                finished_from, finished_to,
             )
             trades = [dict(r) for r in rows]
 

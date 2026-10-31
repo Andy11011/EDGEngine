@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements-api.txt
 
 COPY EdgeTrader/trades_db_async.py ./
 COPY EdgeTrader/account/trade_metrics.py ./
+COPY EdgeTrader/account/portfolio_metrics.py ./
 COPY EdgeTrader/edge-api/main-api.py ./
 COPY EdgeTrader/edge-api/edge-point.py ./
 
