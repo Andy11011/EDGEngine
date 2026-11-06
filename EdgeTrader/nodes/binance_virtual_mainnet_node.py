@@ -13,7 +13,7 @@ Scope of this process:
     Do NOT point this at the same queue as binance_real_node.py.
 
 Env vars:
-  SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL   (required) — this process's own queue
+  SQS_TRADE_EVENTS_QUEUE_URL   (required) — this process's own queue
   SANDBOX_STARTING_BALANCES            default "10000 USDT,1 BTC"
   SANDBOX_ACCOUNT_TYPE                  default "CASH"
   TRADER_ID                            default "EDGETRADER"
@@ -304,9 +304,9 @@ def main() -> None:
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
     log_level = os.getenv("LOG_LEVEL", "INFO")
 
-    queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL")
+    queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")
     if not queue_url:
-        print("❌ SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL environment variable not set.", file=sys.stderr)
+        print("❌ SQS_TRADE_EVENTS_QUEUE_URL environment variable not set.", file=sys.stderr)
         sys.exit(1)
 
     account_type = BinanceAccountType.SPOT

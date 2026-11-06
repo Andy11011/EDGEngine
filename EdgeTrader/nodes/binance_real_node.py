@@ -16,7 +16,7 @@ Scope of this process:
     target=real.
 
 Env vars:
-  SQS_TRADE_EVENTS_QUEUE_URL_REAL   (required) — this process's own queue
+  SQS_TRADE_EVENTS_QUEUE_URL   (required) — this process's own queue
   TRADER_ID                        default "EDGETRADER"
   BINANCE_BAR_INTERVAL              default "15-MINUTE"
   LOG_LEVEL                        default "INFO"
@@ -324,9 +324,9 @@ def main() -> None:
     bar_interval = os.getenv("BINANCE_BAR_INTERVAL", "15-MINUTE")
     log_level = os.getenv("LOG_LEVEL", "INFO")
 
-    queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL_REAL")
+    queue_url = os.getenv("SQS_TRADE_EVENTS_QUEUE_URL")
     if not queue_url:
-        print("❌ SQS_TRADE_EVENTS_QUEUE_URL_REAL environment variable not set.", file=sys.stderr)
+        print("❌ SQS_TRADE_EVENTS_QUEUE_URL environment variable not set.", file=sys.stderr)
         sys.exit(1)
 
     account_type = BinanceAccountType.SPOT

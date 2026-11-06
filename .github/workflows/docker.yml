@@ -11,6 +11,10 @@ on:
         description: Build and push multi-arch (amd64 + arm64) images to GHCR
         type: boolean
         default: false
+      smoke_tests:
+        description: Run the CodeBuild smoke tests after the images are promoted to ECR (a failure blocks the deploys)
+        type: boolean
+        default: false
       deploy:
         description: Deploy EdgeTrader (binance nodes + edge-point) to its EC2 host after the images are promoted to ECR
         type: boolean
@@ -101,103 +105,14 @@ jobs:
           fi
 
   # --------------------------------------------------------------------------
-  # Stage 2: Run the health-check integration test on CodeBuild in
-  # ap-southeast-1, pulling the exact edge-trader:<sha> image built above.
-  # No second build happens here.
-  # --------------------------------------------------------------------------
-  smoke_tests:
-    name: Run Smoke tests (CodeBuild, ap-southeast-1)
-    #if: false  # TEMP: all jobs disabled — remove this line to re-enable
-    needs: build_amd64
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::298724921728:role/github-actions-codebuild-trigger
-          aws-region: ap-southeast-1
-
-      - name: Trigger CodeBuild
-        uses: aws-actions/aws-codebuild-run-build@v1
-        env:
-          OWNER_LC: ${{ needs.build_amd64.outputs.owner_lc }}
-          IMAGE_TAG: ${{ github.sha }}
-          APP_PORT: ${{ env.APP_PORT }}
-          DB_NAME: ${{ env.DB_NAME }}
-          DB_USER: ${{ env.DB_USER }}
-          DB_PASSWORD: ${{ env.DB_PASSWORD }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL }}
-          SQS_TRADE_EVENTS_QUEUE_URL_REAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_REAL }}
-          SNS_TRADE_EVENTS_TOPIC_ARN: ${{ vars.SNS_TRADE_EVENTS_TOPIC_ARN }}
-        with:
-          project-name: edgetrader-integration-tests
-          buildspec-override: .github/codebuild/buildspec.yml
-          env-vars-for-codebuild: OWNER_LC,IMAGE_TAG,APP_PORT,DB_NAME,DB_USER,DB_PASSWORD,AWS_REGION,SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL,SQS_TRADE_EVENTS_QUEUE_URL_REAL,SNS_TRADE_EVENTS_TOPIC_ARN
-
-  # --------------------------------------------------------------------------
-  # Stage 3: Multi-arch images, only on manual workflow_dispatch — unchanged.
-  # --------------------------------------------------------------------------
-  docker_img_multiarch:
-    name: Build multi‑arch images
-    runs-on: ubuntu-latest
-    needs: build_amd64
-    if: github.event_name == 'workflow_dispatch' && inputs.multiarch
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image_name: edge-scanner
-            dockerfile: docker/Dockerfile.scanner
-          - image_name: binance-virtual-mainnet-node
-            dockerfile: docker/Dockerfile.binance_virtual_mainnet
-          - image_name: binance-real-node
-            dockerfile: docker/Dockerfile.binance_real
-          - image_name: edge-point
-            dockerfile: docker/Dockerfile.api
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare image name
-        id: prep
-        run: |
-          echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push multi‑arch image (${{ matrix.image_name }})
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ steps.prep.outputs.owner_lc }}/${{ matrix.image_name }}:latest
-            ghcr.io/${{ steps.prep.outputs.owner_lc }}/${{ matrix.image_name }}:${{ github.sha }}
-
-  # --------------------------------------------------------------------------
-  # Stage 4: Push images to the AWS ECR registry.
+  # Stage 2: Push the images built above to the AWS ECR registry. Runs right
+  # after the build on main (push or manual dispatch); smoke tests and deploys
+  # come after this and use the images that are already in ECR.
   # --------------------------------------------------------------------------
 
   promote_to_ecr:
     name: Promote to ECR (${{ matrix.image_name }})
-    needs: [build_amd64, smoke_tests]
+    needs: build_amd64
     if: >
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -261,16 +176,118 @@ jobs:
 
 
   # --------------------------------------------------------------------------
-  # Stage 5: Roll the promoted commit out to the EC2 host with SSM Run Command.
+  # Stage 2b: Multi-arch images, only on manual workflow_dispatch — unchanged.
+  # --------------------------------------------------------------------------
+  docker_img_multiarch:
+    name: Build multi‑arch images
+    runs-on: ubuntu-latest
+    needs: build_amd64
+    if: github.event_name == 'workflow_dispatch' && inputs.multiarch
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: edge-scanner
+            dockerfile: docker/Dockerfile.scanner
+          - image_name: binance-virtual-mainnet-node
+            dockerfile: docker/Dockerfile.binance_virtual_mainnet
+          - image_name: binance-real-node
+            dockerfile: docker/Dockerfile.binance_real
+          - image_name: edge-point
+            dockerfile: docker/Dockerfile.api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare image name
+        id: prep
+        run: |
+          echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push multi‑arch image (${{ matrix.image_name }})
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ steps.prep.outputs.owner_lc }}/${{ matrix.image_name }}:latest
+            ghcr.io/${{ steps.prep.outputs.owner_lc }}/${{ matrix.image_name }}:${{ github.sha }}
+
+  # --------------------------------------------------------------------------
+  # Stage 3: OPTIONAL smoke test. Runs only when the workflow is started by
+  # hand with the "smoke_tests" box ticked, after the images were promoted to
+  # ECR. Runs the health-check integration test on CodeBuild in ap-southeast-1,
+  # pulling the exact <image>:<sha> images built above. No second build.
+  # If it fails, deploy / deploy_scanner do not run.
+  # --------------------------------------------------------------------------
+  smoke_tests:
+    name: Run Smoke tests (CodeBuild, ap-southeast-1)
+    #if: false  # TEMP: all jobs disabled — remove this line to re-enable
+    needs: [build_amd64, promote_to_ecr]
+    if: github.event_name == 'workflow_dispatch' && inputs.smoke_tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::298724921728:role/github-actions-codebuild-trigger
+          aws-region: ap-southeast-1
+
+      - name: Trigger CodeBuild
+        uses: aws-actions/aws-codebuild-run-build@v1
+        env:
+          OWNER_LC: ${{ needs.build_amd64.outputs.owner_lc }}
+          IMAGE_TAG: ${{ github.sha }}
+          APP_PORT: ${{ env.APP_PORT }}
+          DB_NAME: ${{ env.DB_NAME }}
+          DB_USER: ${{ env.DB_USER }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL }}
+          SQS_TRADE_EVENTS_QUEUE_URL_REAL: ${{ vars.SQS_TRADE_EVENTS_QUEUE_URL_REAL }}
+          SNS_TRADE_EVENTS_TOPIC_ARN: ${{ vars.SNS_TRADE_EVENTS_TOPIC_ARN }}
+        with:
+          project-name: edgetrader-integration-tests
+          buildspec-override: .github/codebuild/buildspec.yml
+          env-vars-for-codebuild: OWNER_LC,IMAGE_TAG,APP_PORT,DB_NAME,DB_USER,DB_PASSWORD,AWS_REGION,SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL,SQS_TRADE_EVENTS_QUEUE_URL_REAL,SNS_TRADE_EVENTS_TOPIC_ARN
+
+  # --------------------------------------------------------------------------
+  # Stage 4: Roll the promoted commit out to the EC2 host with SSM Run Command.
   # MANUAL ONLY: runs when the workflow is started by hand (Actions > CI > Run
   # workflow) on main with the "deploy" box ticked, after every image has been
-  # promoted to ECR. Pushes and PRs never deploy. The host pulls the exact
+  # promoted to ECR and, if the smoke test was ticked, after it passed. Pushes and PRs never deploy. The host pulls the exact
   # commit SHA (not :latest), so it runs what the tests passed.
   # --------------------------------------------------------------------------
   deploy:
     name: Deploy EdgeTrader to EC2 (SSM Run Command)
-    needs: promote_to_ecr
-    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.deploy
+    needs: [promote_to_ecr, smoke_tests]
+    # smoke_tests is skipped unless ticked, and a skipped need would skip this job too,
+    # so always() + explicit result checks: promoted OK, smoke passed OR was not requested.
+    if: >
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.deploy &&
+      needs.promote_to_ecr.result == 'success' &&
+      (needs.smoke_tests.result == 'success' || needs.smoke_tests.result == 'skipped')
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-prod
@@ -325,7 +342,7 @@ jobs:
 
 
   # --------------------------------------------------------------------------
-  # Stage 5b: Roll EdgeScanner out to ITS OWN EC2 host (separate from the
+  # Stage 4b: Roll EdgeScanner out to ITS OWN EC2 host (separate from the
   # trader host) with SSM Run Command. MANUAL ONLY: start the workflow by hand
   # on main with "deploy_scanner" ticked, after every image has been promoted
   # to ECR. edge-scanner is pinned to this commit's SHA. scannerL1 is built by
@@ -335,8 +352,16 @@ jobs:
   # --------------------------------------------------------------------------
   deploy_scanner:
     name: Deploy EdgeScanner to EC2 (SSM Run Command)
-    needs: promote_to_ecr
-    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.deploy_scanner
+    needs: [promote_to_ecr, smoke_tests]
+    # smoke_tests is skipped unless ticked, and a skipped need would skip this job too,
+    # so always() + explicit result checks: promoted OK, smoke passed OR was not requested.
+    if: >
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.deploy_scanner &&
+      needs.promote_to_ecr.result == 'success' &&
+      (needs.smoke_tests.result == 'success' || needs.smoke_tests.result == 'skipped')
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-scanner-prod
