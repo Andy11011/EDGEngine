@@ -1335,3 +1335,10 @@ BNB_USDT_FALLBACK_PRICE
 📡 [poll #4] Long-polling SQS (virtual)...
 2026-10-28T05:26:53.028964689Z [INFO] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20261028T052643821_virtual: 📝 Logged Cancelled event for ATMUSDT.BINANCE_20261028T052643821_virtual (target=virtual)
 2026-10-28T05:26:53.030293796Z [ERROR] EDGETRADER-VIRTUAL.ATMUSDT.BINANCE_20261028T052643821_virtual: ❌ Failed to queue notification for Cancelled: No module named 'trade_metrics'
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+  git push -u origin main
+  gh workflow run docker.yml --ref main -f smoke_and_deploy_edgenode=true

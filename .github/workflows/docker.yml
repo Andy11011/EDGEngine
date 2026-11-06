@@ -11,22 +11,6 @@ on:
         description: Run Smoke tests and deploy EdgeNode (smoke tests run first; the deploy happens only if they pass)
         type: boolean
         default: false
-      smoke_tests:
-        description: Run the CodeBuild smoke tests after the images are promoted to ECR (a failure blocks the deploys)
-        type: boolean
-        default: false
-      deploy:
-        description: Deploy EdgeTrader (binance nodes + edge-point) to its EC2 host after the images are promoted to ECR
-        type: boolean
-        default: false
-      deploy_scanner:
-        description: Deploy EdgeScanner (edge-scanner + scannerL1) to its EC2 host after the images are promoted to ECR
-        type: boolean
-        default: false
-      scanner_l1_tag:
-        description: ECR tag of edgetrader/scanner-l1 (built by GitLab) to run on the scanner host. Used only with "deploy_scanner".
-        type: string
-        default: latest
 
 permissions:
   contents: read
