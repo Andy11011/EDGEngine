@@ -2,16 +2,16 @@ version: 0.2
 
 # Secrets pulled straight from Secrets Manager into env vars — never touch
 # the console or build logs in plaintext.
+#
+# CI mirrors the edge-node host: postgres + edge-point + binance-virtual-mainnet-node
+# + edge-scanner, plus ElasticMQ standing in for SQS. No AWS account resources are
+# used (no queues, no SNS, no AWS keys) and there is no real node.
 env:
   secrets-manager:
     GHCR_USERNAME: "edgetrader/ghcr-creds:GHCR_USERNAME"
     GHCR_TOKEN: "edgetrader/ghcr-creds:GHCR_TOKEN"
     BINANCE_API_KEY: "edgetrader/trading-secrets:BINANCE_API_KEY"
     BINANCE_API_SECRET: "edgetrader/trading-secrets:BINANCE_API_SECRET"
-    BINANCE_ED25519_PUBLIC_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PUBLIC_KEY"
-    BINANCE_ED25519_PRIVATE_KEY: "edgetrader/trading-secrets:BINANCE_ED25519_PRIVATE_KEY"
-    AWS_ACCESS_KEY_ID: "edgetrader/trading-secrets:AWS_ACCESS_KEY_ID"
-    AWS_SECRET_ACCESS_KEY: "edgetrader/trading-secrets:AWS_SECRET_ACCESS_KEY"
     TELEGRAM_BOT_TOKEN: "edgetrader/sinks-secrets:TELEGRAM_BOT_TOKEN"
     TELEGRAM_CHAT_ID: "edgetrader/sinks-secrets:TELEGRAM_CHAT_ID"
     GSHEETS_SPREADSHEET_KEY: "edgetrader/sinks-secrets:GSHEETS_SPREADSHEET_KEY"
@@ -35,15 +35,16 @@ phases:
       # OWNER_LC and IMAGE_TAG (commit sha) are passed in as environment
       # variable overrides from the GitHub Actions step that starts this build.
       - IMAGE_BINANCE_VIRTUAL="ghcr.io/${OWNER_LC}/binance-virtual-mainnet-node:${IMAGE_TAG}"
-      - IMAGE_BINANCE_REAL="ghcr.io/${OWNER_LC}/binance-real-node:${IMAGE_TAG}"
+      - IMAGE_SCANNER="ghcr.io/${OWNER_LC}/edge-scanner:${IMAGE_TAG}"
       - IMAGE_EDGE_POINT="ghcr.io/${OWNER_LC}/edge-point:${IMAGE_TAG}"
       - echo "Pulling $IMAGE_BINANCE_VIRTUAL"
       - docker pull "$IMAGE_BINANCE_VIRTUAL"
-      - echo "Pulling $IMAGE_BINANCE_REAL"
-      - docker pull "$IMAGE_BINANCE_REAL"
+      - echo "Pulling $IMAGE_SCANNER"
+      - docker pull "$IMAGE_SCANNER"
       - echo "Pulling $IMAGE_EDGE_POINT"
       - docker pull "$IMAGE_EDGE_POINT"
       - docker pull postgres:16-alpine
+      - docker pull softwaremill/elasticmq-native
       - docker network create edgetrader-net
 
       # Google service-account JSON for GSHClient, same idea as
@@ -68,14 +69,26 @@ phases:
           postgres:16-alpine
       - timeout 30 sh -c 'until docker exec postgres-ci pg_isready -U "${DB_USER}" >/dev/null 2>&1; do sleep 1; done'
 
+      # ElasticMQ = SQS stand-in. Queues come from elasticmq.conf; port 9324 is
+      # published so pytest (on this host) can send messages to it.
+      - |
+        docker run -d --name sqs-ci --network edgetrader-net \
+          -p 9324:9324 \
+          -v "${CODEBUILD_SRC_DIR}/.github/codebuild/elasticmq.conf:/opt/elasticmq.conf:ro" \
+          softwaremill/elasticmq-native
+      - |
+        timeout 30 sh -c 'until python -c "import boto3; boto3.client(\"sqs\", region_name=\"ap-southeast-1\", endpoint_url=\"http://localhost:9324\", aws_access_key_id=\"test\", aws_secret_access_key=\"test\").list_queues()" >/dev/null 2>&1; do sleep 1; done'
+
       - |
         docker run -d --name binance-virtual-mainnet-node --network edgetrader-net \
-          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-          -e AWS_REGION="${AWS_REGION}" \
+          -e AWS_ACCESS_KEY_ID=test \
+          -e AWS_SECRET_ACCESS_KEY=test \
+          -e AWS_REGION="${AWS_REGION:-ap-southeast-1}" \
+          -e AWS_ENDPOINT_URL_SQS=http://sqs-ci:9324 \
           -e BINANCE_API_KEY="${BINANCE_API_KEY}" \
           -e BINANCE_API_SECRET="${BINANCE_API_SECRET}" \
-          -e SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL="${SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL}" \
+          -e SQS_TRADE_EVENTS_QUEUE_URL=http://sqs-ci:9324/000000000000/trade-events-virtual \
+          -e SQS_SCANNER_EVENTS_QUEUE_URL=http://sqs-ci:9324/000000000000/scanner-events \
           -e DB_NAME="${DB_NAME}" \
           -e DB_USER="${DB_USER}" \
           -e DB_PASSWORD="${DB_PASSWORD}" \
@@ -89,28 +102,20 @@ phases:
           -v "${GSHEETS_CREDS_HOST_PATH}:/run/secrets/gsheets-credentials.json:ro" \
           "$IMAGE_BINANCE_VIRTUAL"
 
+      # edge-scanner: WEBHOOK_URL points at a dead address on purpose, so the CI
+      # scanner can never push a signal into the real TradingView webhook / prod.
       - |
-        docker run -d --name binance-real-node --network edgetrader-net \
-          -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-          -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-          -e AWS_REGION="${AWS_REGION}" \
+        docker run -d --name edge-scanner --network edgetrader-net \
           -e BINANCE_API_KEY="${BINANCE_API_KEY}" \
           -e BINANCE_API_SECRET="${BINANCE_API_SECRET}" \
-          -e BINANCE_ED25519_PUBLIC_KEY="${BINANCE_ED25519_PUBLIC_KEY}" \
-          -e BINANCE_ED25519_PRIVATE_KEY="${BINANCE_ED25519_PRIVATE_KEY}" \
-          -e SQS_TRADE_EVENTS_QUEUE_URL_REAL="${SQS_TRADE_EVENTS_QUEUE_URL_REAL}" \
-          -e DB_NAME="${DB_NAME}" \
-          -e DB_USER="${DB_USER}" \
-          -e DB_PASSWORD="${DB_PASSWORD}" \
-          -e DB_HOST=postgres-ci \
-          -e DB_PORT=5432 \
-          -e TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}" \
-          -e TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID}" \
-          -e GSHEETS_SPREADSHEET_KEY="${GSHEETS_SPREADSHEET_KEY}" \
-          -e GSHEETS_SHEET_ID="${GSHEETS_SHEET_ID}" \
-          -e GSHEETS_CREDENTIALS_FILE=/run/secrets/gsheets-credentials.json \
-          -v "${GSHEETS_CREDS_HOST_PATH}:/run/secrets/gsheets-credentials.json:ro" \
-          "$IMAGE_BINANCE_REAL"
+          -e WEBHOOK_URL=http://127.0.0.1:9/ci-disabled \
+          -e DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@postgres-ci:5432/${DB_NAME}" \
+          -e AWS_ACCESS_KEY_ID=test \
+          -e AWS_SECRET_ACCESS_KEY=test \
+          -e AWS_REGION="${AWS_REGION:-ap-southeast-1}" \
+          -e AWS_ENDPOINT_URL_SQS=http://sqs-ci:9324 \
+          -e SQS_SCANNER_EVENTS_QUEUE_URL=http://sqs-ci:9324/000000000000/scanner-events \
+          "$IMAGE_SCANNER"
 
       # TODO: confirm APP_PORT matches whatever Dockerfile.api EXPOSEs / the
       # app actually listens on, then pass it as an override too.
@@ -126,8 +131,10 @@ phases:
           "$IMAGE_EDGE_POINT"
 
       - sleep 20
+      # The scanner has no HTTP API to test; at least make sure it is still up.
+      - test "$(docker inspect -f '{{.State.Running}}' edge-scanner)" = "true"
       - |
-        pytest -v \
+        AWS_REGION="${AWS_REGION:-ap-southeast-1}" pytest -v \
           tests/test_health.py \
           tests/test_balances.py \
           tests/test_open_and_close_virtual.py
@@ -140,9 +147,11 @@ phases:
       - docker logs edge-point || true
       - echo "--- binance-virtual-mainnet-node logs ---"
       - docker logs binance-virtual-mainnet-node || true
-      - echo "--- binance-real-node logs ---"
-      - docker logs binance-real-node || true
+      - echo "--- edge-scanner logs ---"
+      - docker logs edge-scanner || true
+      - echo "--- sqs-ci logs ---"
+      - docker logs sqs-ci || true
       - echo "--- postgres-ci logs ---"
       - docker logs postgres-ci || true
-      - docker rm -f edge-point binance-virtual-mainnet-node binance-real-node postgres-ci || true
+      - docker rm -f edge-point edge-scanner binance-virtual-mainnet-node sqs-ci postgres-ci || true
       - rm -f /tmp/gsheets-credentials.json

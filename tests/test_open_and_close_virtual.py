@@ -1,8 +1,7 @@
 """
 test_open_and_close_virtual.py — end-to-end lifecycle test for the VIRTUAL
-node: publish an Open trade-event via SNS (routed to the virtual node's own
-TEST SQS queue via the 'venue' + 'env' message attributes — see
-edgetrader-aws-infra-v3.yaml), confirm the strategy starts,
+node: send an Open trade-event straight to the virtual node's SQS queue (an
+ElasticMQ container in CI, so no AWS and no SNS involved), confirm the strategy starts,
 reaches AWAITING_FILL internally, is visible via /active_trades (reported
 as state="Opened" — see note below on why), then publish a Cancel
 and confirm clean teardown (strategy removed, Cancelled event logged, trade
@@ -12,10 +11,9 @@ WHAT THIS TEST CHECKS, END TO END:
   1. The app is healthy (Postgres connected, virtual node's Nautilus trader
      running, virtual node's own SQS connectivity reported ok) before doing
      anything else.
-  2. Publishing an Open message via SNS with venue=binance-virtual-mainnet
-     and env=test reaches the virtual node's TEST queue (proves the SNS
-     topic's subscription filter policy is correctly routing to it, and
-     not to the prod queue).
+  2. A message sent to the virtual node's queue is picked up by the node.
+     (SNS topic / subscription filter routing is NOT covered here: the
+     message goes directly to the queue.)
   3. The node starts a TradeStrategy for the trade and accepts the entry
      order (awaiting fill).
 
@@ -30,10 +28,10 @@ WHAT THIS TEST CHECKS, END TO END:
      wait_for_trade_id()), and asserts its FORMAT (see TRADE_ID_FORMAT_RE)
      rather than predicting its exact value. The delta between the
      payload's occurred_at and the node-stamped time is reported as
-     `sns_to_node_latency_ms` (visible in JUnit XML; run pytest with -s to
+     `queue_to_node_latency_ms` (visible in JUnit XML; run pytest with -s to
      see it on the console) — useful as a rough pipeline-latency probe,
      but deliberately not asserted against a tight bound, because
-     SNS->SQS->node latency is inherently variable and would flake.
+     queue->node latency is inherently variable and would flake.
   4. /active_trades reflects the new trade with the correct instrument,
      side, entry/SL/TP prices, and a computed size matching
      calculate_position_size() run against the known default
@@ -76,23 +74,18 @@ BASE_URL = "http://localhost:8000"
 HEALTH_URL = f"{BASE_URL}/health"
 ACTIVE_TRADES_URL = f"{BASE_URL}/active_trades"
 
-AWS_REGION = os.environ["AWS_REGION"]
-# NOTE: this is a new env var this test needs — buildspec.yml currently
-# only passes SQS_TRADE_EVENTS_QUEUE_URL_VIRTUAL/_REAL (direct queue URLs),
-# not a topic ARN. Since publishing now goes through SNS (see RUNBOOK.md's
-# "Testing with AWS SNS" section), buildspec.yml's env-vars-for-codebuild
-# list needs SNS_TRADE_EVENTS_TOPIC_ARN added, sourced the same way as the
-# other AWS_* vars.
-TOPIC_ARN = os.environ["SNS_TRADE_EVENTS_TOPIC_ARN"]
+AWS_REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
+
+# ElasticMQ, published on the CI host by the buildspec (-p 9324:9324). The
+# nodes reach the same server as http://sqs-ci:9324 over the docker network;
+# the queue is looked up BY NAME so the differing host in the URL doesn't matter.
+SQS_ENDPOINT_URL = os.environ.get("SQS_ENDPOINT_URL", "http://localhost:9324")
+QUEUE_NAME = os.environ.get("SQS_VIRTUAL_QUEUE_NAME", "trade-events-virtual")
+# Set to 1 if sqs.parse_event() expects the SNS envelope
+# ({"Type": "Notification", "Message": "<json>", ...}) instead of the bare payload.
+WRAP_SNS_ENVELOPE = os.environ.get("SQS_WRAP_SNS_ENVELOPE", "0") == "1"
 
 TARGET = "virtual"
-VENUE_ATTR_VALUE = "binance-virtual-mainnet"  # must match the SNS subscription filter policy exactly
-# NOTE: as of the prod/test queue split in edgetrader-aws-infra-v3.yaml,
-# every subscription's FilterPolicy requires BOTH venue and env to match —
-# a message with only venue set matches nothing and is silently dropped
-# (no error, no delivery). CI must always publish with env=test so this
-# routes to the *-test queues rather than the prod ones (or nowhere).
-ENV_ATTR_VALUE = "test"
 CONTAINER_NAME = "binance-virtual-mainnet-node"
 
 TEST_TICKER = "ATMUSDT.BINANCE"
@@ -142,11 +135,9 @@ def expected_position_size(equity, risk_ratio, entry_price, stop_loss_price):
 
 def wait_for_healthy(timeout=120, interval=2):
     """Waits for postgres connected, the virtual node's trader running, and
-    the virtual node's own SQS connectivity ok — deliberately does NOT wait
-    on the top-level overall 'status'=='ok', since that also depends on the
-    real node (a separate, independently-funded account this test doesn't
-    touch) and coupling a virtual-only test to real-node health would make
-    it fail for reasons outside this test's scope."""
+    the virtual node's own SQS connectivity ok. (The top-level 'status' is
+    also 'ok' with just this node up, but checking the node directly keeps
+    the failure message specific.)"""
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -275,7 +266,7 @@ def parse_node_timestamp(trade_id):
 
 def receive_latency_ms(node_occurred_at, sent_occurred_at):
     """Delta in ms between the payload's occurred_at and the node-stamped
-    timestamp embedded in trade_id. Measures SNS->SQS->node processing
+    timestamp embedded in trade_id. Measures queue->node processing
     latency at ms granularity (the trade_id only carries ms precision).
     """
     fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -284,23 +275,25 @@ def receive_latency_ms(node_occurred_at, sent_occurred_at):
     return (node_dt - sent_dt).total_seconds() * 1000
 
 
-def publish_event(body):
-    """Publish to the SNS topic with the venue AND env attributes set, so
-    the topic's subscription filter policy routes it to the virtual node's
-    TEST queue (binance-virtual-trade-events-test), not the prod one. See
-    RUNBOOK.md's "Testing with AWS SNS" section and
-    edgetrader-aws-infra-v3.yaml's FilterPolicy definitions — both venue
-    and env must be present or the message matches no subscription and is
-    silently never delivered anywhere."""
-    sns = boto3.client("sns", region_name=AWS_REGION)
-    resp = sns.publish(
-        TopicArn=TOPIC_ARN,
-        Message=json.dumps(body),
-        MessageAttributes={
-            "venue": {"DataType": "String", "StringValue": VENUE_ATTR_VALUE},
-            "env": {"DataType": "String", "StringValue": ENV_ATTR_VALUE},
-        },
+def _sqs():
+    # Dummy credentials: ElasticMQ doesn't check them, boto3 just needs some.
+    return boto3.client(
+        "sqs",
+        region_name=AWS_REGION,
+        endpoint_url=SQS_ENDPOINT_URL,
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
     )
+
+
+def publish_event(body):
+    """Send the event straight to the virtual node's queue in ElasticMQ."""
+    sqs = _sqs()
+    queue_url = sqs.get_queue_url(QueueName=QUEUE_NAME)["QueueUrl"]
+    message = json.dumps(body)
+    if WRAP_SNS_ENVELOPE:
+        message = json.dumps({"Type": "Notification", "MessageId": "ci", "Message": message})
+    resp = sqs.send_message(QueueUrl=queue_url, MessageBody=message)
     return resp["MessageId"]
 
 
@@ -343,14 +336,14 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
 
     # Latency probe: payload occurred_at -> node-stamped time embedded in
     # trade_id. Reported (JUnit XML / pytest -s), deliberately not asserted
-    # against a tight bound — SNS->SQS->node latency is variable and a hard
+    # against a tight bound — queue->node latency is variable and a hard
     # bound here would just be flaky.
     node_occurred_at = parse_node_timestamp(trade_id)
     if node_occurred_at:
         delta_ms = receive_latency_ms(node_occurred_at, occurred_at_open)
-        record_property("sns_to_node_latency_ms", round(delta_ms))
+        record_property("queue_to_node_latency_ms", round(delta_ms))
         print(
-            f"\nSNS->node latency: {delta_ms:.0f} ms "
+            f"\nqueue->node latency: {delta_ms:.0f} ms "
             f"(payload occurred_at={occurred_at_open}, node-stamped={node_occurred_at})"
         )
 

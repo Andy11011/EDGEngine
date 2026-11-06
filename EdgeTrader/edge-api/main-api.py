@@ -173,6 +173,9 @@ async def health_check():
     live reference to those processes. A heartbeat older than 60s is
     treated the same as "not running" — a dead process stops writing,
     it doesn't write "not running".
+
+    Overall status is "ok" when at least one node is healthy (trader running
+    and its SQS connected); see `healthy_nodes` in the response.
     """
     try:
         db = await _get_db()
@@ -234,15 +237,23 @@ async def health_check():
     except Exception:
         active_count = None
 
-    overall_ok = (
-        real_status.get("trader_running") is True
-        and virtual_status.get("trader_running") is True
-        and sqs_real_status.get("status") == "connected"
-        and sqs_virtual_status.get("status") == "connected"
-    )
+    # A node counts as healthy when its trader is running AND its own SQS
+    # connection is reported as connected. The API is "ok" as soon as AT LEAST
+    # ONE node is healthy (a deployment may legitimately run only the virtual
+    # node, or only the real one); it is "degraded" only when none is.
+    healthy_nodes = [
+        name
+        for name, node, q in (
+            ("real", real_status, sqs_real_status),
+            ("virtual", virtual_status, sqs_virtual_status),
+        )
+        if node.get("trader_running") is True and q.get("status") == "connected"
+    ]
+    overall_ok = bool(healthy_nodes)
 
     return {
         "status": "ok" if overall_ok else "degraded",
+        "healthy_nodes": healthy_nodes,
         "active_trades_count": active_count,
         "dependencies": {
             "postgres": postgres_status,
