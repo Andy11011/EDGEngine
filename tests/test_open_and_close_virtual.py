@@ -441,5 +441,5 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
     assert resp.status_code == 200
     data = resp.json()
     assert data["dependencies"]["postgres"]["status"] == "connected"
-    assert data["dependencies"]["sqs_virtual"]["status"] == "connected"
+    assert data["dependencies"]["sqs"]["status"] == "connected"
     assert data["dependencies"]["nautilus_virtual"]["trader_running"] is True

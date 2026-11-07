@@ -87,7 +87,7 @@ phases:
           -e AWS_ENDPOINT_URL_SQS=http://sqs-ci:9324 \
           -e BINANCE_API_KEY="${BINANCE_API_KEY}" \
           -e BINANCE_API_SECRET="${BINANCE_API_SECRET}" \
-          -e SQS_TRADE_EVENTS_QUEUE_URL=http://sqs-ci:9324/000000000000/trade-events-virtual \
+          -e SQS_TRADE_EVENTS_QUEUE_URL=http://sqs-ci:9324/000000000000/trade-events \
           -e SQS_SCANNER_EVENTS_QUEUE_URL=http://sqs-ci:9324/000000000000/scanner-events \
           -e DB_NAME="${DB_NAME}" \
           -e DB_USER="${DB_USER}" \
