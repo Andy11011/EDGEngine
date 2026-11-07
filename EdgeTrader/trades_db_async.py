@@ -827,6 +827,49 @@ class TradeEventsDB:
             )
 
     # ------------------------------------------------------------------
+    # Tickers to scan — scanner_results_l1 (table owned by travis-scanner).
+    # One row per scan (newest = highest id); `result` is a JSON array of
+    # {"pair_name": "BTCUSDT", "pair_type": "filtered"|"newcomer"|...}.
+    # edge-scanner (signals_db_async.get_target_pairs) watches the pairs of the
+    # LATEST row, so POSTing a new row replaces the watched set.
+    # ------------------------------------------------------------------
+    async def get_scan_tickers(self) -> Optional[Dict[str, Any]]:
+        """Latest scan as {scan_id, scanned_at, tickers:[{symbol, pair_type}]}, or None if none yet."""
+        async with self.pool.acquire() as conn:
+            try:
+                row = await conn.fetchrow(
+                    "SELECT id, result, timestamp FROM scanner_results_l1 ORDER BY id DESC LIMIT 1"
+                )
+            except asyncpg.UndefinedTableError:
+                return None
+        if row is None:
+            return None
+        result = row["result"]
+        if isinstance(result, (str, bytes)):
+            result = json.loads(result)
+        tickers: List[Dict[str, str]] = []
+        seen: set = set()
+        for item in result or []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("pair_name", "")).strip().upper()
+            if name and name not in seen:
+                seen.add(name)
+                tickers.append({"symbol": name, "pair_type": str(item.get("pair_type", "")).lower()})
+        return {"scan_id": row["id"], "scanned_at": row["timestamp"], "tickers": tickers}
+
+    async def insert_scan_tickers(self, tickers: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Append a new scan row (becomes the latest one => the new watch list)."""
+        payload = json.dumps([{"pair_name": t["symbol"], "pair_type": t["pair_type"]} for t in tickers])
+        now = datetime.now()   # naive local time, same convention as travis' Scanner.py
+        async with self.pool.acquire() as conn:
+            row_id = await conn.fetchval(
+                "INSERT INTO scanner_results_l1 (result, timestamp) VALUES ($1::jsonb, $2) RETURNING id",
+                payload, now,
+            )
+        return {"scan_id": row_id, "scanned_at": now}
+
+    # ------------------------------------------------------------------
     # Shutdown
     # ------------------------------------------------------------------
     async def close(self) -> None:

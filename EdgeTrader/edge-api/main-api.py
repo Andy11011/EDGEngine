@@ -36,21 +36,24 @@ Everything it serves comes from Postgres:
                          one portfolio (target=all); pass ?target=virtual or
                          ?target=real to restrict. /stats returns all of them
                          at once.
+  - /tickers           — GET: pairs edge-scanner watches (latest row of
+                         scanner_results_l1); POST: replace that list (TravisScanner).
   - /help              — lists every route this service exposes.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field, StrictFloat, StrictInt
+from pydantic import BaseModel, Field, StrictFloat, StrictInt, field_validator
 
 from portfolio_metrics import ClosedTrade, PortfolioStats, compute_portfolio_stats
 from trade_metrics import compute_trade_metrics
@@ -188,6 +191,7 @@ async def health_check():
                 "postgres": {"status": "failed", "detail": str(e)},
                 "nautilus_real": {"status": "unknown"},
                 "nautilus_virtual": {"status": "unknown"},
+                "sqs": {"status": "unknown"},
             },
         }
 
@@ -205,31 +209,39 @@ async def health_check():
             "detail": hb.get("detail"),
         }
 
-    def sqs_status(hb: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """Each node process reports its own SQS connectivity in its
-        heartbeat row (see sqs.get_sqs_status / common_tasks.heartbeat_loop)
-        — edge-api never talks to AWS itself, it just relays this."""
-        if hb is None:
-            return {"status": "unknown", "detail": "no heartbeat yet", "updated_at": None}
-        if _heartbeat_stale(hb):
+    def sqs_status(*heartbeats: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """There is ONE trade-events queue, consumed by whichever node processes
+        are running. Each node reports what its own receive_message calls saw
+        (see sqs.get_sqs_status / common_tasks.heartbeat_loop); edge-api never
+        talks to AWS itself. The queue counts as connected when ANY fresh
+        heartbeat reports a successful receive."""
+        fresh = [hb for hb in heartbeats if hb is not None and not _heartbeat_stale(hb)]
+        if not fresh:
+            return {"status": "unknown", "detail": "no fresh node heartbeat", "updated_at": None}
+
+        reported = [hb for hb in fresh if hb.get("sqs_ok") is not None]
+        if not reported:
             return {
                 "status": "unknown",
-                "detail": "heartbeat is stale, sqs status may be outdated",
-                "updated_at": hb["updated_at"].isoformat(),
+                "detail": "no node has reported sqs status yet",
+                "updated_at": max(hb["updated_at"] for hb in fresh).isoformat(),
             }
-        sqs_ok = hb.get("sqs_ok")
-        if sqs_ok is None:
-            return {"status": "unknown", "detail": "node has not reported sqs status yet", "updated_at": hb["updated_at"].isoformat()}
+
+        ok = [hb for hb in reported if hb["sqs_ok"]]
+        if ok:
+            newest = max(ok, key=lambda hb: hb["updated_at"])
+            return {"status": "connected", "detail": None, "updated_at": newest["updated_at"].isoformat()}
+
+        newest = max(reported, key=lambda hb: hb["updated_at"])
         return {
-            "status": "connected" if sqs_ok else "disconnected",
-            "detail": hb.get("sqs_detail"),
-            "updated_at": hb["updated_at"].isoformat(),
+            "status": "disconnected",
+            "detail": newest.get("sqs_detail"),
+            "updated_at": newest["updated_at"].isoformat(),
         }
 
     real_status = node_status(real_hb)
     virtual_status = node_status(virtual_hb)
-    sqs_real_status = sqs_status(real_hb)
-    sqs_virtual_status = sqs_status(virtual_hb)
+    sqs_state = sqs_status(real_hb, virtual_hb)
 
     try:
         active_trades = await db.get_active_trades()
@@ -237,17 +249,15 @@ async def health_check():
     except Exception:
         active_count = None
 
-    # A node counts as healthy when its trader is running AND its own SQS
-    # connection is reported as connected. The API is "ok" as soon as AT LEAST
-    # ONE node is healthy (a deployment may legitimately run only the virtual
-    # node, or only the real one); it is "degraded" only when none is.
+    # A node counts as healthy when its trader is running AND the (single)
+    # trade-events queue is reachable. The API is "ok" as soon as AT LEAST ONE
+    # node is healthy (a deployment may legitimately run only the virtual node,
+    # or only the real one); it is "degraded" only when none is.
+    sqs_connected = sqs_state.get("status") == "connected"
     healthy_nodes = [
         name
-        for name, node, q in (
-            ("real", real_status, sqs_real_status),
-            ("virtual", virtual_status, sqs_virtual_status),
-        )
-        if node.get("trader_running") is True and q.get("status") == "connected"
+        for name, node in (("real", real_status), ("virtual", virtual_status))
+        if node.get("trader_running") is True and sqs_connected
     ]
     overall_ok = bool(healthy_nodes)
 
@@ -259,8 +269,7 @@ async def health_check():
             "postgres": postgres_status,
             "nautilus_real": real_status,
             "nautilus_virtual": virtual_status,
-            "sqs_real": sqs_real_status,
-            "sqs_virtual": sqs_virtual_status,
+            "sqs": sqs_state,
         },
     }
 
@@ -687,6 +696,107 @@ async def get_stats(
     return StatsResponse(
         target=target, year=y, start_equity_source=ctx.start_equity_source,
         excluded_trades=ctx.excluded_trades, stats=asdict(ctx.stats),
+    )
+
+
+# ---------------------------------------------------------------------------
+# /tickers — the list of pairs edge-scanner watches.
+# Backed by scanner_results_l1, the table travis-scanner used to write directly
+# (one row per scan, newest row wins; see TradeEventsDB.get_scan_tickers).
+# TravisScanner now POSTs here instead of writing to Postgres itself.
+# ---------------------------------------------------------------------------
+_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,20}$")
+_PAIR_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+# Optional shared secret for POST /tickers. Unset -> POST is open (like the other
+# write route, PUT /balance/virtual); set TICKERS_WRITE_KEY and send it as X-API-Key.
+TICKERS_WRITE_KEY = os.getenv("TICKERS_WRITE_KEY") or None
+
+
+class TickerIn(BaseModel):
+    symbol: str = Field(..., description='Binance symbol, e.g. "BTCUSDT"')
+    pair_type: str = Field("filtered", description='travis pair type, e.g. "filtered" or "newcomer"')
+
+    @field_validator("symbol")
+    @classmethod
+    def _symbol(cls, v: str) -> str:
+        v = v.strip().upper()
+        if not _SYMBOL_RE.match(v):
+            raise ValueError(f"invalid symbol {v!r} (expected 2-20 chars A-Z0-9, e.g. BTCUSDT)")
+        return v
+
+    @field_validator("pair_type")
+    @classmethod
+    def _pair_type(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _PAIR_TYPE_RE.match(v):
+            raise ValueError(f"invalid pair_type {v!r}")
+        return v
+
+
+class SetTickersRequest(BaseModel):
+    # Bare strings are accepted too: ["BTCUSDT", {"symbol": "ETHUSDT", "pair_type": "newcomer"}]
+    tickers: List[Union[TickerIn, str]] = Field(..., min_length=1, max_length=2000)
+
+
+class TickerOut(BaseModel):
+    symbol: str
+    pair_type: str
+
+
+class TickersResponse(BaseModel):
+    scan_id: Optional[int] = None
+    scanned_at: Optional[datetime] = None   # naive local time of the scanner host
+    count: int
+    tickers: List[TickerOut]
+
+
+@app.get("/tickers", response_model=TickersResponse, summary="Tickers edge-scanner is scanning (latest scan)")
+async def get_tickers(pair_type: Optional[str] = Query(None, description="Only this pair type, e.g. filtered")):
+    """Pairs of the most recent row of scanner_results_l1 (what edge-scanner watches).
+    Empty list when no scan has been stored yet."""
+    try:
+        db = await _get_db()
+        scan = await db.get_scan_tickers()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not read tickers: {e}")
+    if scan is None:
+        return TickersResponse(count=0, tickers=[])
+    tickers = scan["tickers"]
+    if pair_type:
+        tickers = [t for t in tickers if t["pair_type"] == pair_type.strip().lower()]
+    return TickersResponse(
+        scan_id=scan["scan_id"], scanned_at=scan["scanned_at"], count=len(tickers),
+        tickers=[TickerOut(**t) for t in tickers],
+    )
+
+
+@app.post("/tickers", response_model=TickersResponse, summary="Set the tickers edge-scanner should scan (replaces the list)")
+async def set_tickers(body: SetTickersRequest, x_api_key: Optional[str] = Header(None)):
+    """Stores `tickers` as a NEW scan row, which becomes the latest scan and so the
+    complete watch list: pairs not in the request stop being watched (after
+    edge-scanner's grace period). Duplicates are collapsed (first wins).
+    Send the FULL desired set every time, not a delta."""
+    if TICKERS_WRITE_KEY and x_api_key != TICKERS_WRITE_KEY:
+        raise HTTPException(status_code=401, detail="Missing or invalid X-API-Key")
+
+    unique: Dict[str, str] = {}
+    try:
+        for item in body.tickers:
+            t = item if isinstance(item, TickerIn) else TickerIn(symbol=item)
+            unique.setdefault(t.symbol, t.pair_type)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    rows = [{"symbol": sym, "pair_type": pt} for sym, pt in unique.items()]
+
+    try:
+        db = await _get_db()
+        saved = await db.insert_scan_tickers(rows)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not store tickers: {e}")
+    print(f"💾 POST /tickers: scan #{saved['scan_id']} stored with {len(rows)} tickers", file=sys.stderr)
+    return TickersResponse(
+        scan_id=saved["scan_id"], scanned_at=saved["scanned_at"], count=len(rows),
+        tickers=[TickerOut(**r) for r in rows],
     )
 
 
