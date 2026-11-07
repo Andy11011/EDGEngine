@@ -9,9 +9,9 @@ gone from /active_trades) with no regression of the double-stop bug.
 
 WHAT THIS TEST CHECKS, END TO END:
   1. The app is healthy (Postgres connected, virtual node's Nautilus trader
-     running, virtual node's own SQS connectivity reported ok) before doing
+     running, the shared trade-events queue reported connected) before doing
      anything else.
-  2. A message sent to the virtual node's queue is picked up by the node.
+  2. A message sent to the trade-events queue is picked up by the node.
      (SNS topic / subscription filter routing is NOT covered here: the
      message goes directly to the queue.)
   3. The node starts a TradeStrategy for the trade and accepts the entry
@@ -79,8 +79,10 @@ AWS_REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
 # ElasticMQ, published on the CI host by the buildspec (-p 9324:9324). The
 # nodes reach the same server as http://sqs-ci:9324 over the docker network;
 # the queue is looked up BY NAME so the differing host in the URL doesn't matter.
+# There is ONE trade-events queue (shared by the nodes), named "trade-events".
+# SQS_VIRTUAL_QUEUE_NAME is still honoured as a fallback for old CI configs.
 SQS_ENDPOINT_URL = os.environ.get("SQS_ENDPOINT_URL", "http://localhost:9324")
-QUEUE_NAME = os.environ.get("SQS_VIRTUAL_QUEUE_NAME", "trade-events-virtual")
+QUEUE_NAME = os.environ.get("SQS_QUEUE_NAME") or os.environ.get("SQS_VIRTUAL_QUEUE_NAME") or "trade-events"
 # Set to 1 if sqs.parse_event() expects the SNS envelope
 # ({"Type": "Notification", "Message": "<json>", ...}) instead of the bare payload.
 WRAP_SNS_ENVELOPE = os.environ.get("SQS_WRAP_SNS_ENVELOPE", "0") == "1"
@@ -90,9 +92,9 @@ CONTAINER_NAME = "binance-virtual-mainnet-node"
 
 TEST_TICKER = "ATMUSDT.BINANCE"
 TEST_SIDE = "BUY"
-TEST_TP = 0.808
-TEST_EP = 0.775
-TEST_SL = 0.757
+TEST_TP = 0.817
+TEST_EP = 0.771
+TEST_SL = 0.761
 
 # Mirrors the seed row inserted by trades_db_async.py's CREATE TABLE
 # IF NOT EXISTS / INSERT ... ON CONFLICT DO NOTHING for trades_config.
@@ -135,9 +137,9 @@ def expected_position_size(equity, risk_ratio, entry_price, stop_loss_price):
 
 def wait_for_healthy(timeout=120, interval=2):
     """Waits for postgres connected, the virtual node's trader running, and
-    the virtual node's own SQS connectivity ok. (The top-level 'status' is
-    also 'ok' with just this node up, but checking the node directly keeps
-    the failure message specific.)"""
+    the trade-events queue connected. (The top-level 'status' is also 'ok'
+    with just this node up, but checking the dependencies directly keeps the
+    failure message specific.)"""
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -147,7 +149,7 @@ def wait_for_healthy(timeout=120, interval=2):
                 if (
                     deps.get("postgres", {}).get("status") == "connected"
                     and deps.get("nautilus_virtual", {}).get("trader_running") is True
-                    and deps.get("sqs_virtual", {}).get("status") == "connected"
+                    and deps.get("sqs", {}).get("status") == "connected"
                 ):
                     return True
         except Exception:
@@ -287,7 +289,7 @@ def _sqs():
 
 
 def publish_event(body):
-    """Send the event straight to the virtual node's queue in ElasticMQ."""
+    """Send the event straight to the trade-events queue in ElasticMQ."""
     sqs = _sqs()
     queue_url = sqs.get_queue_url(QueueName=QUEUE_NAME)["QueueUrl"]
     message = json.dumps(body)

@@ -855,12 +855,19 @@ class TradeEventsDB:
             name = str(item.get("pair_name", "")).strip().upper()
             if name and name not in seen:
                 seen.add(name)
-                tickers.append({"symbol": name, "pair_type": str(item.get("pair_type", "")).lower()})
+                tickers.append({
+                    "symbol": name,
+                    "pair_type": str(item.get("pair_type", "")).lower(),
+                    "color": item.get("color"),
+                })
         return {"scan_id": row["id"], "scanned_at": row["timestamp"], "tickers": tickers}
 
     async def insert_scan_tickers(self, tickers: List[Dict[str, str]]) -> Dict[str, Any]:
         """Append a new scan row (becomes the latest one => the new watch list)."""
-        payload = json.dumps([{"pair_name": t["symbol"], "pair_type": t["pair_type"]} for t in tickers])
+        payload = json.dumps([
+            {"pair_name": t["symbol"], "pair_type": t["pair_type"], **({"color": t["color"]} if t.get("color") else {})}
+            for t in tickers
+        ])
         now = datetime.now()   # naive local time, same convention as travis' Scanner.py
         async with self.pool.acquire() as conn:
             row_id = await conn.fetchval(

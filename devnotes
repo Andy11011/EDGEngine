@@ -1342,3 +1342,22 @@ BNB_USDT_FALLBACK_PRICE
 
   git push -u origin main
   gh workflow run docker.yml --ref main -f smoke_and_deploy_edgenode=true
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+
+tests/test_health.py::test_health_ok PASSED                              [ 16%]
+tests/test_health.py::test_health_structure FAILED                       [ 33%]
+tests/test_health.py::test_health_virtual_node_connected FAILED          [ 50%]
+tests/test_balances.py::test_virtual_balance_available PASSED            [ 66%]
+tests/test_balances.py::test_mainnet_balance_unavailable_without_real_node PASSED [ 83%]
+tests/test_open_and_close_virtual.py::test_open_then_cancel_trade_lifecycle_virtual FAILED [100%]
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+EDGE_NODE_URL: for example https://qu6siy5a99.execute-api.ap-southeast-1.amazonaws.com/edge-node. 
+It must be set, or the indicator shows “Sync off”.

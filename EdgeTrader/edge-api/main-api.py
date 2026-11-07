@@ -707,6 +707,7 @@ async def get_stats(
 # ---------------------------------------------------------------------------
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,20}$")
 _PAIR_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+_COLOR_RE = re.compile(r"^[a-z]{1,16}$")
 # Optional shared secret for POST /tickers. Unset -> POST is open (like the other
 # write route, PUT /balance/virtual); set TICKERS_WRITE_KEY and send it as X-API-Key.
 TICKERS_WRITE_KEY = os.getenv("TICKERS_WRITE_KEY") or None
@@ -715,6 +716,7 @@ TICKERS_WRITE_KEY = os.getenv("TICKERS_WRITE_KEY") or None
 class TickerIn(BaseModel):
     symbol: str = Field(..., description='Binance symbol, e.g. "BTCUSDT"')
     pair_type: str = Field("filtered", description='travis pair type, e.g. "filtered" or "newcomer"')
+    color: Optional[str] = Field(None, description='travis watchlist colour ("green", "yellow", "red", "blue", "default"); kept so the scanner dashboard can show it')
 
     @field_validator("symbol")
     @classmethod
@@ -733,6 +735,17 @@ class TickerIn(BaseModel):
         return v
 
 
+    @field_validator("color")
+    @classmethod
+    def _color(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if not _COLOR_RE.match(v):
+            raise ValueError(f"invalid color {v!r}")
+        return v
+
+
 class SetTickersRequest(BaseModel):
     # Bare strings are accepted too: ["BTCUSDT", {"symbol": "ETHUSDT", "pair_type": "newcomer"}]
     tickers: List[Union[TickerIn, str]] = Field(..., min_length=1, max_length=2000)
@@ -741,6 +754,7 @@ class SetTickersRequest(BaseModel):
 class TickerOut(BaseModel):
     symbol: str
     pair_type: str
+    color: Optional[str] = None
 
 
 class TickersResponse(BaseModel):
@@ -779,14 +793,14 @@ async def set_tickers(body: SetTickersRequest, x_api_key: Optional[str] = Header
     if TICKERS_WRITE_KEY and x_api_key != TICKERS_WRITE_KEY:
         raise HTTPException(status_code=401, detail="Missing or invalid X-API-Key")
 
-    unique: Dict[str, str] = {}
+    unique: Dict[str, TickerIn] = {}
     try:
         for item in body.tickers:
             t = item if isinstance(item, TickerIn) else TickerIn(symbol=item)
-            unique.setdefault(t.symbol, t.pair_type)
+            unique.setdefault(t.symbol, t)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    rows = [{"symbol": sym, "pair_type": pt} for sym, pt in unique.items()]
+    rows = [{"symbol": t.symbol, "pair_type": t.pair_type, "color": t.color} for t in unique.values()]
 
     try:
         db = await _get_db()
