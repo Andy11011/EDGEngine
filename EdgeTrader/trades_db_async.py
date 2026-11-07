@@ -214,6 +214,17 @@ class TradeEventsDB:
                     processed_at TIMESTAMP
                 )
             """)
+
+            # 7. scanner_results_l1 — the scanner watch list, POSTed by TravisScanner
+            #    via edge-api's POST /tickers (it used to write PSM directly). One row
+            #    per scan; newest row = current watch list.
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS scanner_results_l1 (
+                    id BIGSERIAL PRIMARY KEY,
+                    result JSONB NOT NULL,
+                    timestamp TIMESTAMP NOT NULL
+                )
+            """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_cancel_requests_pending ON cancel_requests(target, processed)")
             # Why the cancel was asked for (e.g. 'scanner_ob_crossover') and the
             # context (the scanner signal). NULL for requests made without them.
