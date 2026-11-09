@@ -60,6 +60,7 @@ from common_tasks import heartbeat_loop, cancel_requests_loop
 from scanner_signals import ENV_QUEUE_URL as SCANNER_QUEUE_ENV, listen_scanner_signals
 
 from position_sizing import PositionSizingError, calculate_position_size
+from rdyn_sizing import resolve_risk_ratio
 from trade_strategy import TradeStrategy, TradeStrategyConfig
 from trades_db_async import TradeEventsDB
 
@@ -226,9 +227,17 @@ async def listen_trade_events(
                     try:
                         sizing_config = await db.get_trades_config()
                         equity = sizing_config["virtual_balance_usdt"]
+                        # Risk per trade = Rdyn of this node's year-to-date track record,
+                        # computed now; falls back to trades_config.risk_ratio on any problem.
+                        risk = await resolve_risk_ratio(db, TARGET, equity, sizing_config["risk_ratio"])
+                        print(
+                            f"📐 [msg {msg_id}] risk_ratio={risk.risk_ratio:.6f} ({risk.source}"
+                            f"{': ' + risk.detail if risk.detail else ''})",
+                            file=sys.stderr,
+                        )
                         computed_size = calculate_position_size(
                             equity=equity,
-                            risk_ratio=sizing_config["risk_ratio"],
+                            risk_ratio=risk.risk_ratio,
                             entry_price=float(ep),
                             stop_loss_price=float(sl),
                         )
