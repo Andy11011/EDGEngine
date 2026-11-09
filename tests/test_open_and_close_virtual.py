@@ -105,6 +105,13 @@ TEST_SL = 0.692
 DEFAULT_RISK_RATIO = 0.001
 DEFAULT_VIRTUAL_BALANCE_USDT = 500
 
+# rdyn_from_cagr(0.0) with the default curve (r_min=0.1, r_max=1.0,
+# c_mid=2.5, k=1.5). A fresh CI DB has zero closed trades, so cagr_raw=0.0
+# and RDYN_MIN_TRADES=0 lets the Rdyn path size the order at 0.12068 %
+# instead of the static 0.1 %. If the curve defaults or RDYN_MIN_TRADES
+# change, update this constant.
+DEFAULT_RDYN_PCT = 0.12068
+
 # The node's trade_id scheme, as observed in the container logs:
 #     <ticker>_<YYYYMMDD>T<HHMMSSmmm>_<target>
 # e.g. ATMUSDT.BINANCE_20261029T035846747_virtual
@@ -388,7 +395,7 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
     # the known default config so we can assert an exact expected size.
     expected_size = expected_position_size(
         equity=DEFAULT_VIRTUAL_BALANCE_USDT,
-        risk_ratio=DEFAULT_RISK_RATIO,
+        risk_ratio=DEFAULT_RDYN_PCT / 100.0,
         entry_price=TEST_EP,
         stop_loss_price=TEST_SL,
     )

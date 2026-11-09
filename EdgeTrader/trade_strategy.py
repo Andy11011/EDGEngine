@@ -43,6 +43,9 @@ PROTECTION_CANCEL_TIMEOUT_S = 15.0
 REASON_TARGET_BEFORE_FILL = "target_before_fill"   # target reached while the entry was still pending
 REASON_BE_EXIT = "be_market_exit"                  # break-even due but price already on the wrong side of EP
 REASON_BE_FAILED = "be_sl_failed_exit"             # the break-even SL could not be placed -> exit at market
+REASON_PRICE_BEYOND_SL = "price_beyond_sl"         # entry skipped: price already at/through the stop-loss
+REASON_NO_ENTRY_PRICE = "no_price_for_entry_check" # entry skipped: no quote arrived (only if EDGE_ENTRY_ON_NO_PRICE=cancel)
+REASON_PROTECTION_FAILED = "protection_failed_exit"  # SL/TP rejected after the entry filled -> exit at market
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -53,6 +56,14 @@ def _env_bool(name: str, default: bool) -> bool:
 DEFAULT_CANCEL_ON_TARGET = _env_bool("EDGE_CANCEL_ON_TARGET", True)
 DEFAULT_BREAK_EVEN = _env_bool("EDGE_BREAK_EVEN", True)
 DEFAULT_BE_CANDLES = int(os.getenv("EDGE_BE_CANDLES", "6"))   # same default as beCandlesToWait in LevelsBot_v1_0_7.pine
+
+# Pre-entry price check (see "Pre-entry price check" below).
+ENTRY_PRICE_CHECK = _env_bool("EDGE_ENTRY_PRICE_CHECK", True)                       # master switch
+ENTRY_PRICE_WAIT_S = float(os.getenv("EDGE_ENTRY_PRICE_WAIT_SECONDS", "5"))         # max wait for the first quote
+ENTRY_QUOTE_MAX_AGE_S = float(os.getenv("EDGE_ENTRY_QUOTE_MAX_AGE_SECONDS", "5"))   # a cached quote older than this is ignored
+ENTRY_ON_NO_PRICE = os.getenv("EDGE_ENTRY_ON_NO_PRICE", "submit").strip().lower()   # no quote in time: "submit" (old behaviour) | "cancel"
+MARKETABLE_ENTRY = os.getenv("EDGE_MARKETABLE_ENTRY", "limit").strip().lower()      # entry at/through the touch: keep the limit ("limit",
+                                                                                    # fills at the touch, price capped at EP) | "market"
 
 
 # ----------------------------------------------------------------------
@@ -142,6 +153,14 @@ class OrderManagementSM:
         if self.state != TradeState.PROTECTING:
             raise ValueError(f"protection_placed only from PROTECTING, not {self.state}")
         self.state = TradeState.IN_POSITION
+
+    def protection_failed(self) -> None:
+        """An SL/TP order was rejected/denied after the entry filled. The position exists but is
+        not (fully) protected: treat it as open so it can be exited at market."""
+        if self.state != TradeState.PROTECTING:
+            raise ValueError(f"protection_failed only from PROTECTING, not {self.state}")
+        self.state = TradeState.IN_POSITION
+        self.extra_data["protection_failed"] = True
 
     def protection_filled(self) -> None:
         """Protection order (SL/TP) filled → position closed."""
@@ -288,6 +307,16 @@ class TradeStrategy(Strategy):
         # Feature 1 state
         self._started_ns: int = 0
         self._target_cancel_fired = False
+
+        # Pre-entry price check state
+        self._awaiting_entry_price = False
+        self._entry_submitted = False
+        self._entry_gate_timer: Optional[asyncio.TimerHandle] = None
+        self._entry_check_meta: Dict[str, Any] = {}
+        self._gate_quotes_subscribed = False
+
+        # Set when an SL/TP order is rejected/denied while the position is being protected
+        self._protection_failure: Optional[str] = None
 
         # Feature 2 state (break-even)
         self._entry_fill_px: Optional[float] = None
@@ -514,6 +543,12 @@ class TradeStrategy(Strategy):
             # quickly (bars alone could be up to one bar late). Dropped after the fill.
             self.subscribe_trade_ticks(self.config.instrument_id)
 
+        if ENTRY_PRICE_CHECK and self.config.target != "virtual":
+            # Real node: quotes are only needed once, to check the price before the entry is
+            # sent (the virtual node is subscribed to them above). Dropped right after.
+            self.subscribe_quote_ticks(self.config.instrument_id)
+            self._gate_quotes_subscribed = True
+
         instrument = self.cache.instrument(self.config.instrument_id)
         if instrument is None:
             # Can't size/price an order without instrument metadata (precision,
@@ -532,10 +567,144 @@ class TradeStrategy(Strategy):
             self._finalize_and_stop()
             return
 
+        # The entry is sent by _release_entry(), after the pre-entry price check.
+        self._start_entry_gate()
+
+    # ---------- Pre-entry price check ----------
+    #
+    # Before the entry order is sent, look at the live bid/ask (long; short mirrors it):
+    #   * bid <= SL     -> do not enter, cancel_reason "price_beyond_sl". The venue would refuse the
+    #                      SL ("would trigger immediately") and the position would sit unprotected.
+    #   * bid >= TP     -> do not enter, cancel_reason "target_before_fill" (same reason as Feature 1,
+    #                      so only while that feature is enabled for the trade).
+    #   * EP >= ask     -> the limit entry is marketable: accepted, it fills right away at the market
+    #                      (price capped at EP; EDGE_MARKETABLE_ENTRY=market sends a market order instead).
+    # Needs a fresh quote: waits up to EDGE_ENTRY_PRICE_WAIT_SECONDS for the first quote tick.
+    # If none arrives, EDGE_ENTRY_ON_NO_PRICE decides: "submit" (default, as before) or "cancel".
+
+    def _start_entry_gate(self) -> None:
+        if not ENTRY_PRICE_CHECK:
+            self._release_entry(None)
+            return
+
+        tick = self.cache.quote_tick(self.config.instrument_id)
+        if tick is not None:
+            age_s = (self.clock.timestamp_ns() - int(tick.ts_init)) / 1e9
+            if age_s <= ENTRY_QUOTE_MAX_AGE_S:
+                self._on_entry_price(float(tick.bid_price), float(tick.ask_price), "cached_quote")
+                return
+
+        self._awaiting_entry_price = True
+        self._entry_gate_timer = asyncio.get_running_loop().call_later(
+            ENTRY_PRICE_WAIT_S, self._on_entry_gate_timeout
+        )
+
+    def _on_entry_gate_timeout(self) -> None:
+        if not self._awaiting_entry_price:
+            return
+        self._awaiting_entry_price = False
+        self._entry_gate_timer = None
+        if ENTRY_ON_NO_PRICE == "cancel":
+            self.log.warning(
+                f"No quote within {ENTRY_PRICE_WAIT_S:.0f}s for {self.config.trade_id}; cancelling the entry"
+            )
+            self._release_entry(REASON_NO_ENTRY_PRICE, {"waited_s": ENTRY_PRICE_WAIT_S})
+        else:
+            self.log.warning(
+                f"No quote within {ENTRY_PRICE_WAIT_S:.0f}s for {self.config.trade_id}; "
+                f"entering WITHOUT the price check"
+            )
+            self._release_entry(None)
+
+    def _on_entry_price(self, bid: float, ask: float, source: str) -> None:
+        """First usable quote: decide whether to enter."""
+        self._awaiting_entry_price = False
+        if self._entry_gate_timer is not None:
+            self._entry_gate_timer.cancel()
+            self._entry_gate_timer = None
+
+        long = self._is_long()
+        sl, tp, ep = self.config.sl_price, self.config.tp_price, self.config.entry_price
+        exit_px = bid if long else ask       # where an exit would trade (same convention as on_quote_tick)
+        details = {"bid": bid, "ask": ask, "ep": ep, "sl": sl, "tp": tp, "source": source}
+
+        if sl is not None and (exit_px <= sl if long else exit_px >= sl):
+            self.log.info(f"⛔ {self.config.trade_id}: price {exit_px} already through the SL {sl}; not entering")
+            self._release_entry(REASON_PRICE_BEYOND_SL, details)
+            return
+
+        if self._watch_target_before_fill() and self._target_reached(exit_px, exit_px):
+            self.log.info(f"🎯 {self.config.trade_id}: price {exit_px} already at the target {tp}; not entering")
+            self._release_entry(REASON_TARGET_BEFORE_FILL, details)
+            return
+
+        marketable = ep is not None and (ep >= ask if long else ep <= bid)
+        self._entry_check_meta = {**details, "marketable": marketable}
+        if marketable:
+            self.log.info(
+                f"⚡ {self.config.trade_id}: entry {ep} is at/through the touch (bid {bid} / ask {ask}); "
+                f"it fills right away at the market"
+            )
+        self._release_entry(None, marketable=marketable)
+
+    def _release_entry(
+        self,
+        cancel_reason: Optional[str],
+        details: Optional[Dict[str, Any]] = None,
+        marketable: bool = False,
+    ) -> None:
+        """Gate resolved: either cancel the trade before any order was sent, or send the entry."""
+        if self.sm.state != TradeState.PLACING_ENTRY or self._entry_submitted:
+            return
+        self._finish_entry_gate()
+
+        if cancel_reason is None and self._exit_request is not None:
+            # A cancel arrived while we were waiting for the price (edge-api, scanner, target watch):
+            # honour it and send nothing. CancelRequested was already recorded.
+            self.log.info(f"Cancel requested before the entry was sent for {self.config.trade_id}; not entering")
+            self.sm.entry_rejected(reason=self._exit_request[0] or "entry_cancelled")
+            self._finalize_and_stop()
+            return
+
+        if cancel_reason is not None:
+            self._emit(
+                "CancelRequested",
+                metadata={"state": TradeState.PLACING_ENTRY.name, "reason": cancel_reason, "details": details or {}},
+            )
+            self.sm.entry_rejected(reason=cancel_reason)   # PLACING_ENTRY -> CANCELING; nothing was sent
+            self._finalize_and_stop()
+            return
+
+        self._submit_entry(marketable)
+
+    def _finish_entry_gate(self) -> None:
+        self._awaiting_entry_price = False
+        if self._entry_gate_timer is not None:
+            self._entry_gate_timer.cancel()
+            self._entry_gate_timer = None
+        if self._gate_quotes_subscribed:
+            self._gate_quotes_subscribed = False
+            try:
+                self.unsubscribe_quote_ticks(self.config.instrument_id)
+            except Exception:
+                pass
+
+    def _submit_entry(self, marketable: bool) -> None:
+        if self._entry_submitted:
+            return
+        instrument = self.cache.instrument(self.config.instrument_id)
+        if instrument is None:
+            self.log.error(f"No instrument found in cache for {self.config.instrument_id}; cannot enter")
+            self.sm.force_cancel(reason="instrument_not_found")
+            self._finalize_and_stop()
+            return
+        self._entry_submitted = True
+
         side = OrderSide.BUY if self.config.side.upper() == "BUY" else OrderSide.SELL
         quantity = instrument.make_qty(self.config.size)
 
-        if self.config.entry_price is not None:
+        as_limit = self.config.entry_price is not None and not (marketable and MARKETABLE_ENTRY == "market")
+        if as_limit:
             entry_order = self.order_factory.limit(
                 instrument_id=self.config.instrument_id,
                 order_side=side,
@@ -569,7 +738,10 @@ class TradeStrategy(Strategy):
         via on_order_accepted(); this is just a log/telemetry hook."""
         self.log.debug(f"Order submitted: {event.client_order_id}")
         if self._is_entry_order(event):
-            self._emit("EntrySubmitted", metadata=self._order_meta(event, "entry"))
+            meta = self._order_meta(event, "entry")
+            if self._entry_check_meta:
+                meta["entry_check"] = self._entry_check_meta   # bid/ask seen right before the entry was sent
+            self._emit("EntrySubmitted", metadata=meta)
 
     def on_order_accepted(self, event: OrderAccepted) -> None:
         """Venue confirmed the order is live."""
@@ -600,9 +772,12 @@ class TradeStrategy(Strategy):
                 metadata=self._order_meta(event, role),
             )
             if not self._pending_protection_ids and self.sm.needs_protection():
-                self.sm.protection_placed()
-                self.log.info(f"🛡️ Protection orders live for {self.config.trade_id}")
-                self._apply_exit_request()  # an exit may have arrived while SL/TP were being placed
+                if self._protection_failure is not None:
+                    self._exit_after_protection_failure()   # the other protection order was rejected
+                else:
+                    self.sm.protection_placed()
+                    self.log.info(f"🛡️ Protection orders live for {self.config.trade_id}")
+                    self._apply_exit_request()  # an exit may have arrived while SL/TP were being placed
 
     def on_order_filled(self, event: OrderFilled) -> None:
         """Called when any order fills."""
@@ -668,8 +843,10 @@ class TradeStrategy(Strategy):
         elif self._is_entry_order(event):
             self.sm.entry_rejected(reason=event.reason)
             self._finalize_and_stop()
+        elif self._on_protection_order_failed(event, "rejected", str(event.reason)):
+            pass    # SL/TP refused after the fill: the position is exited at market (see there)
         else:
-            # A protection or close order got rejected mid-flight. Rather
+            # A close (or unknown) order got rejected mid-flight. Rather
             # than leave the trade stuck, treat it as an emergency cancel —
             # a human/ops process should reconcile the resulting position
             # manually (this SM has no automatic retry logic yet).
@@ -701,8 +878,10 @@ class TradeStrategy(Strategy):
         elif self._is_entry_order(event):
             self.sm.entry_rejected(reason=event.reason)
             self._finalize_and_stop()
+        elif self._on_protection_order_failed(event, "denied", str(event.reason)):
+            pass    # SL/TP denied after the fill: the position is exited at market (see there)
         else:
-            # A protection or close order got denied mid-flight — same
+            # A close (or unknown) order got denied mid-flight — same
             # reasoning as the equivalent branch in on_order_rejected: treat
             # it as an emergency cancel rather than leaving the trade stuck.
             self.sm.force_cancel(reason=f"order_denied:{event.client_order_id}")
@@ -796,6 +975,33 @@ class TradeStrategy(Strategy):
         self._pending_protection_ids = set(pending.keys())
         for order in pending.values():
             self.submit_order(order)
+
+    def _on_protection_order_failed(self, event, kind: str, reason: str) -> bool:
+        """An SL/TP order was rejected/denied while the position is being protected (state PROTECTING).
+
+        The entry is already filled, so force-cancelling would leave an unprotected position behind.
+        Instead: wait until the other protection order (if any) is settled too, then cancel whatever
+        is resting and exit at market. Returns False if this is not that situation."""
+        if not (self._is_protection_order(event) and self.sm.needs_protection()):
+            return False
+        coid = str(event.client_order_id)
+        self._pending_protection_ids.discard(coid)
+        self._protection_failure = f"{self._order_role(coid)} {kind}: {reason}"
+        self.log.error(f"❌ Protection failed for {self.config.trade_id}: {self._protection_failure}")
+        if not self._pending_protection_ids:
+            self._exit_after_protection_failure()
+        return True
+
+    def _exit_after_protection_failure(self) -> None:
+        """All protection orders are settled and at least one failed: leave the position at market."""
+        self.log.error(
+            f"🚨 {self.config.trade_id}: protection failed ({self._protection_failure}); exiting at market"
+        )
+        self.sm.protection_failed()          # PROTECTING -> IN_POSITION
+        if self._exit_request is not None:
+            self._apply_exit_request()       # an exit was already requested: it carries its own reason
+        else:
+            self.request_close(reason=REASON_PROTECTION_FAILED)
 
     def _cancel_sibling_protection_order(self, filled_event: OrderFilled) -> None:
         """Cancel whichever SL/TP order did NOT just fill.
@@ -1057,6 +1263,10 @@ class TradeStrategy(Strategy):
         self._maybe_cancel_on_target(px, px, "trade_tick")
 
     def on_quote_tick(self, tick: QuoteTick) -> None:
+        if self._awaiting_entry_price:
+            self._on_entry_price(float(tick.bid_price), float(tick.ask_price), "quote_tick")
+            if self.sm.is_terminal():
+                return
         # BUY target is hit by the bid reaching it, SELL target by the ask.
         if self.config.side.upper() == "BUY":
             px = float(tick.bid_price)

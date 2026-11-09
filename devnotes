@@ -1381,3 +1381,14 @@ containers and pytest get:
 
 EDGE_NODE_URL: for example https://qu6siy5a99.execute-api.ap-southeast-1.amazonaws.com/edge-node. 
 It must be set, or the indicator shows “Sync off”.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+>       assert trade["size"] == pytest.approx(expected_size)
+E       assert 40.22654430634098 == 33.33333333333331 ± 3.3e-05
+E
+E         comparison failed
+E         Obtained: 40.22654430634098
+E         Expected: 33.33333333333331 ± 3.3e-05
