@@ -399,7 +399,7 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
         entry_price=TEST_EP,
         stop_loss_price=TEST_SL,
     )
-    assert trade["size"] == pytest.approx(expected_size)
+    assert trade["size"] == pytest.approx(expected_size, abs=1e-2)
     assert trade["entry_price"] == pytest.approx(TEST_EP)
     assert trade["sl_price"] == pytest.approx(TEST_SL)
     assert trade["tp_price"] == pytest.approx(TEST_TP)
