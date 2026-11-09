@@ -18,8 +18,11 @@ Placeholders available in ACTION_TEMPLATES
 
 Extra placeholders in RESULT_TEMPLATES
 --------------------------------------
-{result_dot} {net_pnl} {gross_pnl} {roi} {fees} {duration} {close_reason}
+{result_dot} {pnl} {fees} {net_pnl} {roi} {duration} {close_reason}
 {cancel_reason} {notes}
+
+{pnl} is before fees, {fees} is shown negative, {net_pnl} = pnl + fees (labelled
+"Total PnL" in the messages), {roi} is on pnl.
 
 {tag} is "[REAL]" or "[VIRTUAL]". Numbers are pre-formatted (see _fmt_*).
 """
@@ -60,20 +63,22 @@ ACTION_TEMPLATES: Dict[str, Optional[str]] = {
 RESULT_TEMPLATES: Dict[str, str] = {
     "win": (
         "{result_dot} {tag} <b>{ticker}</b> {side}: <b>WIN</b>\n"
-        "PnL: <b>{net_pnl} USDT</b> (ROI {roi}%)\n"
-        "Gross {gross_pnl} | Fees {fees} USDT | Held {duration}\n"
-        "Exit: {close_reason}"
+        "PnL: <b>{pnl} USDT</b> (ROI {roi}%)\n"
+        "Fees: {fees} USDT\n"
+        "Total PnL: <b>{net_pnl} USDT</b>\n"
+        "Held {duration} | Exit: {close_reason}"
     ),
     "loss": (
         "{result_dot} {tag} <b>{ticker}</b> {side}: <b>LOSS</b>\n"
-        "PnL: <b>{net_pnl} USDT</b> (ROI {roi}%)\n"
-        "Gross {gross_pnl} | Fees {fees} USDT | Held {duration}\n"
-        "Exit: {close_reason}"
+        "PnL: <b>{pnl} USDT</b> (ROI {roi}%)\n"
+        "Fees: {fees} USDT\n"
+        "Total PnL: <b>{net_pnl} USDT</b>\n"
+        "Held {duration} | Exit: {close_reason}"
     ),
-    # Closed, but PnL could not be computed honestly (e.g. BNB fee w/o rate)
+    # Closed, but PnL could not be computed (missing prices / size)
     "closed_unknown": (
         "{result_dot} {tag} <b>{ticker}</b> {side}: closed, PnL unavailable\n"
-        "Gross {gross_pnl} | Held {duration} | Exit: {close_reason}\n"
+        "Held {duration} | Exit: {close_reason}\n"
         "{notes}"
     ),
     # Cancelled before any fill: we were never in the trade
@@ -178,15 +183,16 @@ def render_result(ev: Dict[str, Any], trade: Optional[Dict[str, Any]], metrics: 
         return _render(RESULT_TEMPLATES["unavailable"], values)
 
     values.update(
-        gross_pnl=_signed(metrics.gross_pnl),
+        pnl=_signed(metrics.pnl),
+        fees=_signed(-metrics.fee_usdt if metrics.fee_usdt else 0.0),   # shown negative
+        net_pnl=_signed(metrics.net_pnl),                               # "n/a" if fees unpriced
         duration=_duration(metrics.duration_s),
-        fees=_num(metrics.fee_usdt),
         notes="; ".join(metrics.notes) or "",
     )
-    if metrics.net_pnl is None:
+    if metrics.pnl is None:
         return _render(RESULT_TEMPLATES["closed_unknown"], values)
 
-    values.update(net_pnl=_signed(metrics.net_pnl), roi=_signed(metrics.roi_pct))
+    values["roi"] = _signed(metrics.roi_pct)
     if metrics.win:
         values["result_dot"] = DOT_WIN
         return _render(RESULT_TEMPLATES["win"], values)

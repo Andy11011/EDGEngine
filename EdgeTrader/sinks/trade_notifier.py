@@ -105,6 +105,7 @@ class TradeNotifier:
             ev["event_type"] == "Closed"
             and trade is not None
             and metrics is not None
+            and metrics.pnl is not None
             and trade.get("entry_fill_price") is not None
         ):
             await self._write_sheet(ev, trade, metrics)
@@ -132,7 +133,7 @@ class TradeNotifier:
     def _sheet_row(ev: Dict[str, Any], trade: Dict[str, Any], m: Any) -> Dict[str, Any]:
         return {
             "win_lose": None if m.win is None else int(m.win),
-            "profit_trade": m.net_pnl,
+            "profit_trade": m.pnl,                 # before fees; fees have their own columns
             "total_fee_bnb": m.fee_bnb,
             "fee_usdt_equiv": m.fee_usdt,
             "virtual": 1 if m.target == "virtual" else 0,

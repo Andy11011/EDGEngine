@@ -65,7 +65,7 @@ VENUE = "binance"
 
 # Optional BNB/USDT rate used to value BNB-denominated fees when the fill events
 # themselves don't carry `bnb_usdt_price`. Unset -> BNB fees stay unpriced and the
-# trade's net_pnl / win / roi_pct are null instead of being guessed.
+# trade's net_pnl is null instead of being guessed (pnl / win / roi_pct do not depend on fees).
 _bnb_fallback_raw = os.getenv("BNB_USDT_FALLBACK_PRICE")
 BNB_USDT_FALLBACK: Optional[float] = float(_bnb_fallback_raw) if _bnb_fallback_raw else None
 
@@ -102,13 +102,13 @@ class TradeMetricsOut(BaseModel):
     ticker: str                         # instrument without the venue suffix
     side: str
     target: str
-    win: Optional[bool]                 # net_pnl > 0; null when net_pnl can't be determined
-    gross_pnl: Optional[float]          # (exit - entry fill) * size, sign-flipped for SELL; before fees
+    win: Optional[bool]                 # pnl > 0 (fees not included)
+    pnl: Optional[float]                # (exit - entry fill) * size, sign-flipped for SELL; before fees
     fee_usdt: float                     # fees paid in USDT (base-asset fees converted at fill price)
     fee_bnb: float                      # fees paid in BNB (native units)
     fee_bnb_usdt: Optional[float]       # BNB fees valued in USDT; null if no rate is known
-    net_pnl: Optional[float]            # gross_pnl - fee_usdt - fee_bnb_usdt
-    roi_pct: Optional[float]            # net_pnl / (entry fill * size) * 100
+    net_pnl: Optional[float]            # pnl - fee_usdt (BNB fees excluded); null if fees can't be priced
+    roi_pct: Optional[float]            # pnl / (entry fill * size) * 100 (before fees)
     duration_s: Optional[float]         # seconds in the position (filled_at -> finished_at)
     fills_complete: Optional[bool]      # False: recorded fills don't add up to size, fees may be understated
     notes: List[str] = []               # why a field is null / caveats
@@ -523,12 +523,13 @@ async def _load_year_stats(
         except Exception as e:
             print(f"⚠️ stats: metrics failed for {t.get('trade_id')}: {type(e).__name__}: {e}", file=sys.stderr)
             m = None
-        if m is None or m.net_pnl is None or t.get("finished_at") is None:
+        if m is None or m.pnl is None or t.get("finished_at") is None:
             excluded += 1
             continue
         closed.append(ClosedTrade(
             finished_at=t["finished_at"],
-            net_pnl=m.net_pnl,
+            pnl=m.pnl,
+            fees=m.fee_usdt,
             target=m.target,
         ))
 
@@ -552,7 +553,7 @@ async def _load_year_stats(
                 status_code=503,
                 detail="Real balance unavailable (no fresh heartbeat); pass ?start_equity=<USDT at the start of the year>",
             )
-        equity0 = float(hb["balance_usdt"]) - sum(c.net_pnl for c in closed)
+        equity0 = float(hb["balance_usdt"]) - sum(c.pnl - c.fees for c in closed)   # balance already has fees deducted
         source = "mainnet_balance_minus_ytd_pnl"
     else:  # target == "all"
         # Combined start_equity = virtual_start + real_start.
@@ -573,7 +574,7 @@ async def _load_year_stats(
                 detail="target=all needs a fresh real heartbeat and the virtual balance; "
                        "either wait for the real node or pass ?start_equity=<USDT at the start of the year>",
             )
-        real_pnl = sum(c.net_pnl for c in closed if c.target == "real")
+        real_pnl = sum(c.pnl - c.fees for c in closed if c.target == "real")   # balance already has fees deducted
         virtual_start = float(cfg["virtual_balance_usdt"])
         real_start = float(hb["balance_usdt"]) - real_pnl
         equity0 = virtual_start + real_start

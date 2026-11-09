@@ -19,7 +19,9 @@ which pool each trade came from so callers can partition when they need to.
 
 Definitions
 -----------
-    pnl_i        net PnL of the trade in USDT (trade_metrics.net_pnl)
+    pnl_i        PnL of the trade in USDT BEFORE fees (trade_metrics.pnl). Every
+                 statistic below is built on it; fees are only summed up for
+                 reporting (fees_usdt, net_pnl) and for rebuilding balances
     equity_i     start_equity + sum(pnl_1..pnl_i)
     roi_i        pnl_i / equity_(i-1)          (return on ACCOUNT equity before
                  the trade, like Day_Trading.gs: profit / previous balance — NOT
@@ -89,7 +91,8 @@ class ModeParams:
 @dataclass(frozen=True)
 class ClosedTrade:
     finished_at: datetime
-    net_pnl: float
+    pnl: float                  # USDT, before fees: drives every statistic
+    fees: float = 0.0           # USDT, positive; reporting / balance reconstruction only
     # Which execution path the trade ran on. Recorded here so callers that want
     # to split the portfolio (e.g. to compute a combined start_equity for
     # target=all) can partition without a second DB round-trip. Defaults to ""
@@ -101,8 +104,10 @@ class ClosedTrade:
 class PortfolioStats:
     trades_count: int
     wins: int
-    losses: int                       # net_pnl <= 0 (what feeds the loss-streak counter)
-    pnl: float                        # USDT
+    losses: int                       # pnl <= 0 (what feeds the loss-streak counter)
+    pnl: float                        # USDT, before fees
+    fees_usdt: float                  # USDT, positive
+    net_pnl: float                    # pnl - fees_usdt
     start_equity: float
     end_equity: float
     win_rate_pct: Optional[float]
@@ -195,9 +200,9 @@ def compute_portfolio_stats(
     real = True
 
     for t in ordered:
-        roi = t.net_pnl / equity if equity > 0 else -1.0
+        roi = t.pnl / equity if equity > 0 else -1.0
         rois.append(roi)
-        equity += t.net_pnl
+        equity += t.pnl
 
         if equity > peak:
             peak = equity
@@ -205,7 +210,7 @@ def compute_portfolio_stats(
         max_dd = max(max_dd, dd)
         max_dd_usdt = max(max_dd_usdt, peak - equity)
 
-        if t.net_pnl > 0:
+        if t.pnl > 0:
             wins += 1
             losing_streak = 0
         else:
@@ -220,6 +225,7 @@ def compute_portfolio_stats(
 
     n = len(ordered)
     pnl = equity - start_equity
+    fees_total = sum(t.fees for t in ordered)
 
     if n:
         first, last = ordered[0].finished_at, ordered[-1].finished_at
@@ -233,7 +239,7 @@ def compute_portfolio_stats(
     avg_gain = _mean(gains) if gains else 0.0
     avg_loss = _mean(losses) if losses else 0.0
 
-    pnls = [t.net_pnl for t in ordered]
+    pnls = [t.pnl for t in ordered]
     wins_pnl = [p for p in pnls if p > 0]
     losses_pnl = [p for p in pnls if p < 0]     # strictly negative (breakeven excluded)
     avg_win_usdt = _mean(wins_pnl) if wins_pnl else 0.0
@@ -258,6 +264,8 @@ def compute_portfolio_stats(
         wins=wins,
         losses=n - wins,
         pnl=pnl,
+        fees_usdt=fees_total,
+        net_pnl=pnl - fees_total,
         start_equity=start_equity,
         end_equity=equity,
         win_rate_pct=win_rate * 100 if win_rate is not None else None,

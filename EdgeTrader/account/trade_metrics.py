@@ -12,8 +12,9 @@ terminal_type, filled_at, finished_at) plus its `events` list.
 
 Definitions (all money in USDT, spot USDT-quoted instruments only):
 
-    gross_pnl  = direction * (exit_price - entry_fill_price) * size
+    pnl        = direction * (exit_price - entry_fill_price) * size
                  direction = +1 for BUY, -1 for SELL
+                 (BEFORE fees: this is the PnL every statistic is built on)
     fees       = every `metadata.commission` found on the trade's fill events,
                  split by currency:
                    USDT        -> fee_usdt
@@ -22,18 +23,21 @@ Definitions (all money in USDT, spot USDT-quoted instruments only):
                                   coin unless BNB-for-fees is on)
                    BNB         -> fee_bnb (native BNB), reported only and
                                   deliberately NOT part of net_pnl (see below)
-    net_pnl    = gross_pnl - fee_usdt
-    win        = net_pnl > 0            (NOT "take-profit hit": after fees a
-                                         tiny TP can still lose money)
-    roi_pct    = net_pnl / (entry_fill_price * size) * 100   (return on the
-                 entry notional; if you trade with leverage, ROI on margin
-                 would be a different number)
+                 fee_usdt is a positive number; it is subtracted to get net_pnl.
+    net_pnl    = pnl - fee_usdt         (what is left after fees; recomputable
+                 on the fly from pnl and fee_usdt, nothing else stores it)
+    win        = pnl > 0                (fees NOT considered: after fees a tiny
+                                         winner can still lose money; compare
+                                         net_pnl if you need that)
+    roi_pct    = pnl / (entry_fill_price * size) * 100   (return on the entry
+                 notional, before fees; if you trade with leverage, ROI on
+                 margin would be a different number)
     duration_s = finished_at - filled_at, i.e. time IN the position
                  (None if the entry never filled)
 
 BNB fees: ignored when calculating PnL by design. They are still summed into
 `fee_bnb` (native units) so they stay visible, but they are never converted
-to USDT, so a trade paying fees in BNB still gets a net_pnl / win / roi_pct.
+to USDT, so a trade paying fees in BNB still gets a net_pnl.
 `fee_bnb_usdt` is therefore always None. `bnb_usdt_fallback` is still accepted
 by compute_trade_metrics() for backward compatibility but has no effect.
 
@@ -63,13 +67,13 @@ class TradeMetrics:
     ticker: str                    # "PROMUSDT" (venue suffix stripped)
     side: str                      # "BUY" | "SELL"
     target: str                    # "virtual" | "real"
-    win: Optional[bool]
-    gross_pnl: Optional[float]
+    win: Optional[bool]            # pnl > 0 (fees not included)
+    pnl: Optional[float]           # before fees
     fee_usdt: float                # fees paid in USDT (incl. base-asset fees converted at fill price)
     fee_bnb: float                 # fees paid in BNB, native units
     fee_bnb_usdt: Optional[float]  # always None: BNB fees are not valued in USDT / not part of PnL
-    net_pnl: Optional[float]
-    roi_pct: Optional[float]
+    net_pnl: Optional[float]       # pnl - fee_usdt; None if fees could not be priced
+    roi_pct: Optional[float]       # on pnl (before fees)
     duration_s: Optional[float]
     fills_complete: Optional[bool]  # None = no fill quantities recorded at all
     notes: List[str] = field(default_factory=list)
@@ -203,19 +207,21 @@ def compute_trade_metrics(
             )
 
     # ---- PnL -------------------------------------------------------------
-    gross = net = roi = None
+    pnl = net = roi = None
     win: Optional[bool] = None
     if (
         trade.get("terminal_type") == "Closed"
         and direction is not None
         and size is not None and entry is not None and exit_ is not None
     ):
-        gross = direction * (exit_ - entry) * size
-        if not unpriced:
-            net = gross - fee_usdt
-            win = net > 0
-            notional = entry * size
-            roi = net / notional * 100 if notional > 0 else None
+        pnl = direction * (exit_ - entry) * size
+        win = pnl > 0
+        notional = entry * size
+        roi = pnl / notional * 100 if notional > 0 else None
+        if unpriced:
+            notes.append("fees not fully priced; net_pnl unavailable")
+        else:
+            net = pnl - fee_usdt
     elif trade.get("terminal_type") == "Cancelled" and entry is not None:
         notes.append("trade was cancelled after an entry fill; exit unknown, PnL unavailable")
 
@@ -230,7 +236,7 @@ def compute_trade_metrics(
         side=side,
         target=str(trade.get("target", "")),
         win=win,
-        gross_pnl=_f(gross),
+        pnl=_f(pnl),
         fee_usdt=float(fee_usdt),
         fee_bnb=float(fee_bnb),
         fee_bnb_usdt=None,
