@@ -612,7 +612,7 @@ def main():
     zvol_length = int(os.getenv("ZVOL_LENGTH", "20"))
     zvol_max_points = int(os.getenv("ZVOL_MAX_POINTS", "200"))
     zvol_anchor = os.getenv("ZVOL_ANCHOR", "1D").strip()
-    zvol_cvd_mode = os.getenv("ZVOL_CVD_MODE", "anchored").strip().lower()
+    zvol_cvd_mode = os.getenv("ZVOL_CVD_MODE", "bar").strip().lower()
     volume_filter = os.getenv("VOLUME_FILTER", "1") == "1"
     volume_filter_types = tuple(
         t.strip().upper() for t in os.getenv("VOLUME_FILTER_TYPES", "OS_CROSSOVER").split(",") if t.strip()

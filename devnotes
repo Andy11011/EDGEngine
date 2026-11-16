@@ -1392,3 +1392,57 @@ E
 E         comparison failed
 E         Obtained: 40.22654430634098
 E         Expected: 33.33333333333331 ± 3.3e-05
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+2026-11-16T16:30:00.144745458Z [INFO] EDGENGINE-001.MLMISignalStrategy: 🚫 ZECUSDT MLMI OS_CROSSOVER dropped: no Strong Bullish volume [2026-11-16 21:29:59 UTC+05:00]
+🧹 Purged 2 expired signal(s) (> 48h)
+📥 travis scan #115 @ 2026-11-16 17:44:48.236252: 19 pairs
+📤 scanner-events: QNTUSDT OB_CROSSOVER [2026-11-16T18:14:59Z] (MessageId 0f449d1a-9212-4f2b-a998-7c0421ec07b9)
+🔕 Webhook skipped (log only): QNTUSDT 15-MINUTE OVERBOUGHT CROSSUNDER (116.0) @ 156.47 [2026-11-16T18:44:59Z]
+
+
+
+[ec2-user@ip-10-0-1-86 ~]$ docker exec edge-scanner printenv VOLUME_LOOKBACK_BARS
+[ec2-user@ip-10-0-1-86 ~]$
+
+
+So the scanner’s own ZScoreVolume probably didn’t label that candle Strong Bullish, even though your chart did.
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+[ec2-user@ip-10-0-1-86 ~]$ docker exec -e PYTHONPATH=/app edge-scanner python3 /tmp/replay_zvol.py ZECUSDT "2026-11-16 16:30" 12
+ZECUSDT 15m  length=20 anchor=1D cvd_mode=anchored
+bar open (UTC)   bar close (UTC)  dir        volume       z       cvd  label
+11-16 13:45      11-16 14:00       dn        1,281   -0.35     -27,318  Neutral
+11-16 14:00      11-16 14:15       up        1,145   -0.43     -26,173  Neutral
+11-16 14:15      11-16 14:30       up        1,461   -0.21     -24,712  Neutral
+11-16 14:30      11-16 14:45       up        3,732    1.32     -20,980  Bearish Divergence
+11-16 14:45      11-16 15:00       dn        2,774    0.57     -23,754  Bearish Divergence
+11-16 15:00      11-16 15:15       dn        4,739    1.73     -28,493  Bearish Divergence
+11-16 15:15      11-16 15:30       dn        2,488    0.16     -30,980  Neutral
+11-16 15:30      11-16 15:45       up        1,945   -0.27     -29,035  Neutral
+11-16 15:45      11-16 16:00       up        2,102   -0.23     -26,933  Neutral
+11-16 16:00      11-16 16:15       dn        2,325   -0.08     -29,259  Neutral
+11-16 16:15      11-16 16:30       up        4,619    1.48     -24,639  Bearish Divergence
+11-16 16:30      11-16 16:45       dn        2,400   -0.18     -27,039  Neutral
+
+[ec2-user@ip-10-0-1-86 ~]$ docker exec -e PYTHONPATH=/app -e ZVOL_CVD_MODE=bar edge-scanner python3 /tmp/replay_zvol.py ZECUSDT "2026-11-16 16:15" 12
+ZECUSDT 15m  length=20 anchor=1D cvd_mode=bar
+bar open (UTC)   bar close (UTC)  dir        volume       z       cvd  label
+11-16 13:30      11-16 13:45       up        1,372   -0.25       1,372  Neutral
+11-16 13:45      11-16 14:00       dn        1,281   -0.35      -1,281  Neutral
+11-16 14:00      11-16 14:15       up        1,145   -0.43       1,145  Neutral
+11-16 14:15      11-16 14:30       up        1,461   -0.21       1,461  Neutral
+11-16 14:30      11-16 14:45       up        3,732    1.32       3,732  Strong Bullish  <== STRONG BULLISH
+11-16 14:45      11-16 15:00       dn        2,774    0.57      -2,774  Bearish Divergence
+11-16 15:00      11-16 15:15       dn        4,739    1.73      -4,739  Bearish Divergence
+11-16 15:15      11-16 15:30       dn        2,488    0.16      -2,488  Neutral
+11-16 15:30      11-16 15:45       up        1,945   -0.27       1,945  Neutral
+11-16 15:45      11-16 16:00       up        2,102   -0.23       2,102  Neutral
+11-16 16:00      11-16 16:15       dn        2,325   -0.08      -2,325  Neutral
+11-16 16:15      11-16 16:30       up        4,619    1.48       4,619  Strong Bullish  <== STRONG BULLISH
