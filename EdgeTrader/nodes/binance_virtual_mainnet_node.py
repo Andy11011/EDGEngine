@@ -30,6 +30,7 @@ import asyncio
 import os
 import sys
 from typing import Dict
+from orphan_sweeper import sweep_orphans
 
 from nautilus_trader.adapters.binance import (
     BINANCE,
@@ -376,6 +377,8 @@ def main() -> None:
             except Exception as e:
                 print(f"⚠️ Postgres connection failed: {e}, retrying in 5s...", file=sys.stderr)
                 await asyncio.sleep(5)
+
+        await sweep_orphans(db, TARGET, active_strategies)
 
         # Optional: turn edge-scanner signals into trade exits (see scanner_signals.py).
         # It only touches Postgres and fans out to BOTH targets through cancel_requests,
