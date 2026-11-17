@@ -120,6 +120,17 @@ jobs:
           role-to-assume: arn:aws:iam::298724921728:role/github-actions-ecr-push
           aws-region: ap-southeast-1
 
+      # --- temporary debug steps: remove once the 403 is understood ---
+      - name: Debug - who am I and what tooling is this
+        run: |
+          aws sts get-caller-identity
+          docker version --format 'docker client {{.Client.Version}} / server {{.Server.Version}}'
+          docker info --format 'storage driver: {{.Driver}}'
+
+      - name: Debug - can this role read the repository
+        run: |
+          aws ecr describe-repositories --repository-names "edgetrader/${{ matrix.image_name }}"
+
       - name: Log in to ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -132,14 +143,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # IMMUTABLE tags: a re-run for the same commit would fail at push,
-      # so skip if the tag is already there.
+      # so skip if the tag is already there. Real AWS errors are no longer
+      # swallowed: only "image not found" means "not promoted yet".
       - name: Check if already promoted
         id: exists
         run: |
-          if aws ecr describe-images \
+          if out=$(aws ecr describe-images \
               --repository-name "edgetrader/${{ matrix.image_name }}" \
-              --image-ids imageTag=${{ github.sha }} >/dev/null 2>&1; then
+              --image-ids imageTag=${{ github.sha }} 2>&1); then
+            echo "SHA tag already in ECR"
             echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif echo "$out" | grep -q "ImageNotFoundException"; then
+            echo "SHA tag not in ECR yet"
+          else
+            echo "::warning::describe-images failed unexpectedly: $out"
           fi
 
       # The SHA tag is pushed only if it isn't there yet. :latest is moved on
@@ -154,8 +171,12 @@ jobs:
           docker tag "$SRC" "$REPO:${{ github.sha }}"
           docker tag "$SRC" "$REPO:latest"
           if [ "${{ steps.exists.outputs.exists }}" != "true" ]; then
+            echo ">>> pushing SHA tag"
             docker push "$REPO:${{ github.sha }}"
+          else
+            echo ">>> SHA tag exists, skipping"
           fi
+          echo ">>> pushing :latest"
           docker push "$REPO:latest"
 
 
