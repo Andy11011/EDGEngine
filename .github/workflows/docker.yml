@@ -127,10 +127,6 @@ jobs:
           docker version --format 'docker client {{.Client.Version}} / server {{.Server.Version}}'
           docker info --format 'storage driver: {{.Driver}}'
 
-      - name: Debug - can this role read the repository
-        run: |
-          aws ecr describe-repositories --repository-names "edgetrader/${{ matrix.image_name }}"
-
       - name: Log in to ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
