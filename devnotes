@@ -1446,3 +1446,35 @@ bar open (UTC)   bar close (UTC)  dir        volume       z       cvd  label
 11-16 15:45      11-16 16:00       up        2,102   -0.23       2,102  Neutral
 11-16 16:00      11-16 16:15       dn        2,325   -0.08      -2,325  Neutral
 11-16 16:15      11-16 16:30       up        4,619    1.48       4,619  Strong Bullish  <== STRONG BULLISH
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+⏱️ [virtual] heartbeat iteration=12285 took 0.003s, sleeping 15.0s
+
+📡 [poll #12307] Long-polling SQS (virtual)...
+💰 [virtual] balance lookup ok (iteration=12286): 786.7365 USDT
+📡 [virtual] sqs status (iteration=12286): ok=True detail=none
+💓 [virtual] heartbeat (iteration=12286): is_running=True balance=786.73646077 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=12286)
+⏱️ [virtual] heartbeat iteration=12286 took 0.003s, sleeping 15.0s
+⚠️ [msg c1d20384-f84b-4e19-b9cb-de362bb06f67] No active trade; unclaiming
+⚠️ [msg c1d20384-f84b-4e19-b9cb-de362bb06f67] Not processed; message retained for retry
+📡 [poll #12308] Long-polling SQS (virtual)...
+📐 [msg 5cb9eaae-7b5b-4bba-9c29-c8e4ae9819c5] risk_ratio=0.001000 (rdyn: virtual 2026: 3 trades, CAGR -9.69%, start equity 786.74)
+❌ [msg 5cb9eaae-7b5b-4bba-9c29-c8e4ae9819c5] Failed to start strategy: strategy `order_id_tag` conflict for '001', explicitly define all `order_id_tag` values in your strategy configs
+⚠️ [msg 5cb9eaae-7b5b-4bba-9c29-c8e4ae9819c5] Not processed; message retained for retry
+📡 [poll #12309] Long-polling SQS (virtual)...
+2026-11-19T09:28:25.923536012Z [WARN] EDGETRADER-VIRTUAL.OrderMatchingEngine(BINANCE): Skipping stale trade: ts_event 1795080505887000064 < book.ts_last 1795080505922972750 for PROMUSDT.BINANCE
+2026-11-19T09:28:25.923742835Z [WARN] EDGETRADER-VIRTUAL.OrderMatchingEngine(BINANCE): Skipping stale trade: ts_event 1795080505887000064 < book.ts_last 1795080505922972750 for PROMUSDT.BINANCE
+💰 [virtual] balance lookup ok (iteration=12287): 786.7365 USDT
+📡 [virtual] sqs status (iteration=12287): ok=True detail=none
+💓 [virtual] heartbeat (iteration=12287): is_running=True balance=786.73646077 detail=none sqs_ok=True
+✅ [virtual] heartbeat row written (iteration=12287)
+⏱️ [virtual] heartbeat iteration=12287 took 0.004s, sleeping 15.0s
+📐 [msg 638adc6a-51b5-4b25-b5cf-9af333264814] risk_ratio=0.001000 (rdyn: virtual 2026: 3 trades, CAGR -9.69%, start equity 786.74)
+❌ [msg 638adc6a-51b5-4b25-b5cf-9af333264814] Failed to start strategy: strategy `order_id_tag` conflict for '001', explicitly define all `order_id_tag` values in your strategy configs
+⚠️ [msg 638adc6a-51b5-4b25-b5cf-9af333264814] Not processed; message retained for retry
+📡 [poll #12310] Long-polling SQS (virtual)...

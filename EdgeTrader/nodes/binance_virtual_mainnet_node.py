@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import zlib
 import sys
 from typing import Dict
 from orphan_sweeper import sweep_orphans
@@ -262,6 +263,7 @@ async def listen_trade_events(
                             sl_price=float(sl) if sl is not None else None,
                             tp_price=float(tp) if tp is not None else None,
                             strategy_id=trade_id,
+                            order_id_tag=zlib.crc32(trade_id.encode()).to_bytes(4, 'big').hex(),
                             target=TARGET,
                         )
                         strategy = TradeStrategy(config, close_callback=make_close_callback(trade_id))
