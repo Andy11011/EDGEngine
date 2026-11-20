@@ -14,8 +14,8 @@ WHAT THIS TEST CHECKS, END TO END:
   2. A message sent to the trade-events queue is picked up by the node.
      (SNS topic / subscription filter routing is NOT covered here: the
      message goes directly to the queue.)
-  3. The node starts a TradeStrategy for the trade and accepts the entry
-     order (awaiting fill).
+  3. The node starts a TradeStrategy for the trade and, for classic, accepts the
+     entry order (awaiting fill); for smart, it starts waiting for a candle.
 
      IMPORTANT (changed from earlier revisions): the node stamps its OWN
      receive-time into the trade_id — it does NOT derive the id from the
@@ -44,6 +44,21 @@ WHAT THIS TEST CHECKS, END TO END:
      Cancelled event is logged, and the trade disappears from
      /active_trades.
   6. The app is still healthy afterwards.
+
+STRATEGY-AWARE (classic | smart):
+  The node image bakes in one trading strategy at build time (ENV TRADE_STRATEGY,
+  see the node Dockerfiles). This test reads it from the running container
+  (detect_strategy(); EXPECT_TRADE_STRATEGY overrides; images without the variable
+  are classic) and checks the log lines THAT strategy produces:
+    classic: the entry is a resting limit order -> "Entry order accepted, awaiting
+             fill"; cancelling cancels that order ("Order canceled: edge-<id>-entry").
+    smart:   NO order exists until a qualifying 15-minute candle closes, so the trade
+             just waits ("waiting for a candle closing in ..."); cancelling is a pure
+             strategy action ("Cancelling <id> before entry", no venue call); and the
+             test asserts that NO entry order was submitted at any point.
+  To keep the smart run deterministic it never straddles a candle close: if fewer than
+  QUIET_WINDOW_S seconds remain in the current 15-minute candle it first waits for the
+  next one to start (wait_for_quiet_candle_window()).
 
 WHAT THIS TEST DOES NOT COVER: fills, protection orders (SL/TP), or the
 Filled/Protected/Closed path — this is the Open->Cancel lifecycle only.
@@ -306,8 +321,85 @@ def publish_event(body):
     return resp["MessageId"]
 
 
+# ---------------------------------------------------------------------------
+# Strategy awareness
+# ---------------------------------------------------------------------------
+CANDLE_SECONDS = 15 * 60       # BINANCE_BAR_INTERVAL default "15-MINUTE"; klines open on :00 :15 :30 :45 UTC
+QUIET_WINDOW_S = 120           # smart: required time left in the current candle when the trade starts
+
+
+def detect_strategy():
+    """Which strategy this node image was built with: 'classic' or 'smart'.
+
+    Order: EXPECT_TRADE_STRATEGY env override, then the TRADE_STRATEGY variable
+    baked into the image (ENV TRADE_STRATEGY=${STRATEGY} in the node Dockerfiles),
+    else 'classic' (images built before that variable existed were classic)."""
+    forced = os.environ.get("EXPECT_TRADE_STRATEGY", "").strip().lower()
+    if forced:
+        return forced
+    out = subprocess.run(
+        ["docker", "inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", CONTAINER_NAME],
+        capture_output=True, text=True, check=False,
+    )
+    for line in (out.stdout or "").splitlines():
+        if line.startswith("TRADE_STRATEGY="):
+            return line.split("=", 1)[1].strip().lower() or "classic"
+    return "classic"
+
+
+# What each strategy is expected to log. Every entry is a function of trade_id.
+STRATEGY_EXPECTATIONS = {
+    "classic": {
+        "started": lambda t: f"TradeStrategy started for {t}",
+        "open_logs": lambda t: [f"Entry order accepted, awaiting fill (trade={t})"],
+        "cancel_logs": lambda t: [
+            f"Cancelling entry order for {t}",
+            f"Order canceled: edge-{t}-entry",
+        ],
+        "forbidden_logs": lambda t: [],
+    },
+    "smart": {
+        "started": lambda t: f"TradeStrategy[smart] started for {t}",
+        "open_logs": lambda t: [f"{t}: waiting for a candle closing in"],
+        "cancel_logs": lambda t: [f"Cancelling {t} before entry"],
+        # No candle has qualified, so no entry order may ever have been sent.
+        "forbidden_logs": lambda t: [
+            f"Market entry submitted for {t}",
+            f"Entry order submitted for {t}",
+            f"Order canceled: edge-{t}-entry",
+        ],
+    },
+}
+
+
+def wait_for_quiet_candle_window(min_remaining_s=QUIET_WINDOW_S, settle_s=5):
+    """Smart only: make sure no 15-minute candle closes while the test runs.
+
+    A candle closing mid-test would be judged by the strategy (enter / cancel / wait)
+    and could end the trade before the test cancels it. If fewer than `min_remaining_s`
+    seconds are left in the current candle, sleep until the next one has started.
+    Returns the seconds slept."""
+    remaining = CANDLE_SECONDS - (time.time() % CANDLE_SECONDS)
+    if remaining >= min_remaining_s:
+        return 0.0
+    pause = remaining + settle_s
+    print(f"\nsmart: only {remaining:.0f}s left in the current candle; waiting {pause:.0f}s for the next one")
+    time.sleep(pause)
+    return pause
+
+
 def test_open_then_cancel_trade_lifecycle_virtual(record_property):
     assert wait_for_healthy(), "Virtual node did not become healthy before starting the trade lifecycle test"
+
+    strategy = detect_strategy()
+    assert strategy in STRATEGY_EXPECTATIONS, (
+        f"Unknown trade strategy {strategy!r}; expected one of {sorted(STRATEGY_EXPECTATIONS)}"
+    )
+    expect = STRATEGY_EXPECTATIONS[strategy]
+    record_property("trade_strategy", strategy)
+    print(f"\nnode strategy under test: {strategy}")
+    if strategy == "smart":
+        wait_for_quiet_candle_window()
 
     # Baseline the log stream BEFORE publishing anything, so both the
     # trade_id discovery and the lifecycle assertions below can't be
@@ -363,14 +455,21 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
     logs = wait_for_logs(
         [
             f"Started strategy for trade {trade_id}",
-            f"TradeStrategy started for {trade_id}",
-            f"Entry order accepted, awaiting fill (trade={trade_id})",
+            expect["started"](trade_id),
+            *expect["open_logs"](trade_id),
             f"Logged Opened event for {trade_id} (target={TARGET})",
         ],
         baseline=open_baseline,
     )
-    assert f"TradeStrategy started for {trade_id}" in logs, (
-        f"TradeStrategy never started for {trade_id}; logs:\n{logs[-3000:]}"
+    assert expect["started"](trade_id) in logs, (
+        f"TradeStrategy[{strategy}] never started for {trade_id} (expected log "
+        f"{expect['started'](trade_id)!r}; is the image really built with STRATEGY={strategy}?); "
+        f"logs:\n{logs[-3000:]}"
+    )
+    for line in expect["open_logs"](trade_id):
+        assert line in logs, f"[{strategy}] expected log line {line!r} not found; logs:\n{logs[-3000:]}"
+    assert f"Logged Opened event for {trade_id} (target={TARGET})" in logs, (
+        f"[{strategy}] Opened event was never written for {trade_id}; logs:\n{logs[-3000:]}"
     )
 
     resp = requests.get(HEALTH_URL, timeout=5)
@@ -383,8 +482,9 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
     # trade_strategy.py's in-memory state machine (AWAITING_FILL,
     # IN_POSITION, etc.), which lives only inside the running node process.
     # So "AWAITING_FILL" is never a value this endpoint can return — the
-    # node reaching AWAITING_FILL internally is instead confirmed above via
-    # the "Entry order accepted, awaiting fill" log line.
+    # node reaching AWAITING_FILL (classic) / AWAITING_SETUP (smart) internally is
+    # instead confirmed above via the strategy's own log lines. For smart, the 'Opened'
+    # event is written when the wait starts, which is what makes the trade visible here.
     trade = wait_for_trade_state(trade_id, "Opened")
     assert trade is not None, f"{trade_id} never appeared as an active (Opened) trade in /active_trades"
     assert trade["instrument"] == TEST_TICKER
@@ -418,12 +518,10 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
         "occurred_at": iso_ms_now(),
     })
 
-    entry_client_order_id = f"edge-{trade_id}-entry"
     logs = wait_for_logs(
         [
             f"Cancel requested for {trade_id}",
-            f"Cancelling entry order for {trade_id}",
-            f"Order canceled: {entry_client_order_id}",
+            *expect["cancel_logs"](trade_id),
             f"Trade {trade_id} reached terminal state",
             f"TradeStrategy stopped for {trade_id}",
             f"Removed strategy for trade {trade_id}",
@@ -435,6 +533,19 @@ def test_open_then_cancel_trade_lifecycle_virtual(record_property):
         f"Cancel never found an active trade for {trade_id}; logs:\n{logs[-3000:]}"
     assert f"Removed strategy for trade {trade_id}" in logs, \
         f"Strategy for {trade_id} was never removed; logs:\n{logs[-3000:]}"
+    for line in expect["cancel_logs"](trade_id):
+        assert line in logs, f"[{strategy}] expected cancel log line {line!r} not found; logs:\n{logs[-3000:]}"
+    assert f"Logged Cancelled event for {trade_id} (target={TARGET})" in logs, (
+        f"[{strategy}] Cancelled event was never written for {trade_id}; logs:\n{logs[-3000:]}"
+    )
+
+    # Strategy-specific negatives over the WHOLE trade (open + cancel). For smart: no entry
+    # order was ever submitted or cancelled, because no candle qualified.
+    whole_trade_logs = _scoped(get_container_logs(), open_baseline)
+    for line in expect["forbidden_logs"](trade_id):
+        assert line not in whole_trade_logs, (
+            f"[{strategy}] unexpected log line {line!r} for {trade_id}; logs:\n{whole_trade_logs[-3000:]}"
+        )
 
     # Regression check for the double-stop bug: _finalize_and_stop() used to
     # call self.stop() again after the close_callback's remove_strategy()
