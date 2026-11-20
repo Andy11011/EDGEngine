@@ -19,6 +19,13 @@ RUN pip install --no-cache-dir -r requirements-nodes.txt
 # This container never places a real
 # order and never touches the Ed25519 real-exec credentials at all.
 COPY EdgeTrader/*.py ./
+# Trading strategy, chosen at BUILD time:
+#   docker build --build-arg STRATEGY=smart -f Dockerfile.binance_real .
+# Any EdgeTrader/strategies/trade_strategy_<STRATEGY>.py works (default: classic). An unknown
+# name fails the build here (file not found). The nodes keep importing `trade_strategy`.
+ARG STRATEGY=smart
+ENV TRADE_STRATEGY=${STRATEGY}
+COPY EdgeTrader/strategies/trade_strategy_${STRATEGY}.py ./trade_strategy.py
 COPY EdgeTrader/account/*.py ./
 COPY EdgeTrader/nodes/binance_virtual_mainnet_node.py ./
 COPY EdgeTrader/sinks/*.py ./

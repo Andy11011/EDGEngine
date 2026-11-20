@@ -262,13 +262,15 @@ You do **not** need to create the SNS topic yet – that’s Step 2 of the integ
 For virtual mainnet node:
 
 ```powershell
-docker build -f docker/Dockerfile.binance_virtual_mainnet -t binance-virtual-mainnet-node:latest .
+docker build --build-arg STRATEGY=smart -f docker/Dockerfile.binance_virtual_mainnet -t binance-virtual-mainnet-node:latest .
+docker build --build-arg STRATEGY=classic -f docker/Dockerfile.binance_virtual_mainnet -t binance-virtual-mainnet-node:latest . # default
 ```
 
 For live trading node:
 
 ```powershell
-docker build -f docker/Dockerfile.binance_real -t binance-real-node:latest .
+docker build --build-arg STRATEGY=smart   -f docker/Dockerfile.binance_real . -t binance-real-node:latest .
+docker build --build-arg STRATEGY=classic -f docker/Dockerfile.binance_real . -t binance-real-node:latest .  # default
 ```
 
 For api server:

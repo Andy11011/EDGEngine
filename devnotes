@@ -1478,3 +1478,18 @@ bar open (UTC)   bar close (UTC)  dir        volume       z       cvd  label
 ❌ [msg 638adc6a-51b5-4b25-b5cf-9af333264814] Failed to start strategy: strategy `order_id_tag` conflict for '001', explicitly define all `order_id_tag` values in your strategy configs
 ⚠️ [msg 638adc6a-51b5-4b25-b5cf-9af333264814] Not processed; message retained for retry
 📡 [poll #12310] Long-polling SQS (virtual)...
+
+
+//--------------------//
+//--------------------//
+//--------------------//
+
+Goal 2: the Smart strategy
+
+Size is calculated exactly as in classic, from EP and SL.
+No limit or market order is placed up front. The strategy waits for candles to close.
+On each candle close, it checks whether the candle qualifies against the EP-SL zone:
+Case A: the whole body is inside the zone.
+Case B: the candle closed inside the zone and has a wick of 30% or more.
+If either case matches, it enters immediately with a market order at the close. 
+From there, SL/TP and the rest of the lifecycle presumably work as in classic.
